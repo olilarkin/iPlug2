@@ -49,10 +49,10 @@ public:
   void PathFill(const IPattern& pattern, const IFillOptions& options, const IBlend* pBlend) override;
   
   IColor GetPoint(int x, int y) override;
-  void* GetDrawContext() override { return (void*) mContext; }
-    
+  void* GetDrawContext() override { return (void*) GetPlatformContext(); } // same on quartz?
+  void SetPlatformContext(void* pContext) override { mContext = (CGContextRef) pContext; IGraphics::SetPlatformContext(pContext); }
+
   void EndFrame() override;
-  void SetPlatformContext(void* pContext) override;
   void DrawResize() override;
 
   bool BitmapExtSupported(const char* ext) override;

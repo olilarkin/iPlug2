@@ -619,7 +619,7 @@
 		4FA9F80321F760C1004E6FE2 /* IGraphicsLice_src.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = IGraphicsLice_src.mm; sourceTree = "<group>"; };
 		4FA9F80C21F76177004E6FE2 /* IGraphicsAGG_src.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = IGraphicsAGG_src.mm; sourceTree = "<group>"; };
 		4FB1BC7022C7B16400146950 /* IGraphicsQuartz.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = IGraphicsQuartz.h; sourceTree = "<group>"; };
-		4FB1BC7122C7B2A900146950 /* IGraphicsQuartz.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = IGraphicsQuartz.cpp; sourceTree = "<group>"; };
+		4FB1BC7122C7B2A900146950 /* IGraphicsQuartz.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = IGraphicsQuartz.mm; sourceTree = "<group>"; };
 		4FB1F57B20E4AFEE004157C8 /* IGraphicsIOS_view.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = IGraphicsIOS_view.mm; path = ../../../IGraphics/Platforms/IGraphicsIOS_view.mm; sourceTree = "<group>"; };
 		4FB1F57C20E4AFEE004157C8 /* IGraphicsWeb.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = IGraphicsWeb.cpp; path = ../../../IGraphics/Platforms/IGraphicsWeb.cpp; sourceTree = "<group>"; };
 		4FB1F57D20E4AFEE004157C8 /* IGraphicsLinux.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = IGraphicsLinux.cpp; path = ../../../IGraphics/Platforms/IGraphicsLinux.cpp; sourceTree = "<group>"; };
@@ -902,7 +902,7 @@
 				4F97BD8A213760E200541A17 /* IGraphicsCanvas.cpp */,
 				4F97BD89213760E200541A17 /* IGraphicsCanvas.h */,
 				4FB1BC7022C7B16400146950 /* IGraphicsQuartz.h */,
-				4FB1BC7122C7B2A900146950 /* IGraphicsQuartz.cpp */,
+				4FB1BC7122C7B2A900146950 /* IGraphicsQuartz.mm */,
 			);
 			name = Drawing;
 			path = ../../../IGraphics/Drawing;

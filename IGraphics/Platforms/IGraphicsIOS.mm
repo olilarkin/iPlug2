@@ -22,7 +22,7 @@ StaticStorage<CoreTextFontDescriptor> sFontDescriptorCache;
 #pragma mark -
 
 IGraphicsIOS::IGraphicsIOS(IGEditorDelegate& dlg, int w, int h, int fps, float scale)
-: IGraphicsNanoVG(dlg, w, h, fps, scale)
+: IGRAPHICS_DRAW_CLASS(dlg, w, h, fps, scale)
 {
 }
 
@@ -201,3 +201,9 @@ void IGraphicsIOS::CachePlatformFont(const char* fontID, const PlatformFontPtr& 
 {
   CoreTextHelpers::CachePlatformFont(fontID, font, sFontDescriptorCache);
 }
+
+#if defined IGRAPHICS_QUARTZ
+  #include "IGraphicsQuartz.mm"
+#elif defined IGRAPHICS_NANOVG
+  #include "IGraphicsNanoVG.cpp"
+#endif

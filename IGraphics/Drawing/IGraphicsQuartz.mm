@@ -10,8 +10,6 @@
 
 #include <cmath>
 
-#include "png.h"
-
 #include "IGraphicsQuartz.h"
 #include "ITextEntryControl.h"
 
@@ -153,13 +151,12 @@ void IGraphicsQuartz::DoDrawText(const IText& text, const char* str, const IRECT
 {
 }
 
-void IGraphicsQuartz::SetPlatformContext(void* pContext)
-{
-  IGraphics::SetPlatformContext(pContext);
-}
-
 void IGraphicsQuartz::EndFrame()
 {
+  CGContextSetRGBFillColor (mContext, 1, 0, 0, 1);// 3
+  CGContextFillRect (mContext, CGRectMake (0, 0, 200, 100 ));// 4
+  CGContextSetRGBFillColor (mContext, 0, 0, 1, .5);// 5
+  CGContextFillRect (mContext, CGRectMake (0, 0, 100, 200));
 }
 
 bool IGraphicsQuartz::LoadAPIFont(const char* fontID, const PlatformFontPtr& font)

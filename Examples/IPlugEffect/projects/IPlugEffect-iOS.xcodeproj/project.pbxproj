@@ -27,7 +27,6 @@
 		4F2602CF2269F15000C7E97E /* IPlugAPIBase.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4FFF103A20A0E55900D3092F /* IPlugAPIBase.cpp */; };
 		4F2602D12269F15000C7E97E /* IPlugParameter.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4FFF103220A0E55900D3092F /* IPlugParameter.cpp */; };
 		4F2602D22269F15000C7E97E /* IPlugPaths.mm in Sources */ = {isa = PBXBuildFile; fileRef = 4FA758452186222E00F1BCC3 /* IPlugPaths.mm */; };
-		4F2602D32269F1A600C7E97E /* IGraphicsNanoVG.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4F63698020A463AF0022C370 /* IGraphicsNanoVG.cpp */; };
 		4F2602D52269F38900C7E97E /* IPlugEffect.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4FFF108720A1036200D3092F /* IPlugEffect.cpp */; };
 		4F2602D62269F39100C7E97E /* IPlugEffect.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4FFF108720A1036200D3092F /* IPlugEffect.cpp */; };
 		4F2602D72269F3AA00C7E97E /* IPlugTimer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4FFF103920A0E55900D3092F /* IPlugTimer.cpp */; };
@@ -759,7 +758,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				4F2602D72269F3AA00C7E97E /* IPlugTimer.cpp in Sources */,
-				4F2602D32269F1A600C7E97E /* IGraphicsNanoVG.cpp in Sources */,
 				4FFE371D226F2B0C00CFAC71 /* IGraphicsNanoVG_src.m in Sources */,
 				4F2602C12269F15000C7E97E /* IGraphicsCoreText.mm in Sources */,
 				4F2602C22269F15000C7E97E /* IGraphicsIOS.mm in Sources */,
