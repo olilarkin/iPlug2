@@ -62,6 +62,12 @@
     #if defined IGRAPHICS_GL || defined IGRAPHICS_METAL
       #error When using IGRAPHICS_CAIRO, don't define IGRAPHICS_METAL or IGRAPHICS_GL*
     #endif
+  #elif defined IGRAPHICS_QUARTZ
+    #include "IGraphicsQuartz.h"
+    using IGRAPHICS_DRAW_CLASS = IGraphicsQuartz;
+    #if defined IGRAPHICS_GL || defined IGRAPHICS_METAL
+      #error When using IGRAPHICS_QUARTZ, don't define IGRAPHICS_METAL or IGRAPHICS_GL*
+    #endif
   #elif defined IGRAPHICS_NANOVG
     #include "IGraphicsNanoVG.h"
     using IGRAPHICS_DRAW_CLASS = IGraphicsNanoVG;
