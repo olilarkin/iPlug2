@@ -320,7 +320,7 @@ APIBitmap* IGraphicsNanoVG::CreateAPIBitmap(int width, int height, int scale, do
 
   if (mInDraw)
   {
-    nvgBindFramebuffer(mMainFrameBuffer); // begin main frame buffer update
+    nvgBindFramebuffer(nullptr); // begin main frame buffer update
     nvgBeginFrame(mVG, WindowWidth(), WindowHeight(), GetScreenScale());
   }
   
@@ -406,10 +406,6 @@ void IGraphicsNanoVG::OnViewDestroyed()
   StaticStorage<APIBitmap>::Accessor storage(mBitmapCache);
   storage.Clear();
   
-  if(mMainFrameBuffer != nullptr)
-    nvgDeleteFramebuffer(mMainFrameBuffer);
-  
-  mMainFrameBuffer = nullptr;
   
   if(mVG)
     nvgDeleteContext(mVG);
@@ -419,14 +415,6 @@ void IGraphicsNanoVG::OnViewDestroyed()
 
 void IGraphicsNanoVG::DrawResize()
 {
-  if (mMainFrameBuffer != nullptr)
-    nvgDeleteFramebuffer(mMainFrameBuffer);
-  
-  if (mVG)
-    mMainFrameBuffer = nvgCreateFramebuffer(mVG, WindowWidth() * GetScreenScale(), WindowHeight() * GetScreenScale(), 0);
-  
-  if (mMainFrameBuffer == nullptr)
-    DBGMSG("Could not init FBO.\n");
 }
 
 void IGraphicsNanoVG::BeginFrame()
@@ -438,33 +426,19 @@ void IGraphicsNanoVG::BeginFrame()
   //  mnvgClearWithColor(mVG, nvgRGBAf(0, 0, 0, 0));
 #else
     glViewport(0, 0, WindowWidth() * GetScreenScale(), WindowHeight() * GetScreenScale());
-    glClearColor(0.f, 0.f, 0.f, 0.f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+//    glClearColor(0.f, 0.f, 0.f, 0.f);
+//    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
   #if defined OS_MAC
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &mInitialFBO); // stash apple fbo
+    DBGMSG("FBO %i\n", mInitialFBO);
   #endif
 #endif
   
-  nvgBindFramebuffer(mMainFrameBuffer); // begin main frame buffer update
   nvgBeginFrame(mVG, WindowWidth(), WindowHeight(), GetScreenScale());
 }
 
 void IGraphicsNanoVG::EndFrame()
 {
-  nvgEndFrame(mVG); // end main frame buffer update
-  nvgBindFramebuffer(nullptr);
-  nvgBeginFrame(mVG, WindowWidth(), WindowHeight(), GetScreenScale());
-  
-  NVGpaint img = nvgImagePattern(mVG, 0, 0, WindowWidth(), WindowHeight(), 0, mMainFrameBuffer->image, 1.0f);
-
-  nvgSave(mVG);
-  nvgResetTransform(mVG);
-  nvgBeginPath(mVG);
-  nvgRect(mVG, 0, 0, WindowWidth(), WindowHeight());
-  nvgFillPaint(mVG, img);
-  nvgFill(mVG);
-  nvgRestore(mVG);
-  
 #if defined OS_MAC && defined IGRAPHICS_GL
   glBindFramebuffer(GL_FRAMEBUFFER, mInitialFBO); // restore apple fbo
 #endif
@@ -688,7 +662,7 @@ void IGraphicsNanoVG::UpdateLayer()
 #ifdef IGRAPHICS_GL
     glViewport(0, 0, WindowWidth() * GetScreenScale(), WindowHeight() * GetScreenScale());
 #endif
-    nvgBindFramebuffer(mMainFrameBuffer);
+    nvgBindFramebuffer(nullptr);
     nvgBeginFrame(mVG, WindowWidth(), WindowHeight(), GetScreenScale());
   }
   else

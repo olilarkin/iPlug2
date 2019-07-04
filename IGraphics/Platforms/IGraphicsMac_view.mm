@@ -603,6 +603,8 @@ extern StaticStorage<CoreTextFontDescriptor> sFontDescriptorCache;
 #endif
 }
 
+static int count = 0;
+
 - (void) onTimer: (NSTimer*) pTimer
 {
   mDirtyRects.Clear();
@@ -610,13 +612,19 @@ extern StaticStorage<CoreTextFontDescriptor> sFontDescriptorCache;
   if (mGraphics->IsDirty(mDirtyRects))
   {
 #ifdef IGRAPHICS_GL
+    DBGMSG("%i\n", count);
     [self.layer setNeedsDisplay];
 #else
     [self render];
 #endif
+    if(count++ % 2)
+    {
+      mGraphics->SetAllControlsClean();
+    }
   }
-  
-  mGraphics->SetAllControlsClean();
+  else
+    mGraphics->SetAllControlsClean();
+
 }
 
 - (void) getMouseXY: (NSEvent*) pEvent x: (float&) pX y: (float&) pY
