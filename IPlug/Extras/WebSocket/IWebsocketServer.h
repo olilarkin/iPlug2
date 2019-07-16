@@ -38,8 +38,10 @@ public:
   
   bool SendDataToConnection(int idx, void* pData, size_t sizeInBytes, int exclude = -1);
   
-  virtual void OnWebsocketReady(int idx);
+  virtual void OnWebsocketReady(int idx) {};
   
+  virtual void OnWebsocketDisconnected(int idx) {};
+
   virtual bool OnWebsocketText(int idx, const char* str, size_t dataSize);
   
   virtual bool OnWebsocketData(int idx, void* pData, size_t dataSize);

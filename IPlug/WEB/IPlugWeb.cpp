@@ -145,6 +145,9 @@ void _SendControlValueFromDelegate(int controlTag, double normalizedValue)
 
 void _SendParameterValueFromDelegate(int paramIdx, double normalizedValue)
 {
+  gPlug->GetParam(paramIdx)->SetNormalized(normalizedValue);
+  gPlug->OnParamChange(paramIdx);
+  gPlug->OnParamChangeUI(paramIdx);
   gPlug->SendParameterValueFromDelegate(paramIdx, normalizedValue, true);
 }
 

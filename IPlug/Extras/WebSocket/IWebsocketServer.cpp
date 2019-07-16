@@ -86,10 +86,6 @@ bool IWebsocketServer::SendDataToConnection(int idx, void* pData, size_t sizeInB
   return DoSendToConnection(idx, MG_WEBSOCKET_OPCODE_BINARY, (const char*) pData, sizeInBytes, exclude);
 }
 
-void IWebsocketServer::OnWebsocketReady(int idx)
-{
-}
-
 bool IWebsocketServer::OnWebsocketText(int idx, const char* str, size_t dataSize)
 {
   return true; // return true to keep the connection open
@@ -175,6 +171,8 @@ bool IWebsocketServer::handleData(CivetServer* pServer, struct mg_connection* pC
 void IWebsocketServer::handleClose(CivetServer* pServer, const struct mg_connection* pConn)
 {
   WDL_MutexLock lock(&mMutex);
+  
+  OnWebsocketDisconnected(mConnections.Find(pConn));
 
   mConnections.DeletePtr(pConn);
   

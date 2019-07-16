@@ -4,7 +4,6 @@
 IWebsocketEditorDelegate::IWebsocketEditorDelegate(int nParams)
 : IGEditorDelegate(nParams)
 {
-  
 }
 
 IWebsocketEditorDelegate::~IWebsocketEditorDelegate()
@@ -13,15 +12,31 @@ IWebsocketEditorDelegate::~IWebsocketEditorDelegate()
 
 void IWebsocketEditorDelegate::OnWebsocketReady(int connIdx)
 {
-  //TODO: need to send serialize state and send it to the client
+  mConnectionQueues.push_back(std::make_unique<ConnectionQueueHolder>(connIdx)); //TODO: need a better way to identify client
+}
+
+void IWebsocketEditorDelegate::OnWebsocketDisconnected(int connIdx)
+{
+  mConnectionQueues.erase(std::find_if(mConnectionQueues.begin(), mConnectionQueues.end(), [connIdx] (const std::unique_ptr<ConnectionQueueHolder>& cqh)
+                                                                                            { return cqh.get()->connectionIdx == connIdx; }));
+  //TODO: need a better way to identify client
 }
 
 bool IWebsocketEditorDelegate::OnWebsocketText(int connIdx, const char* pStr, size_t dataSize)
 {
+  if(dataSize == 11)
+  {
+    if(strcmp(pStr, "syncRequest"))
+      mNewConnection.store(true);
+  }
+  
   return true; // return true to keep the connection open
 }
 
-//this method gets called on server connection thread
+//In OnWebsocketData (which gets called on server connection thread)
+//when the user of a client edits their remote UI, push the edit into the SPSC queue for this thread
+//to be handled on the main thread in ProcessWebSocketQueue
+//where it will be used to update the server side and other clients
 bool IWebsocketEditorDelegate::OnWebsocketData(int connIdx, void* pData, size_t dataSize)
 {
   uint8_t* pByteData = (uint8_t*) pData;
@@ -33,7 +48,7 @@ bool IWebsocketEditorDelegate::OnWebsocketData(int connIdx, void* pData, size_t 
     int paramIdx = * ((int*)(pByteData + pos)); pos+= 4;
     double value = * ((double*)(pByteData + pos)); pos += 8;
     
-    mParamChangeFromClients.Push(ParamTupleCX { paramIdx, value, connIdx } );
+    mConnectionQueues[connIdx]->ParamChangesFromClient.Push(ParamTuple { paramIdx, value } );
   }
   // Send MIDI Message from UI
   else if (memcmp(pData, "SMMFUI" , 6) == 0)
@@ -43,7 +58,7 @@ bool IWebsocketEditorDelegate::OnWebsocketData(int connIdx, void* pData, size_t 
     msg.mData1 = * ((uint8_t*)(pByteData + pos)); pos++;
     msg.mData2 = * ((uint8_t*)(pByteData + pos)); pos++;
 
-    mMIDIFromClients.Push(msg);
+     mConnectionQueues[connIdx]->MIDIFromClient.Push(msg);
   }
   // Send Sysex Message from UI
   else if (memcmp(pData, "SSMFUI" , 6) == 0)
@@ -53,10 +68,9 @@ bool IWebsocketEditorDelegate::OnWebsocketData(int connIdx, void* pData, size_t 
   // Send Arbitary Message from UI
   else if (memcmp(pData, "SAMFUI" , 6) == 0) // send arbitrary message from user interface
   {
+    //TODO:
   }
-  
-  //TODO: should now echo message to other clients
-  
+
   return true;
 }
 
@@ -102,7 +116,6 @@ void IWebsocketEditorDelegate::SendArbitraryMsgFromUI(int messageTag, int contro
   IGEditorDelegate::SendArbitraryMsgFromUI(messageTag, controlTag, dataSize, pData);
 }
 
-
 //void IWebsocketEditorDelegate::BeginInformHostOfParamChangeFromUI(int paramIdx)
 //{
 //  IGEditorDelegate::BeginInformHostOfParamChangeFromUI(paramIdx);
@@ -110,7 +123,7 @@ void IWebsocketEditorDelegate::SendArbitraryMsgFromUI(int messageTag, int contro
 
 void IWebsocketEditorDelegate::SendParameterValueFromUI(int paramIdx, double value)
 {
-  DoSPVFDToClients(paramIdx, value, -1 /*Server-side UI edit, send to all clients*/);
+  DoSPVFDToClients(paramIdx, value, -1, -1 /*Server-side UI edit, send to all clients*/);
   IGEditorDelegate::SendParameterValueFromUI(paramIdx, value);
 }
 
@@ -185,39 +198,55 @@ void IWebsocketEditorDelegate::SendSysexMsgFromDelegate(const ISysEx& msg)
 
 void IWebsocketEditorDelegate::ProcessWebsocketQueue()
 {
-  while(mParamChangeFromClients.ElementsAvailable())
+  for (int el =0; el < mConnectionQueues.size(); el++)
   {
-    ParamTupleCX p;
-    mParamChangeFromClients.Pop(p);
+    ConnectionQueueHolder* pQueueHolder = mConnectionQueues[el].get();
     
-    ENTER_PARAMS_MUTEX;
-    IParam* pParam = GetParam(p.idx);
+    while(pQueueHolder->ParamChangesFromClient.ElementsAvailable())
+    {
+      ParamTuple p;
+      pQueueHolder->ParamChangesFromClient.Pop(p);
+      
+      ENTER_PARAMS_MUTEX;
+      IParam* pParam = GetParam(p.idx);
+      
+      if(pParam)
+        pParam->SetNormalized(p.value);
+      LEAVE_PARAMS_MUTEX;
+      
+      OnParamChange(p.idx, kHost, -1);
+      OnParamChangeUI(p.idx, kHost);
+      
+      // echo parameter changes to other clients
+      DoSPVFDToClients(p.idx, p.value, -1, pQueueHolder->connectionIdx /* exclude = connection */);
+      
+      SendParameterValueFromDelegate(p.idx, p.value, true); // TODO:  if the parameter hasn't changed maybe we shouldn't do anything?
+    }
     
-    if(pParam)
-      pParam->SetNormalized(p.value);
-    LEAVE_PARAMS_MUTEX;
-
-    OnParamChange(p.idx, kHost, -1);
-    OnParamChangeUI(p.idx, kHost);
-
-    DoSPVFDToClients(p.idx, p.value, p.connection /* exclude = connection */);
-    
-    SendParameterValueFromDelegate(p.idx, p.value, true); // TODO:  if the parameter hasn't changed maybe we shouldn't do anything?
+    while (pQueueHolder->MIDIFromClient.ElementsAvailable()) {
+      IMidiMsg msg;
+      pQueueHolder->MIDIFromClient.Pop(msg);
+      IGEditorDelegate::SendMidiMsgFromDelegate(msg); // Call the superclass, since we don't want to send another MIDI message to the websocket
+      DeferMidiMsg(msg); // can't just call SendMidiMsgFromUI here which would cause a feedback loop
+    }
   }
   
-  while (mMIDIFromClients.ElementsAvailable()) {
-    IMidiMsg msg;
-    mMIDIFromClients.Pop(msg);
-    IGEditorDelegate::SendMidiMsgFromDelegate(msg); // Call the superclass, since we don't want to send another MIDI message to the websocket
-    DeferMidiMsg(msg); // can't just call SendMidiMsgFromUI here which would cause a feedback loop
+  //TODO: really need to serialize state and send it to the clients
+  if(mNewConnection.load())
+  {
+    for (int i=0; i< NParams(); i++) {
+      DoSPVFDToClients(i, GetParam(i)->GetNormalized(), -1, -1);
+    }
+
+    mNewConnection.store(false);
   }
 }
 
-void IWebsocketEditorDelegate::DoSPVFDToClients(int paramIdx, double value, int excludeIdx)
+void IWebsocketEditorDelegate::DoSPVFDToClients(int paramIdx, double value, int connectionIdx, int excludeIdx)
 {
   IByteChunk data;
   data.PutStr("SPVFD");
   data.Put(&paramIdx);
   data.Put(&value);
-  SendDataToConnection(-1, data.GetData(), data.Size(), excludeIdx);
+  SendDataToConnection(connectionIdx, data.GetData(), data.Size(), excludeIdx);
 }

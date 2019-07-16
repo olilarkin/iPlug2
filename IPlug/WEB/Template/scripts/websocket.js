@@ -6,6 +6,10 @@ function setupWebSocket(onCompleted) {
 
   ws.onopen = function() {
     console.log("websocket connected");
+
+    setTimeout(function() {
+      ws.send("syncRequest");
+    }, 1000);
   };
 
   ws.onclose = function() {
