@@ -8,11 +8,11 @@
 #if IPLUG_EDITOR
 struct FourValues : public IControl
 {
-  FourValues(IRECT bounds, int paramIdx1, int paramIdx2, int paramIdx3, int paramIdx4)
+  FourValues(const IRECT& bounds, int paramIdx1, int paramIdx2, int paramIdx3, int paramIdx4)
   : IControl(bounds, {paramIdx1, paramIdx2, paramIdx3, paramIdx4})
   {
-    mText.mAlign = IText::kAlignCenter;
-    mText.mVAlign = IText::kVAlignMiddle;
+    mText.mAlign = EAlign::Center;
+    mText.mVAlign = EVAlign::Middle;
     mDisablePrompt = false;
   }
   
@@ -50,8 +50,8 @@ struct FourValues : public IControl
 };
 #endif
 
-MetaParamTest::MetaParamTest(IPlugInstanceInfo instanceInfo)
-: IPLUG_CTOR(kNumParams, kNumPrograms, instanceInfo)
+MetaParamTest::MetaParamTest(const InstanceInfo& info)
+: Plugin(info, MakeConfig(kNumParams, kNumPrograms))
 {
   GetParam(kParamLeftX)->InitDouble("X1", 100., 0., 100.0, 0.01, "%");
   GetParam(kParamLeftY)->InitDouble("Y1", 100., 0., 100.0, 0.01, "%");
@@ -78,7 +78,7 @@ MetaParamTest::MetaParamTest(IPlugInstanceInfo instanceInfo)
   auto updatePeersFunc =
 
   mLayoutFunc = [&](IGraphics* pGraphics) {
-    pGraphics->AttachCornerResizer(kUIResizerScale, false);
+    pGraphics->AttachCornerResizer(EUIResizerMode::Scale, false);
     pGraphics->AttachPanelBackground(COLOR_GRAY);
     pGraphics->LoadFont("Roboto-Regular", ROBOTO_FN);
     pGraphics->ShowFPSDisplay(true);

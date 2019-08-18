@@ -17,7 +17,8 @@
 
 #include "IControl.h"
 
-#define LERP(a,b,f) ((b-a)*f+a)
+BEGIN_IPLUG_NAMESPACE
+BEGIN_IGRAPHICS_NAMESPACE
 
 /** A vectorial multi-slider control
  * @ingroup IControls */
@@ -26,22 +27,44 @@ class IVMultiSliderControl : public IVTrackControlBase
 {
 public:
 
-  IVMultiSliderControl(IRECT bounds, EDirection dir = kVertical, float minTrackValue = 0.f, float maxTrackValue = 1.f, const char* trackNames = 0, ...)
-  : IVTrackControlBase(bounds, MAXNC, dir, minTrackValue, maxTrackValue, trackNames)
+  /** Constructs a vector multi slider control that is not linked to parameters
+     * @param bounds The control's bounds
+     * @param label The label for the vector control, leave empty for no label
+     * @param style The styling of this vector control \see IVStyle
+     * @param direction The direction of the sliders
+     * @param minTrackValue Defines the minimum value of each slider
+     * @param maxTrackValue Defines the maximum value of each slider */
+  IVMultiSliderControl(const IRECT& bounds, const char* label, const IVStyle& style = DEFAULT_STYLE, EDirection dir = EDirection::Vertical, float minTrackValue = 0.f, float maxTrackValue = 1.f)
+  : IVTrackControlBase(bounds, label, style, MAXNC, dir, minTrackValue, maxTrackValue)
   {
     mOuterPadding = 0.f;
     mDrawTrackFrame = false;
     mTrackPadding = 1.f;
-    SetColor(kFG, COLOR_BLACK);
   }
 
-  IVMultiSliderControl(IRECT bounds, int loParamIdx, EDirection dir = kVertical, float minTrackValue = 0.f, float maxTrackValue = 1.f, const char* trackNames = 0, ...)
-    : IVTrackControlBase(bounds, loParamIdx, MAXNC, dir, minTrackValue, maxTrackValue, trackNames)
+  /** Constructs a vector multi slider control that is linked to parameters
+   * @param bounds The control's bounds
+   * @param label The label for the vector control, leave empty for no label
+   * @param style The styling of this vector control \see IVStyle
+   * @param direction The direction of the sliders
+   * @param minTrackValue Defines the minimum value of each slider
+   * @param maxTrackValue Defines the maximum value of each slider */
+  IVMultiSliderControl(const IRECT& bounds, const char* label, const IVStyle& style, int loParamIdx, EDirection dir, float minTrackValue, float maxTrackValue)
+  : IVTrackControlBase(bounds, label, style, loParamIdx, MAXNC, dir, minTrackValue, maxTrackValue)
   {
     mOuterPadding = 0.f;
     mDrawTrackFrame = false;
     mTrackPadding = 1.f;
-    SetColor(kFG, COLOR_BLACK);
+  }
+  
+  void Draw(IGraphics& g) override
+  {
+    DrawBackGround(g, mRECT);
+    DrawWidget(g);
+    DrawLabel(g);
+    
+    if(mStyle.drawFrame)
+      g.DrawRect(GetColor(kFR), mWidgetBounds, nullptr, mStyle.frameThickness);
   }
 
   int GetValIdxForPos(float x, float y) const override
@@ -59,7 +82,7 @@ public:
     return kNoValIdx;
   }
 
-  void SnapToMouse(float x, float y, EDirection direction, IRECT& bounds, int valIdx = -1 /* TODO:: not used*/, float scalar = 1.) override
+  void SnapToMouse(float x, float y, EDirection direction, const IRECT& bounds, int valIdx = -1 /* TODO:: not used*/, float scalar = 1.f, double minClip = 0., double maxClip = 1.) override
   {
     bounds.Constrain(x, y);
     int nVals = NVals();
@@ -67,7 +90,7 @@ public:
     float value = 0.;
     int sliderTest = -1;
 
-    if(direction == kVertical)
+    if(direction == EDirection::Vertical)
     {
       value = 1. - (y-bounds.T) / bounds.H();
       
@@ -123,7 +146,7 @@ public:
           for (auto i = lowBounds; i < highBounds; i++)
           {
             float frac = (float)(i - lowBounds) / float(highBounds-lowBounds);
-            SetValue(LERP(GetValue(lowBounds), GetValue(highBounds), frac), i);
+            SetValue(linearInterp(GetValue(lowBounds), GetValue(highBounds), frac), i);
             OnNewValue(i, GetValue(i));
           }
         }
@@ -138,7 +161,6 @@ public:
     SetDirty(true); // will send all param vals parameter value to delegate
   }
 
-  //  void OnResize() override;
   //  void OnMouseDblClick(float x, float y, const IMouseMod& mod) override;
 
   void OnMouseDown(float x, float y, const IMouseMod& mod) override
@@ -165,4 +187,11 @@ protected:
   int mPrevSliderHit = -1;
   int mSliderHit = -1;
   float mGrain = 0.001f;
+    
+private:
+    
+  inline double linearInterp(double a, double b, double f) const { return ((b - a) * f + a); }
 };
+
+END_IGRAPHICS_NAMESPACE
+END_IPLUG_NAMESPACE

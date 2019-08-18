@@ -20,7 +20,9 @@
 
 #include "IPlugAPIBase.h"
 
-IPlugAPIBase::IPlugAPIBase(IPlugConfig c, EAPI plugAPI)
+using namespace iplug;
+
+IPlugAPIBase::IPlugAPIBase(Config c, EAPI plugAPI)
   : IPluginBase(c.nParams, c.nPresets)
 {
   mUniqueID = c.uniqueID;
@@ -82,6 +84,14 @@ bool IPlugAPIBase::CompareState(const uint8_t* pIncomingState, int startPos) con
   }
   
   return isEqual;
+}
+
+bool IPlugAPIBase::EditorResizeFromDelegate(int width, int height)
+{
+  mEditorWidth = width;
+  mEditorHeight = height;
+
+  return false;
 }
 
 #pragma mark -

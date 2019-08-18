@@ -16,10 +16,16 @@
 
 #include "IGraphics_select.h"
 
+BEGIN_IPLUG_NAMESPACE
+BEGIN_IGRAPHICS_NAMESPACE
+
 /** IGraphics platform class for Windows
 * @ingroup PlatformClasses */
 class IGraphicsWin final : public IGRAPHICS_DRAW_CLASS
 {
+  class Font;
+  class InstalledFont;
+  struct HFontHolder;
 public:
   IGraphicsWin(IGEditorDelegate& dlg, int w, int h, int fps, float scale);
   ~IGraphicsWin();
@@ -28,8 +34,9 @@ public:
   void* GetWinModuleHandle() override { return mHInstance; }
 
   void ForceEndUserEdit() override;
+  int GetPlatformWindowScale() const override { return GetScreenScale(); }
 
-  void PlatformResize() override;
+  void PlatformResize(bool parentHasResized) override;
 
 #ifdef IGRAPHICS_GL
   void DrawResize() override; // overriden here to deal with GL graphics context capture
@@ -42,7 +49,7 @@ public:
   void MoveMouseCursor(float x, float y) override;
   ECursor SetMouseCursor(ECursor cursorType) override;
 
-  int ShowMessageBox(const char* str, const char* caption, EMessageBoxType type) override;
+  EMsgBoxResult ShowMessageBox(const char* str, const char* caption, EMsgBoxType type, IMsgBoxCompletionHanderFunc completionHandler) override;
 
   void* OpenWindow(void* pParent) override;
   void CloseWindow() override;
@@ -53,7 +60,7 @@ public:
   bool RevealPathInExplorerOrFinder(WDL_String& path, bool select) override;
   void PromptForFile(WDL_String& fileName, WDL_String& path, EFileAction action, const char* ext) override;
   void PromptForDirectory(WDL_String& dir) override;
-  bool PromptForColor(IColor& color, const char* str) override;
+  bool PromptForColor(IColor& color, const char* str, IColorPickerHandlerFunc func) override;
 
   IPopupMenu* GetItemMenu(long idx, long& idxInMenu, long& offsetIdx, IPopupMenu& baseMenu);
   HMENU CreateMenu(IPopupMenu& menu, long* pOffsetIdx);
@@ -73,6 +80,10 @@ public:
   bool GetTextFromClipboard(WDL_String& str) override;
   bool SetTextInClipboard(const WDL_String& str) override;
   
+  static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+  static LRESULT CALLBACK ParamEditProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+  static BOOL CALLBACK FindMainWindow(HWND hWnd, LPARAM lParam);
+    
 protected:
   IPopupMenu* CreatePlatformPopupMenu(IPopupMenu& menu, const IRECT& bounds) override;
   void CreatePlatformTextEntry(int paramIdx, const IText& text, const IRECT& bounds, int length, const char* str) override;
@@ -134,8 +145,12 @@ private:
   int mTooltipIdx = -1;
 
   WDL_String mMainWndClassName;
-public:
-  static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-  static LRESULT CALLBACK ParamEditProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-  static BOOL CALLBACK FindMainWindow(HWND hWnd, LPARAM lParam);
+    
+  static StaticStorage<InstalledFont> sPlatformFontCache;
+  static StaticStorage<HFontHolder> sHFontCache;
 };
+
+END_IGRAPHICS_NAMESPACE
+END_IPLUG_NAMESPACE
+
+

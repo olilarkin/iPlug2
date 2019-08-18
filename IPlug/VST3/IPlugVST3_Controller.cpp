@@ -17,13 +17,14 @@
 
 #include "IPlugVST3_Parameter.h"
 
+using namespace iplug;
 using namespace Steinberg;
-using namespace Steinberg::Vst;
+using namespace Vst;
 
-IPlugVST3Controller::IPlugVST3Controller(IPlugInstanceInfo instanceInfo, IPlugConfig c)
-: IPlugAPIBase(c, kAPIVST3)
-, mPlugIsInstrument(c.plugType == kInstrument)
-, mProcessorGUID(instanceInfo.mOtherGUID)
+IPlugVST3Controller::IPlugVST3Controller(const InstanceInfo& info, const Config& config)
+: IPlugAPIBase(config, kAPIVST3)
+, mPlugIsInstrument(config.plugType == kInstrument)
+, mProcessorGUID(info.mOtherGUID)
 {
 }
 
@@ -61,7 +62,7 @@ IPlugView* PLUGIN_API IPlugVST3Controller::createView(const char* name)
 
 tresult PLUGIN_API IPlugVST3Controller::setComponentState(IBStream* pState)
 {
-  return IPlugVST3State::SetState(this, pState) ? kResultOk :kResultFalse;
+  return IPlugVST3State::SetState(this, pState) ? kResultOk : kResultFalse;
 }
 
 tresult PLUGIN_API IPlugVST3Controller::setState(IBStream* pState)
@@ -74,6 +75,14 @@ tresult PLUGIN_API IPlugVST3Controller::getState(IBStream* pState)
 {
 // Currently nothing to do here
   return kResultOk;
+}
+
+ParamValue PLUGIN_API IPlugVST3Controller::getParamNormalized(ParamID tag)
+{
+  if (tag >= kBypassParam)
+    return EditControllerEx1::getParamNormalized(tag);
+  
+  return IPlugVST3ControllerBase::getParamNormalized(this, tag);
 }
 
 tresult PLUGIN_API IPlugVST3Controller::setParamNormalized(ParamID tag, ParamValue value)
@@ -125,15 +134,17 @@ tresult PLUGIN_API IPlugVST3Controller::getProgramName(ProgramListID listId, int
 //  }
 //}
 
-void IPlugVST3Controller::EditorPropertiesChangedFromDelegate(int viewWidth, int viewHeight, const IByteChunk& data)
+bool IPlugVST3Controller::EditorResizeFromDelegate(int viewWidth, int viewHeight)
 {
   if (HasUI())
   {
     if (viewWidth != GetEditorWidth() || viewHeight != GetEditorHeight())
       mView->resize(viewWidth, viewHeight);
  
-    IPlugAPIBase::EditorPropertiesChangedFromDelegate(viewWidth, viewHeight, data);
+    IPlugAPIBase::EditorResizeFromDelegate(viewWidth, viewHeight);
   }
+  
+  return true;
 }
 
 void IPlugVST3Controller::DirtyParametersFromUI()

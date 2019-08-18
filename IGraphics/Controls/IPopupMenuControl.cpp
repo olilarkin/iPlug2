@@ -20,6 +20,9 @@
 #include "nanovg.h"
 #endif
 
+using namespace iplug;
+using namespace igraphics;
+
 IPopupMenuControl::IPopupMenuControl(int paramIdx, IText text, IRECT collapsedBounds, IRECT expandedBounds)
 : IControl(collapsedBounds, paramIdx)
 , mSpecifiedCollapsedBounds(collapsedBounds)
@@ -335,7 +338,7 @@ void IPopupMenuControl::DrawCellText(IGraphics& g, const IRECT& bounds, const IP
       mText.mFGColor = COLOR_GRAY;
   }
   
-  mText.mAlign = IText::kAlignNear;
+  mText.mAlign = EAlign::Near;
   g.DrawText(mText, pItem->GetText(), textRect, pBlend);
 }
 

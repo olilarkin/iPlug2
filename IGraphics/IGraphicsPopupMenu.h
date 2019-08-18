@@ -26,6 +26,9 @@
  * @{
  */
 
+BEGIN_IPLUG_NAMESPACE
+BEGIN_IGRAPHICS_NAMESPACE
+
 /** @brief A class for setting the contents of a pop up menu.
  *
  * An IPopupMenu must not be declared as a temporary. In order for a receiving IControl or lambda function
@@ -64,12 +67,15 @@ public:
       SetText(str);
     }
     
+    Item(const Item&) = delete;
+    void operator=(const Item&) = delete;
+
     ~Item()
     {
     }
     
     void SetText(const char* str) { mText.Set(str); }
-    const char* GetText() const { return mText.Get(); };
+    const char* GetText() const { return mText.Get(); }; // TODO: Text -> Str!
     
     bool GetEnabled() const { return !(mFlags & kDisabled); }
     bool GetChecked() const { return (mFlags & kChecked) != 0; }
@@ -113,6 +119,19 @@ public:
     for (auto& item : items)
       AddItem(item);
   }
+  
+  IPopupMenu(const std::initializer_list<const char*>& items, IPopupFunction func)
+  : mPrefix(0)
+  , mCanMultiCheck(false)
+  {
+    for (auto& item : items)
+      AddItem(item);
+    
+    SetFunction(func);
+  }
+  
+  IPopupMenu(const IPopupMenu&) = delete;
+  void operator=(const IPopupMenu&) = delete;
   
   ~IPopupMenu()
   {
@@ -295,5 +314,8 @@ private:
   WDL_PtrList<Item> mMenuItems;
   IPopupFunction mPopupFunc = nullptr;
 };
+
+END_IGRAPHICS_NAMESPACE
+END_IPLUG_NAMESPACE
 
 /**@}*/

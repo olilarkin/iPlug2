@@ -1,7 +1,6 @@
 #pragma once
 
 #include "IPlug_include_in_plug_hdr.h"
-#include <vector>
 
 const int kNumPrograms = 1;
 
@@ -16,16 +15,17 @@ enum ECtrlTags
   kNumCtrlTags
 };
 
-class IPlugMidiEffect : public IPlug
+using namespace iplug;
+using namespace igraphics;
+
+class IPlugMidiEffect : public Plugin
 {
 public:
-  IPlugMidiEffect(IPlugInstanceInfo instanceInfo);
+  IPlugMidiEffect(const InstanceInfo& info);
 
 #if IPLUG_DSP // All DSP methods and member variables should be within an IPLUG_DSP guard, should you want distributed UI
 public:
   void ProcessBlock(sample** inputs, sample** outputs, int nFrames) override;
   void ProcessMidiMsg(const IMidiMsg& msg) override;
-private:
-  std::vector<int> mHeldKeys;
 #endif
 };

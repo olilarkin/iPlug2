@@ -31,7 +31,7 @@
  */
 
 #ifndef NO_IGRAPHICS
-#if defined(IGRAPHICS_AGG) + defined(IGRAPHICS_CAIRO) + defined(IGRAPHICS_NANOVG) + defined(IGRAPHICS_LICE) + defined(IGRAPHICS_CANVAS) != 1
+#if defined(IGRAPHICS_AGG) + defined(IGRAPHICS_CAIRO) + defined(IGRAPHICS_NANOVG) + defined(IGRAPHICS_LICE) + defined(IGRAPHICS_CANVAS) + defined(IGRAPHICS_SKIA) != 1
 #error Either NO_IGRAPHICS or one and only one choice of graphics library must be defined!
 #endif
 #endif
@@ -46,7 +46,6 @@
 
 #include "IGraphicsConstants.h"
 #include "IGraphicsStructs.h"
-#include "IGraphicsUtilities.h"
 #include "IGraphicsPopupMenu.h"
 #include "IGraphicsEditorDelegate.h"
 
@@ -65,12 +64,15 @@
 #undef DrawText
 #endif
 
+BEGIN_IPLUG_NAMESPACE
+class IParam;
+BEGIN_IGRAPHICS_NAMESPACE
 class IControl;
 class IPopupMenuControl;
 class ITextEntryControl;
 class ICornerResizerControl;
 class IFPSDisplayControl;
-class IParam;
+
 
 /**  The lowest level base class of an IGraphics context */
 class IGraphics
@@ -202,11 +204,11 @@ public:
    * @param cx The X coordinate in the graphics context of the centre of the circle on which the arc lies
    * @param cy The Y coordinate in the graphics context of the centre of the circle on which the arc lies
    * @param r The radius of the circle on which the arc lies
-   * @param aMin the start angle  of the arc at in degrees clockwise where 0 is up
-   * @param aMax the end angle  of the arc at in degrees clockwise where 0 is up
+   * @param a1 the start angle  of the arc at in degrees clockwise where 0 is up
+   * @param a2 the end angle  of the arc at in degrees clockwise where 0 is up
    * @param pBlend Optional blend method, see IBlend documentation
    * @param thickness Optional line thickness */
-  virtual void DrawArc(const IColor& color, float cx, float cy, float r, float aMin, float aMax, const IBlend* pBlend = 0, float thickness = 1.f) = 0;
+  virtual void DrawArc(const IColor& color, float cx, float cy, float r, float a1, float a2, const IBlend* pBlend = 0, float thickness = 1.f) = 0;
 
   /** Draw a circle to the graphics context
    * @param color The color to draw the shape with
@@ -314,10 +316,10 @@ public:
    * @param cx The X coordinate in the graphics context of the centre of the circle on which the arc lies
    * @param cy The Y coordinate in the graphics context of the centre of the circle on which the arc lies
    * @param r The radius of the circle on which the arc lies
-   * @param aMin the start angle  of the arc at in degrees clockwise where 0 is up
-   * @param aMax the end angle  of the arc at in degrees clockwise where 0 is up
+   * @param a1 the start angle  of the arc at in degrees clockwise where 0 is up
+   * @param a2 the end angle  of the arc at in degrees clockwise where 0 is up
    * @param pBlend Optional blend method, see IBlend documentation */
-  virtual void FillArc(const IColor& color, float cx, float cy, float r, float aMin, float aMax, const IBlend* pBlend = 0) = 0;
+  virtual void FillArc(const IColor& color, float cx, float cy, float r, float a1, float a2, const IBlend* pBlend = 0) = 0;
 
   /** Fill a convex polygon in the graphics context with a color
    * @param color The color to fill the shape with
@@ -602,9 +604,9 @@ public:
    * @param cx /todo
    * @param cy /todo
    * @param r /todo
-   * @param aMin /todo
-   * @param aMax /todo */
-  virtual void PathArc(float cx, float cy, float r, float aMin, float aMax) {}
+   * @param a1 /todo
+   * @param a2 /todo */
+  virtual void PathArc(float cx, float cy, float r, float a1, float a2, EWinding winding = EWinding::CW) {}
 
   /** /todo 
    * @param cx /todo
@@ -640,15 +642,22 @@ public:
    * @param y /todo */
   virtual void PathLineTo(float x, float y) {}
 
-  /** /todo 
-   * @param x1 /todo
-   * @param y1 /todo
-   * @param x2 /todo
-   * @param y2 /todo
-   * @param x3 /todo
-   * @param y3 /todo */
-  virtual void PathCurveTo(float x1, float y1, float x2, float y2, float x3, float y3) {}
+  /** /todo
+   * @param c1x  /todo
+   * @param c1y  /todo
+   * @param c2x  /todo
+   * @param c2y  /todo
+   * @param x2  /todo
+   * @param y2  /todo */
+  virtual void PathCubicBezierTo(float c1x, float c1y, float c2x, float c2y, float x2, float y2) {}
 
+  /** /todo
+   * @param cx /todo
+   * @param cy /todo
+   * @param x2 /todo
+   * @param y2 /todo */
+  virtual void PathQuadraticBezierTo(float cx, float cy, float x2, float y2) {}
+  
   /** /todo 
    * @param pattern /todo
    * @param thickness /todo
@@ -768,16 +777,16 @@ public:
   /** Pop up a modal platform message box dialog. NOTE: this method will block the main thread
    * @param str The text message to display in the dialogue
    * @param caption The title of the message box window \todo check
-   * @param type EMessageBoxType describing the button options available \see EMessageBoxType
+   * @param type EMsgBoxType describing the button options available \see EMsgBoxType
    * @return \todo check */
-  virtual int ShowMessageBox(const char* str, const char* caption, EMessageBoxType type) = 0;
+  virtual EMsgBoxResult ShowMessageBox(const char* str, const char* caption, EMsgBoxType type, IMsgBoxCompletionHanderFunc completionHandler = nullptr) = 0;
 
   /** Create a platform file prompt dialog to choose a file/directory path for opening/saving a file/directory. NOTE: this method will block the main thread
    * @param fileName Non const WDL_String reference specifying the file name. Set this prior to calling the method for save dialogs, to provide a default file name. For load dialogs, on successful selection of a file this will get set to the file’s name.
    * @param path WDL_String reference where the path will be put on success or empty string on failure/user cancelled
    * @param action Determines whether this is an open dialog or a save dialog
    * @param extensions A comma separated CString list of file extensions to filter in the dialog (e.g. “.wav, .aif” \todo check */
-  virtual void PromptForFile(WDL_String& fileName, WDL_String& path, EFileAction action = kFileOpen, const char* extensions = 0) = 0;
+  virtual void PromptForFile(WDL_String& fileName, WDL_String& path, EFileAction action = EFileAction::Open, const char* extensions = 0) = 0;
 
   /** Create a platform file prompt dialog to choose a directory path for opening/saving a directory. NOTE: this method will block the main thread
    * @param dir Non const WDL_String reference specifying the directory path. Set this prior to calling the method for save dialogs, to provide a default path. For load dialogs, on successful selection of a directory this will get set to the full path. */
@@ -785,9 +794,10 @@ public:
 
   /** Create a platform color chooser dialog. NOTE: this method will block the main thread
    * @param color When a color is chosen the IColor referenced will be updated with the new color
-   * @param str The text to display in the dialog box e.g. "Please choose a color..."
+   * @param str The text to display in the dialog box e.g. "Please choose a color... (Windows only)"
+   * @param IColorPickerHandlerFunc func callback for asynchronous color pickers
    * @return /true if prompt completed successfully */
-  virtual bool PromptForColor(IColor& color, const char* str = "") = 0;
+  virtual bool PromptForColor(IColor& color, const char* str = "", IColorPickerHandlerFunc func = nullptr) = 0;
 
   /** Open a URL in the platform’s default browser
    * @param url CString specifying the URL to open
@@ -867,17 +877,22 @@ public:
   IGraphics(IGEditorDelegate& dlg, int w, int h, int fps = 0, float scale = 1.);
 
   virtual ~IGraphics();
-
-  /** Called by the platform IGraphics class XXXXX /todo and when moving to a new screen with different DPI
+    
+  IGraphics(const IGraphics&) = delete;
+  IGraphics& operator=(const IGraphics&) = delete;
+    
+  /** Called by the platform IGraphics class when moving to a new screen to set DPI
    * @param scale The scale of the display, typically 2 on a macOS retina screen */
   void SetScreenScale(int scale);
-    
-  /** Called repeatedly at frame rate by the platform class to check what the graphics context says is dirty
+  
+  void SetTranslation(float x, float y) { mXTranslation = x; mYTranslation = y; }
+  
+  /** Called repeatedly at frame rate by the platform class to check what the graphics context says is dirty.
    * @param rects The rectangular regions which will be added to to mark what is dirty in the context
    * @return /c true if a control is dirty */
   bool IsDirty(IRECTList& rects);
 
-  /** Called by the platform class when an area needs to be redrawn
+  /** Called by the platform class indicating a number of rectangles in the UI that need to redraw
    * @param rects A set of rectangular regions to draw */
   void Draw(IRECTList& rects);
 
@@ -994,6 +1009,12 @@ public:
   /** @return Get a persistant IPopupMenu (remember to clear it before use) */
   IPopupMenu& GetPromptMenu() { return mPromptPopupMenu; }
   
+  /** @return True if text entry in progress */
+  bool IsInTextEntry() { return mInTextEntry != nullptr; }
+  
+  /** @return Ptr to the control that launched the text entry */
+  IControl* GetControlInTextEntry() { return mInTextEntry; }
+  
   /** @return \c true if tool tips are enabled */
   inline bool TooltipsEnabled() const { return mEnableTooltips; }
   
@@ -1036,20 +1057,28 @@ public:
    * @param keyHandlerFunc /todo */
   void SetKeyHandlerFunc(IKeyHandlerFunc func) { mKeyHandlerFunc = func; }
 
+  /** A helper to set the IGraphics KeyHandlerFunc in order to make an instrument playable via QWERTY keys
+   * @param func A function to do something when a MIDI message is triggered */
+  void SetQwertyMidiKeyHandlerFunc(std::function<void(const IMidiMsg& msg)> func = nullptr);
+  
   /** /todo */
   void AttachImGui(std::function<void(IGraphics*)> drawFunc, std::function<void()> setupFunc = nullptr);
-  
+
+  /** Returns a scaling factor for resizing parent windows via the host/plugin API
+   * @return A scaling factor for resizing parent windows */
+  virtual int GetPlatformWindowScale() const { return 1; }
+
 private:
   /* /todo */
   virtual void CreatePlatformImGui() {}
   
   /** /todo */
-  virtual void PlatformResize() {}
+  virtual void PlatformResize(bool parentHasResized) {}
   
   /** /todo */
   virtual void DrawResize() {}
   
-  /** /todo
+  /** Draw a region of the graphics (redrawing all contained items)
    * @param bounds /todo
    * @param scale /todo */
   void Draw(const IRECT& bounds, float scale);
@@ -1116,16 +1145,16 @@ public:
 
   /** Attach an IPanelControl as the lowest IControl in the control stack to fill the background with a solid color
    * @param color The color to fill the panel with */
-  void AttachPanelBackground(const IColor& color);
+  void AttachPanelBackground(const IPattern& color);
   
   /** Attach the default control to scale or increase the UI size by dragging the plug-in bottom right-hand corner
    * @param sizeMode Choose whether to scale or size the UI */
-  void AttachCornerResizer(EUIResizerMode sizeMode = EUIResizerMode::kUIResizerScale, bool layoutOnResize = false);
+  void AttachCornerResizer(EUIResizerMode sizeMode = EUIResizerMode::Scale, bool layoutOnResize = false);
 
   /** Attach your own control to scale or increase the UI size by dragging the plug-in bottom right-hand corner
    * @param pControl control a control that inherits from ICornerResizerControl
    * @param sizeMode Choose whether to scale or size the UI */
-  void AttachCornerResizer(ICornerResizerControl* pControl, EUIResizerMode sizeMode = EUIResizerMode::kUIResizerScale, bool layoutOnResize = false);
+  void AttachCornerResizer(ICornerResizerControl* pControl, EUIResizerMode sizeMode = EUIResizerMode::Scale, bool layoutOnResize = false);
 
   /** Attach a control for pop-up menus, to override platform style menus
    @param text The text style to use for the menu
@@ -1147,7 +1176,7 @@ public:
    * @param controlTag An integer tag that you can use to identify the control
    * @param group A CString that you can use to address controlled by group
    * @return The index of the control (and the number of controls in the stack) */
-  int AttachControl(IControl* pControl, int controlTag = kNoTag, const char* group = "");
+  IControl* AttachControl(IControl* pControl, int controlTag = kNoTag, const char* group = "");
 
   /** @param idx The index of the control to get
    * @return A pointer to the IControl object at idx or nullptr if not found */
@@ -1171,14 +1200,8 @@ public:
   ITextEntryControl* GetTextEntryControl() { return mTextEntryControl.get(); }
   
   /** Helper method to style all of the controls which inherit IVectorBase
-   * @param drawFrame Should the controls draw a frame
-   * @param drawShadow Should the controls draw a shadow (where relevant)
-   * @param emboss Should the controls be embossed (where relevant)
-   * @param roundness Roundness in pixels of the corners, of rectangles in the controls
-   * @param frameThickness Thickness in pixels of the control frame
-   * @param shadowOffset Offset in pixels of the control shadow (where relevant)
-   * @param spec Color spec for the controls */
-  void StyleAllVectorControls(bool drawFrame, bool drawShadow, bool emboss, float roundness, float frameThickness, float shadowOffset, const IVColorSpec& spec = DEFAULT_SPEC);
+   * @param IVStyle Style for the controls */
+  void StyleAllVectorControls(const IVStyle& style);
   
    /** This method is called after interacting with a control, so that any other controls linked to the same parameter index, will also be set dirty, and have their values updated.
     * @param pCaller The control that triggered the parameter change.
@@ -1385,6 +1408,9 @@ protected:
   virtual bool LoadAPIFont(const char* fontID, const PlatformFontPtr& font) = 0;
 
   /** /todo */
+  virtual bool AssetsLoaded() { return true; }
+    
+  /** /todo */
   virtual int AlphaChannel() const = 0;
 
   /** /todo */
@@ -1446,6 +1472,12 @@ protected:
 #pragma mark -
 
 private:
+  void ClearMouseOver()
+  {
+    mMouseOver = nullptr;
+    mMouseOverIdx = -1;
+  }
+  
   WDL_PtrList<IControl> mControls;
 
   // Order (front-to-back) ToolTip / PopUp / TextEntry / LiveEdit / Corner / PerfDisplay
@@ -1457,12 +1489,13 @@ private:
   
   IPopupMenu mPromptPopupMenu;
   
-  ECursor mCursorType = ARROW;
+  ECursor mCursorType = ECursor::ARROW;
   int mWidth;
   int mHeight;
   int mFPS;
   int mScreenScale = 1; // the scaling of the display that the UI is currently on e.g. 2 for retina
   float mDrawScale = 1.f; // scale deviation from  default width and height i.e stretching the UI by dragging bottom right hand corner
+
   int mIdleTicks = 0;
   IControl* mMouseCapture = nullptr;
   IControl* mMouseOver = nullptr;
@@ -1488,7 +1521,7 @@ private:
   bool mShowAreaDrawn = false;
   bool mResizingInProcess = false;
   bool mLayoutOnResize = false;
-  EUIResizerMode mGUISizeMode = EUIResizerMode::kUIResizerScale;
+  EUIResizerMode mGUISizeMode = EUIResizerMode::Scale;
   double mPrevTimestamp = 0.;
   IKeyHandlerFunc mKeyHandlerFunc = nullptr;
 protected:
@@ -1499,11 +1532,13 @@ protected:
   bool mTabletInput = false;
   float mCursorX = -1.f;
   float mCursorY = -1.f;
-
+  float mXTranslation = 0.f;
+  float mYTranslation = 0.f;
+  
   friend class IGraphicsLiveEdit;
   friend class ICornerResizerControl;
   friend class ITextEntryControl;
-  
+
   std::stack<ILayer*> mLayers;
   
 #ifdef IGRAPHICS_IMGUI
@@ -1511,3 +1546,6 @@ public:
   std::unique_ptr<ImGuiRenderer> mImGuiRenderer;
 #endif
 };
+
+END_IGRAPHICS_NAMESPACE
+END_IPLUG_NAMESPACE

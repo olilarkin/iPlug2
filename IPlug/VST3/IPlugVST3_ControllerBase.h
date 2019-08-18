@@ -11,17 +11,24 @@
 #pragma once
 
 #include "pluginterfaces/base/ibstream.h"
-#
+
 #include "IPlugAPIBase.h"
 #include "IPlugVST3_Parameter.h"
 
 using namespace Steinberg;
 using namespace Vst;
 
+BEGIN_IPLUG_NAMESPACE
+
 /** Shared VST3 controller code */
 class IPlugVST3ControllerBase
 {
 public:
+    
+  IPlugVST3ControllerBase() = default;
+  IPlugVST3ControllerBase(const IPlugVST3ControllerBase&) = delete;
+  IPlugVST3ControllerBase& operator=(const IPlugVST3ControllerBase&) = delete;
+    
   void Initialize(IPlugAPIBase* pPlug, ParameterContainer& parameters, bool plugIsInstrument/*, bool midiIn*/)
   {
     if (pPlug->NPresets())
@@ -121,20 +128,27 @@ public:
      */
   }
   
+  ParamValue PLUGIN_API getParamNormalized(IPlugAPIBase* pPlug, ParamID tag)
+  {
+    IParam* param = pPlug->GetParam(tag);
+        
+    if (param)
+    {
+      return param->GetNormalized();
+    }
+        
+    return 0.0;
+  }
+    
   void PLUGIN_API setParamNormalized(IPlugAPIBase* pPlug, ParamID tag, ParamValue value)
   {
     if (tag >= kBypassParam)
     {
       switch (tag)
       {
-//        case kBypassParam:
-//        {
-//          break;
-//        }
         case kPresetParam:
         {
           pPlug->RestorePreset(pPlug->NPresets() * value);
-          
           break;
         }
         default:
@@ -157,3 +171,5 @@ public:
 public:
   IPlugVST3BypassParameter* mBypassParameter = nullptr;
 };
+
+END_IPLUG_NAMESPACE

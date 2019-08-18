@@ -16,7 +16,10 @@
 
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
-int GetSystemVersion()
+using namespace iplug;
+using namespace igraphics;
+
+static int GetSystemVersion()
 {
   static int32_t v;
   if (!v)
@@ -39,6 +42,7 @@ int GetSystemVersion()
 }
 
 StaticStorage<CoreTextFontDescriptor> sFontDescriptorCache;
+
 #pragma mark -
 
 IGraphicsMac::IGraphicsMac(IGEditorDelegate& dlg, int w, int h, int fps, float scale)
@@ -101,6 +105,7 @@ void IGraphicsMac::ContextReady(void* pLayer)
   SetScreenScale([[NSScreen mainScreen] backingScaleFactor]);
   GetDelegate()->LayoutUI(this);
   UpdateTooltips();
+  GetDelegate()->OnUIOpen();
 }
 
 void* IGraphicsMac::OpenWindow(void* pParent)
@@ -152,7 +157,7 @@ bool IGraphicsMac::WindowIsOpen()
   return mView;
 }
 
-void IGraphicsMac::PlatformResize()
+void IGraphicsMac::PlatformResize(bool parentHasResized)
 {
   if (mView)
   {
@@ -267,9 +272,11 @@ void IGraphicsMac::StoreCursorPosition()
   ScreenToPoint(mCursorX, mCursorY);
 }
 
-int IGraphicsMac::ShowMessageBox(const char* str, const char* caption, EMessageBoxType type)
+EMsgBoxResult IGraphicsMac::ShowMessageBox(const char* str, const char* caption, EMsgBoxType type, IMsgBoxCompletionHanderFunc completionHandler)
 {
-  NSInteger ret = 0;
+  ReleaseMouseCapture();
+
+  long result = (long) kCANCEL;
   
   if (!str) str= "";
   if (!caption) caption= "";
@@ -284,30 +291,33 @@ int IGraphicsMac::ShowMessageBox(const char* str, const char* caption, EMessageB
   {
     case kMB_OK:
       NSRunAlertPanel(msg, @"%@", @"OK", @"", @"", cap);
-      ret = kOK;
+      result = kOK;
       break;
     case kMB_OKCANCEL:
-      ret = NSRunAlertPanel(msg, @"%@", @"OK", @"Cancel", @"", cap);
-      ret = ret ? kOK : kCANCEL;
+      result = NSRunAlertPanel(msg, @"%@", @"OK", @"Cancel", @"", cap);
+      result = result ? kOK : kCANCEL;
       break;
     case kMB_YESNO:
-      ret = NSRunAlertPanel(msg, @"%@", @"Yes", @"No", @"", cap);
-      ret = ret ? kYES : kNO;
+      result = NSRunAlertPanel(msg, @"%@", @"Yes", @"No", @"", cap);
+      result = result ? kYES : kNO;
       break;
     case kMB_RETRYCANCEL:
-      ret = NSRunAlertPanel(msg, @"%@", @"Retry", @"Cancel", @"", cap);
-      ret = ret ? kRETRY : kCANCEL;
+      result = NSRunAlertPanel(msg, @"%@", @"Retry", @"Cancel", @"", cap);
+      result = result ? kRETRY : kCANCEL;
       break;
     case kMB_YESNOCANCEL:
-      ret = NSRunAlertPanel(msg, @"%@", @"Yes", @"Cancel", @"No", cap);
-      ret = (ret == 1) ? kYES : (ret == -1) ? kNO : kCANCEL;
+      result = NSRunAlertPanel(msg, @"%@", @"Yes", @"Cancel", @"No", cap);
+      result = (result == 1) ? kYES : (result == -1) ? kNO : kCANCEL;
       break;
   }
   
   [msg release];
   [cap release];
   
-  return static_cast<int>(ret);
+  if(completionHandler)
+    completionHandler(static_cast<EMsgBoxResult>(result));
+  
+  return static_cast<EMsgBoxResult>(result);
 }
 
 void IGraphicsMac::ForceEndUserEdit()
@@ -416,7 +426,7 @@ void IGraphicsMac::PromptForFile(WDL_String& fileName, WDL_String& path, EFileAc
   if (CStringHasContents(ext))
     pFileTypes = [[NSString stringWithUTF8String:ext] componentsSeparatedByString: @" "];
 
-  if (action == kFileSave)
+  if (action == EFileAction::Save)
   {
     NSSavePanel* pSavePanel = [NSSavePanel savePanel];
 
@@ -504,9 +514,11 @@ void IGraphicsMac::PromptForDirectory(WDL_String& dir)
   }
 }
 
-bool IGraphicsMac::PromptForColor(IColor& color, const char* str)
+bool IGraphicsMac::PromptForColor(IColor& color, const char* str, IColorPickerHandlerFunc func)
 {
-  //TODO:
+  if (mView)
+    return [(IGRAPHICS_VIEW*) mView promptForColor:color : func];
+
   return false;
 }
 
@@ -616,6 +628,10 @@ void IGraphicsMac::CreatePlatformImGui()
   #include "IGraphicsCairo.cpp"
 #elif defined IGRAPHICS_NANOVG
   #include "IGraphicsNanoVG.cpp"
-#else
+#elif defined IGRAPHICS_SKIA
+  #include "IGraphicsSkia.cpp"
+#elif defined IGRAPHICS_LICE
   #include "IGraphicsLice.cpp"
+#else
+  #error Either NO_IGRAPHICS or one and only one choice of graphics library must be defined!
 #endif

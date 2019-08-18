@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "IControl.h"
 #if defined IGRAPHICS_NANOVG && defined IGRAPHICS_METAL
 
 /**
@@ -17,8 +18,10 @@
  * @copydoc TestMPSControl
  */
 
-#include "IControl.h"
 #include "IGraphicsNanoVG.h"
+
+using namespace iplug;
+using namespace igraphics;
 
 /** Control to test IGraphicsNanoVG with Metal Performance Shaders
  *   @ingroup TestControls */
@@ -26,7 +29,7 @@ class TestMPSControl : public IKnobControlBase
                      , public IBitmapBase
 {
 public:
-  TestMPSControl(IRECT bounds, const IBitmap& bitmap)
+  TestMPSControl(const IRECT& bounds, const IBitmap& bitmap)
   : IKnobControlBase(bounds)
   , IBitmapBase(bitmap)
   {

@@ -21,6 +21,8 @@
 
 struct reaper_plugin_info_t;
 
+BEGIN_IPLUG_NAMESPACE
+
 class ReaperExtBase : public EDITOR_DELEGATE_CLASS
 {
 public:
@@ -33,8 +35,11 @@ public:
   
   void EndInformHostOfParamChangeFromUI(int paramIdx) override {}; // NO-OP
   
-  void EditorPropertiesChangedFromUI(int viewWidth, int viewHeight, const IByteChunk& data) override;
-  
+  bool EditorResizeFromUI(int viewWidth, int viewHeight) override;
+
+  /** If the editor changes arbitrary data (such as layout/scale) this is called to store data into the plugin*/
+  void EditorDataChangedFromUI(const IByteChunk& data) override {}
+
   /** /todo */
   virtual void OnIdle() {}; // NO-OP
   
@@ -64,3 +69,5 @@ private:
   std::unique_ptr<Timer> mTimer;
   bool mDocked = false;
 };
+
+END_IPLUG_NAMESPACE

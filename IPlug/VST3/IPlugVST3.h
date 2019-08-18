@@ -34,10 +34,13 @@
 #include "IPlugVST3_ProcessorBase.h"
 #include "IPlugVST3_View.h"
 
+BEGIN_IPLUG_NAMESPACE
+
 /** Used to pass various instance info to the API class, where needed */
-struct IPlugInstanceInfo {};
+struct InstanceInfo {};
 
 using namespace Steinberg;
+using namespace Vst;
 
 /**  VST3 base class for a non-distributed IPlug VST3 plug-in
 *   @ingroup APIClasses */
@@ -49,7 +52,7 @@ class IPlugVST3 : public IPlugAPIBase
 public:
   using ViewType = IPlugVST3View<IPlugVST3>;
     
-  IPlugVST3(IPlugInstanceInfo instanceInfo, IPlugConfig config);
+  IPlugVST3(const InstanceInfo& info, const Config& config);
   ~IPlugVST3();
 
   // IPlugAPIBase
@@ -58,12 +61,12 @@ public:
   void EndInformHostOfParamChange(int idx) override;
   void InformHostOfProgramChange() override {}
   void InformHostOfParameterDetailsChange() override;
-  
+  bool EditorResizeFromDelegate(int viewWidth, int viewHeight) override;
+
   // IEditorDelegate
   void DirtyParametersFromUI() override;
   
   // IPlugProcessor
-  void EditorPropertiesChangedFromDelegate(int viewWidth, int viewHeight, const IByteChunk& data) override;
   void SetLatency(int samples) override;
   
   // AudioEffect
@@ -80,6 +83,7 @@ public:
   tresult PLUGIN_API getState(IBStream* pState) override;
     
   // IEditController
+  ParamValue PLUGIN_API getParamNormalized (ParamID tag) override;
   tresult PLUGIN_API setParamNormalized(ParamID tag, ParamValue value) override;
   IPlugView* PLUGIN_API createView(const char* name) override;
   tresult PLUGIN_API setEditorState(IBStream* pState) override;
@@ -114,5 +118,8 @@ private:
   ViewType* mView;
 };
 
-IPlugVST3* MakePlug();
+IPlugVST3* MakePlug(const InstanceInfo& info);
+
+END_IPLUG_NAMESPACE
+
 #endif

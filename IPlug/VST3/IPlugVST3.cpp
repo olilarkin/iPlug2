@@ -17,6 +17,7 @@
 
 #include "IPlugVST3.h"
 
+using namespace iplug;
 using namespace Steinberg;
 using namespace Vst;
 
@@ -24,9 +25,9 @@ using namespace Vst;
 
 #pragma mark - IPlugVST3 Constructor/Destructor
 
-IPlugVST3::IPlugVST3(IPlugInstanceInfo instanceInfo, IPlugConfig c)
-: IPlugAPIBase(c, kAPIVST3)
-, IPlugVST3ProcessorBase(c, *this)
+IPlugVST3::IPlugVST3(const InstanceInfo& info, const Config& config)
+: IPlugAPIBase(config, kAPIVST3)
+, IPlugVST3ProcessorBase(config, *this)
 , mView(nullptr)
 {
   CreateTimer();
@@ -113,6 +114,14 @@ tresult PLUGIN_API IPlugVST3::getState(IBStream* pState)
 }
 
 #pragma mark IEditController overrides
+ParamValue PLUGIN_API IPlugVST3::getParamNormalized(ParamID tag)
+{
+  if (tag >= kBypassParam)
+    return EditControllerEx1::getParamNormalized(tag);
+  
+  return IPlugVST3ControllerBase::getParamNormalized(this, tag);
+}
+
 tresult PLUGIN_API IPlugVST3::setParamNormalized(ParamID tag, ParamValue value)
 {
   IPlugVST3ControllerBase::setParamNormalized(this, tag, value);
@@ -248,15 +257,17 @@ void IPlugVST3::InformHostOfParameterDetailsChange()
   handler->restartComponent(kParamTitlesChanged);
 }
 
-void IPlugVST3::EditorPropertiesChangedFromDelegate(int viewWidth, int viewHeight, const IByteChunk& data)
+bool IPlugVST3::EditorResizeFromDelegate(int viewWidth, int viewHeight)
 {
   if (HasUI())
   {
     if (viewWidth != GetEditorWidth() || viewHeight != GetEditorHeight())
       mView->resize(viewWidth, viewHeight);
 
-    IPlugAPIBase::EditorPropertiesChangedFromDelegate(viewWidth, viewHeight, data);
+    IPlugAPIBase::EditorResizeFromDelegate(viewWidth, viewHeight);
   }
+  
+  return true;
 }
 
 void IPlugVST3::DirtyParametersFromUI()

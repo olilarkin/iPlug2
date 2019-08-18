@@ -18,6 +18,9 @@
 
 #include "IControl.h"
 
+BEGIN_IPLUG_NAMESPACE
+BEGIN_IGRAPHICS_NAMESPACE
+
 /** A base control for a pop-up menu/drop-down list that stays within the bounds of the IGraphics context.
  * This is mainly used as a special control that lives outside the main IGraphics control stack.
  * For replacing generic menus this can be added with IGraphics::AttachPopupMenu().
@@ -132,11 +135,14 @@ private:
   public:
     MenuPanel(IPopupMenuControl& owner, IPopupMenu& menu, float x, float y, int parentIdx);
     ~MenuPanel();
-
-    /** Get's the width of a cell */
+      
+    MenuPanel(const MenuPanel&) = delete;
+    MenuPanel& operator=(const MenuPanel&) = delete;
+      
+    /** Gets the width of a cell */
     float CellWidth() const { return mSingleCellBounds.W(); }
 
-    /** Get's the height of a cell */
+    /** Gets the height of a cell */
     float CellHeight() const { return mSingleCellBounds.H(); }
 
     void ScrollUp() { mScrollItemOffset--; mScrollItemOffset = Clip(mScrollItemOffset, 0, mCellBounds.GetSize()-1); }
@@ -157,7 +163,7 @@ private:
     IRECT mTargetRECT; // The mouse target bounds for this panel
     int mScrollMaxRows = 0; // 0 when no scroll
     bool mShouldDraw = true; // boolean determining whether this panel should be drawn
-    IBlend mBlend = { kBlendDefault, 0.f }; // blend for sub panels appearing
+    IBlend mBlend = { EBlend::Default, 0.f }; // blend for sub panels appearing
 
     IRECT mSingleCellBounds; // The dimensions of the largest cell for the menu
     IRECT* mHighlightedCell = nullptr; // A pointer to one of the IRECTs in mCellBounds, if one should be highlighted
@@ -204,3 +210,6 @@ protected:
   IRECT mSpecifiedCollapsedBounds;
   IRECT mSpecifiedExpandedBounds;
 };
+
+END_IGRAPHICS_NAMESPACE
+END_IPLUG_NAMESPACE

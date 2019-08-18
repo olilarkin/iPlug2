@@ -29,6 +29,8 @@
 using namespace Steinberg;
 using namespace Vst;
 
+BEGIN_IPLUG_NAMESPACE
+
 /**  VST3 Controller API-base class for a distributed IPlug VST3 plug-in
  *   @ingroup APIClasses */
 class IPlugVST3Controller : public EditControllerEx1
@@ -39,12 +41,12 @@ class IPlugVST3Controller : public EditControllerEx1
 public:
   using ViewType = IPlugVST3View<IPlugVST3Controller>;
   
-  struct IPlugInstanceInfo
+  struct InstanceInfo
   {
     Steinberg::FUID mOtherGUID;
   };
   
-  IPlugVST3Controller(IPlugInstanceInfo instanceInfo, IPlugConfig c);
+  IPlugVST3Controller(const InstanceInfo& info, const Config& config);
   virtual ~IPlugVST3Controller();
 
   // IEditController
@@ -54,6 +56,7 @@ public:
   tresult PLUGIN_API setState(IBStream* pState) override;
   tresult PLUGIN_API getState(IBStream* pState) override;
   
+  ParamValue PLUGIN_API getParamNormalized (ParamID tag) override;
   tresult PLUGIN_API setParamNormalized(ParamID tag, ParamValue value) override;
   // ComponentBase
   tresult PLUGIN_API notify(IMessage* message) override;
@@ -72,7 +75,7 @@ public:
   void InformHostOfParamChange(int idx, double normalizedValue) override  { performEdit(idx, normalizedValue); }
   void EndInformHostOfParamChange(int idx) override  { endEdit(idx); }
   void InformHostOfProgramChange() override  { /* TODO: */}
-  void EditorPropertiesChangedFromDelegate(int viewWidth, int viewHeight, const IByteChunk& data) override;
+  bool EditorResizeFromDelegate(int viewWidth, int viewHeight) override;
   void DirtyParametersFromUI() override;
   
   // IEditorDelegate
@@ -89,6 +92,6 @@ private:
   Steinberg::FUID mProcessorGUID;
 };
 
-IPlugVST3Controller* MakeController();
+END_IPLUG_NAMESPACE
 
 #endif // _IPLUGAPI_
