@@ -51,7 +51,7 @@ bool ImGuiITextEditor(const char* label, IText& text)
   
   change = ImGui::SliderFloat("Size", &text.mSize, 5.f, 200.f);
   change |= ImGuiIVColorEditor("Color", text.mFGColor);
-  change |= ImGui::SliderFloat("Angle", &text.mAngle, 0.f, 360.f);
+  change |= ImGui::SliderFloat("Angle", &text.mAngle, 0.f, 360.f, "%.02f");
   int align = (int) text.mAlign;
   if(ImGui::Combo("h align", &align, kEAlignStrs, 3))
   {
@@ -85,11 +85,11 @@ bool ImGuiIVStyleEditor(const char* label, IVStyle& style)
       change |= ImGui::Checkbox("Hide Cursor", &style.hideCursor);
       change |= ImGui::Checkbox("Draw Frame", &style.drawFrame);
       change |= ImGui::Checkbox("Draw Shadows", &style.drawShadows);
-      change |= ImGui::SliderFloat("Roundness", &style.roundness, 0.f, 1.f);
-      change |= ImGui::SliderFloat("Frame Thickness", &style.frameThickness, 0.f, 10.f);
-      change |= ImGui::SliderFloat("Shadow Offset", &style.shadowOffset, 1.f, 10.f);
-      change |= ImGui::SliderFloat("Widget Fraction", &style.widgetFrac, 0.1f, 1.f);
-      change |= ImGui::SliderFloat("Widget Angle", &style.angle, 0.f, 360.f);
+      change |= ImGui::SliderFloat("Roundness", &style.roundness, 0.f, 1.f, "%.02f");
+      change |= ImGui::SliderFloat("Frame Thickness", &style.frameThickness, 0.f, 10.f, "%.02f");
+      change |= ImGui::SliderFloat("Shadow Offset", &style.shadowOffset, 1.f, 10.f, "%.02f");
+      change |= ImGui::SliderFloat("Widget Fraction", &style.widgetFrac, 0.1f, 1.f, "%.02f");
+      change |= ImGui::SliderFloat("Widget Angle", &style.angle, 0.f, 360.f, "%.02f");
       ImGui::EndTabItem();
     }
     
