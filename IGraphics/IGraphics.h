@@ -1177,6 +1177,8 @@ public:
    * @param group A CString that you can use to address controlled by group
    * @return The index of the control (and the number of controls in the stack) */
   IControl* AttachControl(IControl* pControl, int controlTag = kNoTag, const char* group = "");
+  
+  void AttachViewPort(const IRECT& r) {};
 
   /** @param idx The index of the control to get
    * @return A pointer to the IControl object at idx or nullptr if not found */
@@ -1485,6 +1487,7 @@ private:
   }
   
   WDL_PtrList<IControl> mControls;
+  WDL_PtrList<IViewPort> mViewPorts;
 
   // Order (front-to-back) ToolTip / PopUp / TextEntry / LiveEdit / Corner / PerfDisplay
   std::unique_ptr<ICornerResizerControl> mCornerResizer;

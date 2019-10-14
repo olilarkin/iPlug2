@@ -1651,6 +1651,22 @@ private:
   WDL_TypedBuf<IRECT> mRects;
 };
 
+struct IViewPort
+{
+  IViewPort(const IRECT& bounds)
+  : mRect(bounds)
+  {
+  }
+  
+  void AddControl(IControl* pControl)
+  {
+    mControls.Add(pControl);
+  }
+  
+  IRECT mRect;
+  WDL_PtrList<IControl> mControls;
+};
+
 /** Used to store transformation matrices **/
 struct IMatrix
 {
