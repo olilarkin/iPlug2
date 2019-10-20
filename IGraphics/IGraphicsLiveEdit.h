@@ -29,14 +29,14 @@ BEGIN_IGRAPHICS_NAMESPACE
  * It should not be used in the main control stack.
  * @ingroup SpecialControls */
 
-/** All attached controls should be inside LIVE_EDIT_INIT and LIVE_EDIT_FINISH
+/** All attached controls should be inside LIVE_EDIT_INIT and LIVE_EDIT_END
  * All controls should be wrapped with LIVE_EDIT_CONTROL_START and LIVE_EDIT_CONTROL_END
  * LIVE_EDIT_RECT should be used for the IRECT
  *
  * All macros should be placed on the new line. */
 
 #define LIVE_EDIT_INIT(p) pGraphics->SetLiveEditSourcePath(p);
-#define LIVE_EDIT_FINISH
+#define LIVE_EDIT_END
 
 #define LIVE_EDIT_CONTROL_START
 #define LIVE_EDIT_CONTROL_END
