@@ -2,6 +2,8 @@
 #include "IPlug_include_in_plug_src.h"
 #include "IControls.h"
 
+#include "MyControl.h"
+
 IPlugEffect::IPlugEffect(const InstanceInfo& info)
 : Plugin(info, MakeConfig(kNumParams, kNumPrograms))
 {
@@ -17,8 +19,7 @@ IPlugEffect::IPlugEffect(const InstanceInfo& info)
     pGraphics->AttachPanelBackground(COLOR_GRAY);
     pGraphics->LoadFont("Roboto-Regular", ROBOTO_FN);
     const IRECT b = pGraphics->GetBounds();
-    pGraphics->AttachControl(new ITextControl(b.GetMidVPadded(50), "Hello iPlug 2!", IText(50)));
-    pGraphics->AttachControl(new IVKnobControl(b.GetCentredInside(100).GetVShifted(-100), kGain));
+    pGraphics->AttachControl(new MyControl(b.GetCentredInside(100).GetVShifted(-100)));
   };
 #endif
 }

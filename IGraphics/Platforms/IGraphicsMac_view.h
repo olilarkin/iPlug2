@@ -160,6 +160,8 @@ using namespace igraphics;
 - (BOOL) performDragOperation: (id<NSDraggingInfo>) sender;
 //
 - (void) setMouseCursor: (ECursor) cursorType;
+
+- (void*) attachCALayer: (NSRect) r : (BOOL) opaque;
 @end
 
 @interface IGRAPHICS_GLLAYER : NSOpenGLLayer

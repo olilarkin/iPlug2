@@ -69,6 +69,8 @@ public:
   void MeasureText(const IText& text, const char* str, IRECT& bounds) const override;
 
   void ContextReady(void* pLayer);
+  
+  void* AttachPlatformLayer(const IRECT& bounds, bool isOpaque) override;
 
 protected:
   void CreatePlatformImGui() override;
