@@ -17,7 +17,7 @@ void MyControl::OnInit()
   mTimer = Timer::Create([this](Timer& t)
                          {
                            DrawToCALayer();
-                         }, 100);
+                         }, 16);
 }
 
 
