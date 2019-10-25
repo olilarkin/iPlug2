@@ -1,3 +1,5 @@
+
+#ifdef IGRAPHICS_SKIA
 #define SK_METAL
 #include "include/core/SkRefCnt.h"
 #include "include/core/SkSurfaceProps.h"
@@ -8,12 +10,6 @@
 #include "include/core/SkImageInfo.h"
 #include "include/core/SkSurfaceProps.h"
 #include "include/gpu/GrContextOptions.h"
-
-#include "IControl.h"
-#include "IPlugTimer.h"
-
-using namespace iplug;
-using namespace igraphics;
 
 struct DisplayParams {
   DisplayParams()
@@ -32,6 +28,19 @@ struct DisplayParams {
   bool                fDisableVsync;
 };
 
+#endif
+
+#ifdef IGRAPHICS_NANOVG
+struct NVGcontext;
+#endif
+
+#include "IControl.h"
+#include "IPlugTimer.h"
+
+using namespace iplug;
+using namespace igraphics;
+
+
 class MyControl : public IControl
 {
 public:
@@ -49,14 +58,23 @@ public:
   void OnResize() override;
   
 private:
+#ifdef IGRAPHICS_SKIA
   GrMTLHandle mCALayerPtr;
   GrMTLHandle mDrawable;
   sk_sp<GrContext> fContext;
   int fWidth;
   int fHeight;
   DisplayParams fDisplayParams;
-  Timer* mTimer;
-  
   int fSampleCount;
   int fStencilBits;
+#endif
+  
+#ifdef IGRAPHICS_NANOVG
+  NVGcontext* mVG = nullptr;
+  CALayerPtr mCALayer;
+#endif
+  
+  Timer* mTimer;
+  
+
 };
