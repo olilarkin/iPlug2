@@ -70,7 +70,7 @@ public:
 
   void ContextReady(void* pLayer);
   
-  void* AttachPlatformLayer(const IRECT& bounds, bool isOpaque) override;
+  PlatformLayerPtr AttachPlatformLayer(const IRECT& bounds, bool isOpaque) override;
 
 protected:
   void CreatePlatformImGui() override;

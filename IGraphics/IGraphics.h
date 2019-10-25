@@ -1164,7 +1164,9 @@ public:
    @param bounds The area that the menu should occupy /todo check */
   void AttachPopupMenuControl(const IText& text = DEFAULT_TEXT, const IRECT& bounds = IRECT());
 
-  virtual void* AttachPlatformLayer(const IRECT& bounds, bool isOpaque = false) { return nullptr; }
+  virtual PlatformLayerPtr AttachPlatformLayer(const IRECT& bounds, bool isOpaque = false) { return nullptr; }
+  
+  virtual void BindControlPlatformLayer(IControl* pControl) { /* NO-OP */ }
   
   /** Shows a control to display the frame rate of drawing
    * @param enable \c true to show */

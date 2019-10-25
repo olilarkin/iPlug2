@@ -606,7 +606,7 @@ bool IGraphicsMac::SetTextInClipboard(const WDL_String& str)
   return [[NSPasteboard generalPasteboard] setString:pTextForClipboard forType:NSStringPboardType];
 }
 
-void* IGraphicsMac::AttachPlatformLayer(const IRECT& bounds, bool isOpaque)
+PlatformLayerPtr IGraphicsMac::AttachPlatformLayer(const IRECT& bounds, bool isOpaque)
 {
   IGRAPHICS_VIEW* pView = (IGRAPHICS_VIEW*) mView;
 

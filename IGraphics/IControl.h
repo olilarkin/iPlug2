@@ -255,6 +255,10 @@ public:
    * @param groupName A CString indicating the control group that this control should belong to */
   void SetGroup(const char* groupName) { mGroup.Set(groupName); }
   
+  void SetPlatformLayer(PlatformLayerPtr layerPtr) { mPlatformLayer = layerPtr; }
+  
+  PlatformLayerPtr GetPlatformLayer() const { return mPlatformLayer; }
+
   /** Get the group that the control belongs to, if any
    * @return A CString indicating the control group that this control belongs to (may be empty) */
   const char* GetGroup() const { return mGroup.Get(); }
@@ -367,6 +371,10 @@ public:
    * The default implementation executes a control's Animation Function, so if you override this you may want to call the base implementation, @see Animation Functions
    * @return \c true if the control is marked dirty. */
   virtual bool IsDirty();
+
+  bool GetOpaque() const { return mIsOpaque; }
+  
+  void SetOpaque(bool opaque) { mIsOpaque = opaque; }
 
   /** Disable/enable right-clicking the control to prompt for user input /todo check this
    * @param disable \c true*/
@@ -491,6 +499,7 @@ protected:
   IText mText;
 
   int mTextEntryLength = DEFAULT_TEXT_ENTRY_LEN;
+  bool mIsOpaque = true;
   bool mDirty = true;
   bool mHide = false;
   bool mDisabled = false;
@@ -522,6 +531,7 @@ protected:
 #endif
   
 private:
+  PlatformLayerPtr mPlatformLayer = nullptr;
   IGEditorDelegate* mDelegate = nullptr;
   IGraphics* mGraphics = nullptr;
   IActionFunction mActionFunc = nullptr;

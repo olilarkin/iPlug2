@@ -194,20 +194,23 @@ void IGraphics::SetControlValueAfterPopupMenu(IPopupMenu* pMenu)
 void IGraphics::AttachBackground(const char* name)
 {
   IBitmap bg = LoadBitmap(name, 1, false);
-  IControl* pBG = new IBitmapControl(0, 0, bg, kNoParameter, EBlend::Clobber);
-  pBG->SetDelegate(*GetDelegate());
-  mControls.Insert(0, pBG);
+  IControl* pControl = new IBitmapControl(0, 0, bg, kNoParameter, EBlend::Clobber);
+  pControl->SetPlatformLayer(AttachPlatformLayer(pControl->GetRECT(), pControl->GetOpaque()));
+  pControl->SetDelegate(*GetDelegate());
+  mControls.Insert(0, pControl);
 }
 
 void IGraphics::AttachPanelBackground(const IPattern& color)
 {
-  IControl* pBG = new IPanelControl(GetBounds(), color);
-  pBG->SetDelegate(*GetDelegate());
-  mControls.Insert(0, pBG);
+  IControl* pControl = new IPanelControl(GetBounds(), color);
+  pControl->SetPlatformLayer(AttachPlatformLayer(pControl->GetRECT(), pControl->GetOpaque()));
+  pControl->SetDelegate(*GetDelegate());
+  mControls.Insert(0, pControl);
 }
 
 IControl* IGraphics::AttachControl(IControl* pControl, int controlTag, const char* group)
 {
+  pControl->SetPlatformLayer(AttachPlatformLayer(pControl->GetRECT(), pControl->GetOpaque()));
   pControl->SetDelegate(*GetDelegate());
   pControl->SetTag(controlTag);
   pControl->SetGroup(group);
@@ -681,6 +684,7 @@ void IGraphics::DrawControl(IControl* pControl, const IRECT& bounds, float scale
     if (clipBounds.W() <= 0.0 || clipBounds.H() <= 0)
       return;
     
+    BindControlPlatformLayer(pControl);
     PrepareRegion(clipBounds);
     pControl->Draw(*this);
 #ifdef AAX_API
@@ -693,6 +697,7 @@ void IGraphics::DrawControl(IControl* pControl, const IRECT& bounds, float scale
       DrawRect(CONTROL_BOUNDS_COLOR, pControl->GetRECT());
     }
 #endif
+    BindControlPlatformLayer(nullptr);
     
     CompleteRegion(clipBounds);
   }

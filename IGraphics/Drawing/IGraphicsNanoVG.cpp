@@ -59,6 +59,7 @@
   #if defined OS_MAC
     //even though this is a .cpp we are in an objc(pp) compilation unit
     #import <Metal/Metal.h>
+    #import <QuartzCore/CAMetalLayer.h>
   #endif
 #else
   #error you must define either IGRAPHICS_GL2, IGRAPHICS_GLES2 etc or IGRAPHICS_METAL when using IGRAPHICS_NANOVG
@@ -341,11 +342,11 @@ APIBitmap* IGraphicsNanoVG::CreateAPIBitmap(int width, int height, int scale, do
   
   APIBitmap* pAPIBitmap =  new Bitmap(this, mVG, width, height, scale, drawScale);
 
-  if (mInDraw)
-  {
-    nvgBindFramebuffer(mMainFrameBuffer); // begin main frame buffer update
-    nvgBeginFrame(mVG, WindowWidth(), WindowHeight(), GetScreenScale());
-  }
+//  if (mInDraw)
+//  {
+//    nvgBindFramebuffer(mMainFrameBuffer); // begin main frame buffer update
+//    nvgBeginFrame(mVG, WindowWidth(), WindowHeight(), GetScreenScale());
+//  }
   
   return pAPIBitmap;
 }
@@ -429,11 +430,6 @@ void IGraphicsNanoVG::OnViewDestroyed()
   StaticStorage<APIBitmap>::Accessor storage(mBitmapCache);
   storage.Clear();
   
-  if(mMainFrameBuffer != nullptr)
-    nvgDeleteFramebuffer(mMainFrameBuffer);
-  
-  mMainFrameBuffer = nullptr;
-  
   if(mVG)
     nvgDeleteContext(mVG);
   
@@ -442,14 +438,6 @@ void IGraphicsNanoVG::OnViewDestroyed()
 
 void IGraphicsNanoVG::DrawResize()
 {
-  if (mMainFrameBuffer != nullptr)
-    nvgDeleteFramebuffer(mMainFrameBuffer);
-  
-  if (mVG)
-    mMainFrameBuffer = nvgCreateFramebuffer(mVG, WindowWidth() * GetScreenScale(), WindowHeight() * GetScreenScale(), 0);
-  
-  if (mMainFrameBuffer == nullptr)
-    DBGMSG("Could not init FBO.\n");
 }
 
 void IGraphicsNanoVG::BeginFrame()
@@ -468,30 +456,29 @@ void IGraphicsNanoVG::BeginFrame()
   #endif
 #endif
   
-  nvgBindFramebuffer(mMainFrameBuffer); // begin main frame buffer update
   nvgBeginFrame(mVG, WindowWidth(), WindowHeight(), GetScreenScale());
 }
 
 void IGraphicsNanoVG::EndFrame()
 {
-  nvgEndFrame(mVG); // end main frame buffer update
-  nvgBindFramebuffer(nullptr);
-  nvgBeginFrame(mVG, WindowWidth(), WindowHeight(), GetScreenScale());
-  
-  NVGpaint img = nvgImagePattern(mVG, 0, 0, WindowWidth(), WindowHeight(), 0, mMainFrameBuffer->image, 1.0f);
-
-  nvgSave(mVG);
-  nvgResetTransform(mVG);
-  nvgTranslate(mVG, mXTranslation, mYTranslation);
-  nvgBeginPath(mVG);
-  nvgRect(mVG, 0, 0, WindowWidth(), WindowHeight());
-  nvgFillPaint(mVG, img);
-  nvgFill(mVG);
-  nvgRestore(mVG);
-  
-#if defined OS_MAC && defined IGRAPHICS_GL
-  glBindFramebuffer(GL_FRAMEBUFFER, mInitialFBO); // restore apple fbo
-#endif
+//  nvgEndFrame(mVG); // end main frame buffer update
+//  nvgBindFramebuffer(nullptr);
+//  nvgBeginFrame(mVG, WindowWidth(), WindowHeight(), GetScreenScale());
+//  
+//  NVGpaint img = nvgImagePattern(mVG, 0, 0, WindowWidth(), WindowHeight(), 0, mMainFrameBuffer->image, 1.0f);
+//
+//  nvgSave(mVG);
+//  nvgResetTransform(mVG);
+//  nvgTranslate(mVG, mXTranslation, mYTranslation);
+//  nvgBeginPath(mVG);
+//  nvgRect(mVG, 0, 0, WindowWidth(), WindowHeight());
+//  nvgFillPaint(mVG, img);
+//  nvgFill(mVG);
+//  nvgRestore(mVG);
+//  
+//#if defined OS_MAC && defined IGRAPHICS_GL
+//  glBindFramebuffer(GL_FRAMEBUFFER, mInitialFBO); // restore apple fbo
+//#endif
 
   nvgEndFrame(mVG);
 
@@ -712,7 +699,7 @@ void IGraphicsNanoVG::UpdateLayer()
 #ifdef IGRAPHICS_GL
     glViewport(0, 0, WindowWidth() * GetScreenScale(), WindowHeight() * GetScreenScale());
 #endif
-    nvgBindFramebuffer(mMainFrameBuffer);
+    nvgBindFramebuffer(nullptr);
     nvgBeginFrame(mVG, WindowWidth(), WindowHeight(), GetScreenScale());
   }
   else
@@ -847,5 +834,29 @@ void IGraphicsNanoVG::ClearFBOStack()
   {
     nvgDeleteFramebuffer(mFBOStack.top());
     mFBOStack.pop();
+  }
+}
+
+void IGraphicsNanoVG::BindControlPlatformLayer(IControl* pControl)
+{
+  if(pControl != nullptr)
+  {
+#ifdef IGRAPHICS_METAL
+    CAMetalLayer* pMTLLayer = static_cast<CAMetalLayer*>(pControl->GetPlatformLayer());
+    assert(pMTLLayer);
+    id<CAMetalDrawable> currentDrawable = [pMTLLayer nextDrawable];
+
+    MNVGframebuffer frameBuffer;
+    frameBuffer.image = mnvgCreateImageFromHandle(mVG, currentDrawable.texture, 0 /* flags */);
+    frameBuffer.ctx = mVG;
+    mnvgBindFramebuffer(&frameBuffer);
+    IRECT bounds = pControl->GetRECT();
+    nvgBeginFrame(mVG, bounds.W(), bounds.H(), GetScreenScale());
+#endif
+  }
+  else
+  {
+    nvgEndFrame(mVG);
+    nvgBindFramebuffer(nullptr);
   }
 }

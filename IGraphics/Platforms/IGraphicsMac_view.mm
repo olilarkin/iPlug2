@@ -1167,12 +1167,12 @@ static void MakeCursorFromName(NSCursor*& cursor, const char *name)
 }
 #endif
 
-- (void*) attachCALayer: (NSRect) r : (BOOL) opaque
+- (PlatformLayerPtr) attachCALayer: (NSRect) r : (BOOL) opaque
 {
   CAMetalLayer* pParentLayer = (CAMetalLayer*)[self layer];
   
   CAMetalLayer* pLayer = [CAMetalLayer layer];
-  pLayer.framebufferOnly = YES;
+  pLayer.framebufferOnly = NO;
   pLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
   pLayer.device = pParentLayer.device;
   pLayer.frame = r;

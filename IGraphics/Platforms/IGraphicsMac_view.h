@@ -161,7 +161,7 @@ using namespace igraphics;
 //
 - (void) setMouseCursor: (ECursor) cursorType;
 
-- (void*) attachCALayer: (NSRect) r : (BOOL) opaque;
+- (PlatformLayerPtr) attachCALayer: (NSRect) r : (BOOL) opaque;
 @end
 
 @interface IGRAPHICS_GLLAYER : NSOpenGLLayer

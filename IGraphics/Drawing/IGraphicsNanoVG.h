@@ -107,7 +107,9 @@ public:
   bool BitmapExtSupported(const char* ext) override;
 
   void DeleteFBO(NVGframebuffer* pBuffer);
-    
+  
+  void BindControlPlatformLayer(IControl* pControl) override;
+  
 protected:
   APIBitmap* LoadAPIBitmap(const char* fileNameOrResID, int scale, EResourceLocation location, const char* ext) override;
   APIBitmap* CreateAPIBitmap(int width, int height, int scale, double drawScale) override;
@@ -143,7 +145,6 @@ private:
   std::stack<NVGframebuffer*> mFBOStack; // A stack of FBOs that requires freeing at the end of the frame
   StaticStorage<APIBitmap> mBitmapCache; //not actually static (doesn't require retaining or releasing)
   NVGcontext* mVG = nullptr;
-  NVGframebuffer* mMainFrameBuffer = nullptr;
   int mInitialFBO = 0;
 };
 
