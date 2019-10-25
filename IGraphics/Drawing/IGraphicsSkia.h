@@ -72,6 +72,8 @@ public:
   void ApplyShadowMask(ILayerPtr& layer, RawBitmapData& mask, const IShadow& shadow) override;
 
   void UpdateLayer() override;
+  
+  GrContext* GetGrContext() { return mGrContext.get(); }
     
 protected:
     
