@@ -737,3 +737,17 @@ const char* IGraphicsSkia::GetDrawingAPIStr()
   return "SKIA | Metal";
 #endif
 }
+
+void IGraphicsSkia::BindControlPlatformLayer(IControl* pControl)
+{
+#ifdef IGRAPHICS_METAL
+  @autoreleasepool {
+    if(pControl != nullptr)
+    {
+      CAMetalLayer* pMTLLayer = static_cast<CAMetalLayer*>(pControl->GetPlatformLayer());
+      assert(pMTLLayer);
+      id<CAMetalDrawable> currentDrawable = [pMTLLayer nextDrawable];
+    }
+  }
+#endif
+}

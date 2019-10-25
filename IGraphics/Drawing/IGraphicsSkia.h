@@ -74,6 +74,8 @@ public:
   void UpdateLayer() override;
   
   GrContext* GetGrContext() { return mGrContext.get(); }
+  
+  void BindControlPlatformLayer(IControl* pControl) override;
     
 protected:
     
