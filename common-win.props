@@ -28,7 +28,7 @@
     <FAUST_INC_PATHS>$(ProgramW6432)\Faust\include;</FAUST_INC_PATHS>
     <STATIC_LIBS_PATH>$(DEPS_PATH)\Build\win\$(Platform)\$(Configuration)</STATIC_LIBS_PATH>
     <IMGUI_PATHS>$(IGRAPHICS_DEPS_PATH)\imgui;$(IGRAPHICS_DEPS_PATH)\imgui\examples;</IMGUI_PATHS>
-    <IGRAPHICS_INC_PATHS>$(IGRAPHICS_PATH);$(IGRAPHICS_PATH)\Controls;$(IGRAPHICS_PATH)\Drawing;$(IGRAPHICS_PATH)\Platforms;$(IGRAPHICS_PATH)\Extras;$(LICE_PATH);$(NANOSVG_PATH);$(NANOVG_PATH);$(AGG_INC_PATHS);$(CAIRO_PATHS);$(PNG_PATH);$(ZLIB_PATH);$(FREETYPE_PATH);$(STB_PATH);$(IMGUI_PATHS);$(SKIA_INC_PATHS);</IGRAPHICS_INC_PATHS>
+    <IGRAPHICS_INC_PATHS>$(IGRAPHICS_PATH);$(IGRAPHICS_PATH)\Controls;$(IGRAPHICS_PATH)\Drawing;$(IGRAPHICS_PATH)\Platforms;$(IGRAPHICS_PATH)\Extras;$(LICE_PATH);$(NANOSVG_PATH);$(NANOVG_PATH);$(AGG_INC_PATHS);$(CAIRO_PATHS);$(PNG_PATH);$(ZLIB_PATH);$(FREETYPE_PATH);$(STB_PATH);$(IMGUI_PATHS);$(SKIA_INC_PATHS);$(ANGLE_INC_PATHS)</IGRAPHICS_INC_PATHS>
     <VST2_SDK>$(IPLUG_DEPS_PATH)\VST2_SDK</VST2_SDK>
     <VST3_SDK>$(IPLUG_DEPS_PATH)\VST3_SDK</VST3_SDK>
     <ASIO_SDK>$(IPLUG_DEPS_PATH)\RTAudio\include</ASIO_SDK>
@@ -67,6 +67,8 @@
     <AAX_ICON>$(AAX_SDK)\Utilities\PlugIn.ico</AAX_ICON>
     <VST_ICON>$(VST3_SDK)\doc\artwork\VST_Logo_Steinberg.ico</VST_ICON>
     <FAUST_LIB_PATH>$(ProgramW6432)\Faust\lib</FAUST_LIB_PATH>
+    <ANGLE_INC_PATHS>C:\Users\oli\Dev\ANGLE\include</ANGLE_INC_PATHS>
+    <ANGLE_LIB_PATH>C:\Users\oli\Dev\ANGLE\out\$(Configuration)</ANGLE_LIB_PATH>
   </PropertyGroup>
   <PropertyGroup>
     <_ProjectFileVersion>10.0.30319.1</_ProjectFileVersion>
@@ -81,7 +83,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(STATIC_LIBS_PATH);$(AAX_SDK)\Libs\$(Configuration);$(FAUST_LIB_PATH);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(STATIC_LIBS_PATH);$(AAX_SDK)\Libs\$(Configuration);$(FAUST_LIB_PATH);$(ANGLE_LIB_PATH);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary>
     </Link>
     <Lib>
@@ -286,6 +288,12 @@
     </BuildMacro>
     <BuildMacro Include="FAUST_LIB_PATH">
       <Value>$(FAUST_LIB_PATH)</Value>
+    </BuildMacro>
+    <BuildMacro Include="ANGLE_INC_PATHS">
+      <Value>$(ANGLE_INC_PATHS)</Value>
+    </BuildMacro>
+    <BuildMacro Include="ANGLE_LIB_PATH">
+      <Value>$(ANGLE_LIB_PATH)</Value>
     </BuildMacro>
   </ItemGroup>
 </Project>

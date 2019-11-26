@@ -39,7 +39,17 @@
     #elif defined IGRAPHICS_GL3
       #define NANOVG_GL3_IMPLEMENTATION
     #else
-      #error Define either IGRAPHICS_GL2 or IGRAPHICS_GL3 when using IGRAPHICS_GL and IGRAPHICS_NANOVG with OS_WIN
+      #if defined IGRAPHICS_ANGLE
+        #if defined IGRAPHICS_GLES2
+          #define NANOVG_GLES2_IMPLEMENTATION
+        #elif defined IGRAPHICS_GLES3
+          #define NANOVG_GLES3_IMPLEMENTATION
+        #else
+          #error Define either IGRAPHICS_GLES2 or IGRAPHICS_GLES3 when using IGRAPHICS_ANGLE and IGRAPHICS_NANOVG with OS_WIN
+        #endif
+      #else
+        #error Define either IGRAPHICS_GL2 or IGRAPHICS_GL3 when using IGRAPHICS_GL and IGRAPHICS_NANOVG with OS_WIN
+      #endif
     #endif
   #elif defined OS_LINUX
     #error NOT IMPLEMENTED

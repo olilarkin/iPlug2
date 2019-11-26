@@ -19,6 +19,11 @@
 BEGIN_IPLUG_NAMESPACE
 BEGIN_IGRAPHICS_NAMESPACE
 
+#ifdef IGRAPHICS_ANGLE
+#pragma comment(lib, "libEGL.dll.lib")
+#pragma comment(lib, "libGLESv2.dll.lib")
+#endif
+
 /** IGraphics platform class for Windows
 * @ingroup PlatformClasses */
 class IGraphicsWin final : public IGRAPHICS_DRAW_CLASS
@@ -119,9 +124,17 @@ private:
   void ActivateGLContext();
   // Restores previous GL context and Releases DC
   void DeactivateGLContext();
+
+#ifdef IGRAPHICS_ANGLE
+  EGLDisplay mEGLDisplay = EGL_NO_DISPLAY;
+  EGLSurface mEGLSurface = EGL_NO_SURFACE;
+  EGLContext mEGLContext = EGL_NO_CONTEXT;
+  EGLConfig mEGLConfig;
+#else
   HGLRC mHGLRC = nullptr;
   HGLRC mStartHGLRC = nullptr;
   HDC mStartHDC = nullptr;
+#endif
 #endif
 
   HINSTANCE mHInstance = nullptr;

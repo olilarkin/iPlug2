@@ -25,14 +25,14 @@
   #define IGRAPHICS_GL
   #if defined OS_IOS
     #include <OpenGLES/ES2/gl.h>
-  #elif defined OS_WEB
+  #elif defined OS_WEB || defined OS_WIN
     #include <GLES2/gl2.h>
   #endif
 #elif defined IGRAPHICS_GLES3
   #define IGRAPHICS_GL
   #if defined OS_IOS
     #include <OpenGLES/ES3/gl.h>
-  #elif defined OS_WEB
+  #elif defined OS_WEB || defined OS_WIN
     #include <GLES3/gl3.h>
   #endif
 #elif defined IGRAPHICS_GL2 || defined IGRAPHICS_GL3

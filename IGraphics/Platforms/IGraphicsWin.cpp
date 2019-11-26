@@ -500,7 +500,11 @@ LRESULT CALLBACK IGraphicsWin::WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARA
         pGraphics->Draw(rects);
 
         #ifdef IGRAPHICS_GL
-        SwapBuffers((HDC) pGraphics->mPlatformContext);
+          #ifdef IGRAPHICS_ANGLE
+            eglSwapBuffers(pGraphics->mEGLDisplay, pGraphics->mEGLSurface);
+          #else
+            SwapBuffers((HDC) pGraphics->mPlatformContext);
+          #endif
         pGraphics->DeactivateGLContext();
         EndPaint(hWnd, &ps);
         #endif
@@ -854,6 +858,82 @@ bool IGraphicsWin::MouseCursorIsLocked()
 }
 
 #ifdef IGRAPHICS_GL
+#ifdef IGRAPHICS_ANGLE
+void IGraphicsWin::CreateGLContext()
+{
+  static EGLint const attribute_list[] = {
+    EGL_RED_SIZE, 8,
+    EGL_GREEN_SIZE, 8,
+    EGL_BLUE_SIZE, 8,
+    EGL_ALPHA_SIZE, 8,
+    EGL_DEPTH_SIZE, 24,
+    EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+    EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
+    EGL_NONE
+  };
+
+  EGLint num_config;
+  EGLint majorVersion, minorVersion;
+
+  mEGLDisplay = eglGetDisplay(NULL);
+
+  if (mEGLDisplay == EGL_NO_DISPLAY)
+    DBGMSG("No display!\n");
+
+  if (!eglInitialize(mEGLDisplay, &majorVersion, &minorVersion))
+    DBGMSG("Cant initialise\n");
+
+  DBGMSG("version: %d %d\n", majorVersion, minorVersion);
+
+  if (!eglChooseConfig(mEGLDisplay, attribute_list, &mEGLConfig, 1, &num_config))
+    DBGMSG("Choose config failed\n");
+
+  DBGMSG("num_config=%d\n", num_config);
+
+  EGLint contextAttributes[] = {
+    EGL_CONTEXT_CLIENT_VERSION,
+    3,
+    EGL_NONE,
+  };
+
+  mEGLContext = eglCreateContext(mEGLDisplay, mEGLConfig, EGL_NO_CONTEXT, contextAttributes);
+
+  if (mEGLContext == EGL_NO_CONTEXT)
+    DBGMSG("No context\n");
+
+  mEGLSurface = eglCreateWindowSurface(mEGLDisplay, mEGLConfig, (NativeWindowType)GetWindow(), NULL);
+
+  if (mEGLSurface == EGL_NO_SURFACE)
+    DBGMSG("No surface\n");
+
+  if (!eglMakeCurrent(mEGLDisplay, mEGLSurface, mEGLSurface, mEGLContext))
+    DBGMSG("Cant make current\n");
+}
+
+void IGraphicsWin::DestroyGLContext()
+{
+  eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+  assert(mEGLDisplay != EGL_NO_DISPLAY);
+  eglDestroyContext(mEGLDisplay, mEGLContext);
+  mEGLContext = EGL_NO_CONTEXT;
+  eglDestroySurface(mEGLDisplay, mEGLSurface);
+  mEGLSurface = EGL_NO_SURFACE;
+}
+
+void IGraphicsWin::ActivateGLContext()
+{
+  if (eglMakeCurrent(mEGLDisplay, mEGLSurface, mEGLSurface, mEGLContext) == EGL_FALSE ||
+    eglGetError() != EGL_SUCCESS)
+  {
+    DBGMSG("Error during eglMakeCurrent.\n");
+  }
+}
+
+void IGraphicsWin::DeactivateGLContext()
+{
+  eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+}
+#else
 void IGraphicsWin::CreateGLContext()
 {
   PIXELFORMATDESCRIPTOR pfd =
@@ -911,6 +991,7 @@ void IGraphicsWin::DeactivateGLContext()
   ReleaseDC(mPlugWnd, (HDC) mPlatformContext);
   wglMakeCurrent(mStartHDC, mStartHGLRC); // return current ctxt to start
 }
+#endif
 #endif
 
 EMsgBoxResult IGraphicsWin::ShowMessageBox(const char* text, const char* caption, EMsgBoxType type, IMsgBoxCompletionHanderFunc completionHandler)
@@ -1831,7 +1912,9 @@ void IGraphicsWin::CachePlatformFont(const char* fontID, const PlatformFontPtr& 
 #define FONS_USE_FREETYPE
 #endif
   #include "nanovg.c"
-  #include "glad.c"
+  #ifndef IGRAPHICS_ANGLE
+    #include "glad.c"
+  #endif
 #else
   #error
 #endif

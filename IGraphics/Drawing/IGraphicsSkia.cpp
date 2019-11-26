@@ -759,6 +759,10 @@ const char* IGraphicsSkia::GetDrawingAPIStr()
   return "SKIA | OpenGL2";
 #elif defined IGRAPHICS_GL3
   return "SKIA | OpenGL3";
+#elif defined IGRAPHICS_GLES2
+  return "SKIA | OpenGLES2";
+#elif defined IGRAPHICS_GLES3
+  return "SKIA | OpenGLES3";
 #elif defined IGRAPHICS_METAL
   return "SKIA | Metal";
 #endif
