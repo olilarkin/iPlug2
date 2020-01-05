@@ -144,7 +144,7 @@ public:
   virtual void OnInit() {}
   
   /** Implement to receive messages sent to the control, see IEditorDelegate:SendControlMsgFromDelegate() */
-  virtual void OnMsgFromDelegate(int messageTag, int dataSize, const void* pData) {};
+  virtual void OnMsgFromDelegate(int msgTag, int dataSize, const void* pData) {};
   
   /** Implement to receive MIDI messages sent to the control if mWantsMidi == true, see IEditorDelegate:SendMidiMsgFromDelegate() */
   virtual void OnMidi(const IMidiMsg& msg) {};
@@ -188,6 +188,10 @@ public:
    * actionfunc @see Action Functions */
   inline void SetActionFunction(IActionFunction actionFunc) { mActionFunc = actionFunc; }
 
+  /** Set an Action Function to be called at the end of an animation.
+   * actionfunc @see Action Functions */
+  inline void SetAnimationEndActionFunction(IActionFunction actionFunc) { mAnimationEndActionFunc = actionFunc; }
+  
   /** Set a tooltip for the control
    * @param str CString tooltip to be displayed */
   inline void SetTooltip(const char* str) { mTooltip.Set(str); }
@@ -356,15 +360,16 @@ public:
   /** Mark the control as dirty, i.e. it should be redrawn on the next display refresh
    * @param triggerAction If this is true and the control is linked to a parameter
    * notify the class implementing the IEditorDelegate interface that the parameter changed. If this control has an ActionFunction, that can also be triggered.
-   * NOTE: it is easy to forget that this method always sets the control dirty, the argument is about whether a consecutive action should be performed */
+   * NOTE: it is easy to forget that this method always sets the control dirty, the argument refers to whether a consecutive action should be performed */
   virtual void SetDirty(bool triggerAction = true, int valIdx = kNoValIdx);
 
   /* Set the control clean, i.e. Called by IGraphics draw loop after control has been drawn */
   virtual void SetClean() { mDirty = false; }
-  
-  /** Called at each display refresh by the IGraphics draw loop to determine if the control is marked as dirty. 
-   * This is not const, because it is typically  overridden and used to update something at the display refresh rate
-   * The default implementation executes a control's Animation Function, so if you override this you may want to call the base implementation, @see Animation Functions
+
+  /* Called at each display refresh by the IGraphics draw loop, triggers the control's AnimationFunc if it is set */
+  void Animate();
+
+  /** Called at each display refresh by the IGraphics draw loop, after IControl::Animate(), to determine if the control is marked as dirty. 
    * @return \c true if the control is marked dirty. */
   virtual bool IsDirty();
 
@@ -383,7 +388,7 @@ public:
   int GetTag() const { return mTag; }
   
   /** Specify whether this control wants to know about MIDI messages sent to the UI. See OnMIDIMsg() */
-  void SetWantsMidi(bool enable) { mWantsMidi = true; }
+  void SetWantsMidi(bool enable = true) { mWantsMidi = enable; }
 
   /** @return /c true if this control wants to know about MIDI messages send to the UI. See OnMIDIMsg() */
   bool GetWantsMidi() const { return mWantsMidi; }
@@ -422,18 +427,11 @@ public:
    * @param scalar A scalar to speedup/slowdown mousing along the track */
   virtual void SnapToMouse(float x, float y, EDirection direction, const IRECT& bounds, int valIdx = -1, float scalar = 1., double minClip = 0., double maxClip = 1.);
 
-  virtual void OnEndAnimation() // if you override this you must call the base implementation, to free mAnimationFunc
-  {
-    mAnimationFunc = nullptr;
-    SetDirty(false);
-  }
+  /* if you override this you must call the base implementation, to free mAnimationFunc */
+  virtual void OnEndAnimation();
   
   /** @param duration Duration in milliseconds for the animation  */
-  void StartAnimation(int duration)
-  {
-    mAnimationStartTime = std::chrono::high_resolution_clock::now();
-    mAnimationDuration = Milliseconds(duration);
-  }
+  void StartAnimation(int duration);
   
   /** Set the animation function
    * @param func A std::function conforming to IAnimationFunction */
@@ -444,19 +442,18 @@ public:
    * @param duration Duration in milliseconds for the animation  */
   void SetAnimation(IAnimationFunction func, int duration) { mAnimationFunc = func; StartAnimation(duration); }
 
+  /** /todo */
   IAnimationFunction GetAnimationFunction() { return mAnimationFunc; }
-  
+
+  /** /todo */
   IAnimationFunction GetActionFunction() { return mActionFunc; }
 
-  double GetAnimationProgress()
-  {
-    if(!mAnimationFunc)
-      return 0.;
-    
-    auto elapsed = Milliseconds(std::chrono::high_resolution_clock::now() - mAnimationStartTime);
-    return elapsed.count() / mAnimationDuration.count();
-  }
+  /** /todo */
+  double GetAnimationProgress() const;
   
+  /** /todo */
+  Milliseconds GetAnimationDuration() const { return mAnimationDuration; }
+    
 #if defined VST3_API || defined VST3C_API
   Steinberg::tresult PLUGIN_API executeMenuItem (Steinberg::int32 tag) override { OnContextSelection(tag); return Steinberg::kResultOk; }
 #endif
@@ -525,6 +522,7 @@ private:
   IGEditorDelegate* mDelegate = nullptr;
   IGraphics* mGraphics = nullptr;
   IActionFunction mActionFunc = nullptr;
+  IActionFunction mAnimationEndActionFunc = nullptr;
   IAnimationFunction mAnimationFunc = nullptr;
   TimePoint mAnimationStartTime;
   Milliseconds mAnimationDuration;
@@ -730,9 +728,11 @@ public:
       return mStyle.roundness * (bounds.H() / 2.f);
   }
   
-  void DrawSplash(IGraphics& g)
+  void DrawSplash(IGraphics& g, const IRECT& clipRegion = IRECT())
   {
+    g.PathClipRegion(clipRegion);
     g.FillCircle(GetColor(kHL), mSplashX, mSplashY, mSplashRadius);
+    g.PathClipRegion(IRECT());
   }
   
   virtual void DrawBackGround(IGraphics& g, const IRECT& rect)
@@ -798,6 +798,9 @@ public:
     if(mouseOver)
       g.FillCircle(GetColor(kHL), cx, cy, radius * 0.8f);
     
+    if(pressed && mControl->GetAnimationFunction())
+      DrawSplash(g);
+    
     if(mStyle.drawFrame)
       g.DrawCircle(GetColor(kFR), cx, cy, radius, 0, mStyle.frameThickness);
   }
@@ -814,6 +817,9 @@ public:
 
     if(mouseOver)
       g.FillEllipse(GetColor(kHL), bounds);
+    
+    if(pressed && mControl->GetAnimationFunction())
+      DrawSplash(g, bounds);
     
     if(mStyle.drawFrame)
       g.DrawEllipse(GetColor(kFR), bounds, nullptr, mStyle.frameThickness);
@@ -850,8 +856,8 @@ public:
     if(mouseOver)
       g.FillRoundRect(GetColor(kHL), handleBounds, topLeftR, topRightR, bottomLeftR, bottomRightR);
     
-    if(mControl->GetAnimationFunction())
-      DrawSplash(g);
+    if(pressed && mControl->GetAnimationFunction())
+      DrawSplash(g, handleBounds);
     
     if(mStyle.drawFrame)
       g.DrawRoundRect(GetColor(kFR), handleBounds, topLeftR, topRightR, bottomLeftR, bottomRightR, 0, mStyle.frameThickness);
@@ -901,7 +907,7 @@ public:
     if (mouseOver)
       g.FillTriangle(GetColor(kHL), x1, y1, x2, y2, x3, y3);
     
-    if (mControl->GetAnimationFunction())
+    if(pressed && mControl->GetAnimationFunction())
       DrawSplash(g);
     
     if (mStyle.drawFrame)

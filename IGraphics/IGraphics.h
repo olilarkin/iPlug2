@@ -1184,18 +1184,18 @@ public:
   
   /** Attach an IControl to the graphics context and add it to the top of the control stack. The control is owned by the graphics context and will be deleted when the context is deleted.
    * @param pControl A pointer to an IControl to attach.
-   * @param controlTag An integer tag that you can use to identify the control
+   * @param ctrlTag An integer tag that you can use to identify the control
    * @param group A CString that you can use to address controlled by group
    * @return The index of the control (and the number of controls in the stack) */
-  IControl* AttachControl(IControl* pControl, int controlTag = kNoTag, const char* group = "");
+  IControl* AttachControl(IControl* pControl, int ctrlTag = kNoTag, const char* group = "");
 
   /** @param idx The index of the control to get
    * @return A pointer to the IControl object at idx or nullptr if not found */
   IControl* GetControl(int idx) { return mControls.Get(idx); }
 
-  /** @param controlTag The tag to look for
+  /** @param ctrlTag The tag to look for
    * @return A pointer to the IControl object with the tag of nullptr if not found */
-  IControl* GetControlWithTag(int controlTag);
+  IControl* GetControlWithTag(int ctrlTag);
   
   /** Get a pointer to the IControl that is currently captured i.e. during dragging
    * @return Pointer to currently captured control */
@@ -1222,6 +1222,9 @@ public:
   /** @return The number of controls that have been added to this graphics context */
   int NControls() const { return mControls.GetSize(); }
 
+  /** Remove controls from the control list with a particular tag.  */
+  void RemoveControlWithTag(int ctrlTag);
+  
   /** Remove controls from the control list above a particular index, (frees memory).  */
   void RemoveControls(int fromIdx);
   
@@ -1424,13 +1427,13 @@ protected:
    * @return bool* /todo */
   virtual bool LoadAPIFont(const char* fontID, const PlatformFontPtr& font) = 0;
 
-  /** /todo */
+  /** Specialized in IGraphicsCanvas drawing backend */
   virtual bool AssetsLoaded() { return true; }
     
-  /** /todo */
+  /** @return int The index of the alpha component in a drawing backend's pixel (RGBA or ARGB) */
   virtual int AlphaChannel() const = 0;
 
-  /** /todo */
+  /** @return bool \c true if the drawing backend flips images (e.g. OpenGL) */
   virtual bool FlippedBitmap() const = 0;
 
   /** Utility used by SearchImageResource/SearchBitmapInCache
@@ -1481,11 +1484,10 @@ protected:
    * @param rect /todo
    * @param tx /todo
    * @param ty /todo */
-  void CalulateTextRotation(const IText& text, const IRECT& bounds, IRECT& rect, double& tx, double& ty) const;
+  void CalculateTextRotation(const IText& text, const IRECT& bounds, IRECT& rect, double& tx, double& ty) const;
   
   /** @return float /todo */
   virtual float GetBackingPixelScale() const = 0;
-  
 #pragma mark -
 
 private:

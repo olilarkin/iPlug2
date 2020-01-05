@@ -212,12 +212,16 @@ void IControl::SetDirty(bool triggerAction, int valIdx)
   }
 }
 
+void IControl::Animate()
+{
+  if (GetAnimationFunction())
+    mAnimationFunc(this);
+}
+
 bool IControl::IsDirty()
 {
-  if(GetAnimationFunction()) {
-    mAnimationFunc(this);
+  if (GetAnimationFunction())
     return true;
-  }
   
   return mDirty;
 }
@@ -379,6 +383,30 @@ void IControl::SnapToMouse(float x, float y, EDirection direction, const IRECT& 
   
   ForValIdx(valIdx, valFunc);
   SetDirty(true, valIdx);
+}
+
+void IControl::OnEndAnimation()
+{
+  mAnimationFunc = nullptr;
+  SetDirty(false);
+  
+  if(mAnimationEndActionFunc)
+    mAnimationEndActionFunc(this);
+}
+
+void IControl::StartAnimation(int duration)
+{
+  mAnimationStartTime = std::chrono::high_resolution_clock::now();
+  mAnimationDuration = Milliseconds(duration);
+}
+
+double IControl::GetAnimationProgress() const
+{
+  if(!mAnimationFunc)
+    return 0.;
+  
+  auto elapsed = Milliseconds(std::chrono::high_resolution_clock::now() - mAnimationStartTime);
+  return elapsed.count() / mAnimationDuration.count();
 }
 
 ITextControl::ITextControl(const IRECT& bounds, const char* str, const IText& text, const IColor& BGColor, bool setBoundsBasedOnStr)
