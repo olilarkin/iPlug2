@@ -216,14 +216,14 @@ public:
   IVKnobControl(const IRECT& bounds, int paramIdx,
                 const char* label = "",
                 const IVStyle& style = DEFAULT_STYLE,
-                bool valueIsEditable = false, bool valueInWidget = false,
-                float a1 = -135.f, float a2 = 135.f, float aAnchor = -135.f,
+                bool valueIsEditable = false, bool valueInWidget = false, bool rotary = false,
+                float aMin = -135.f, float aMax = 135.f, float aAnchor = -135.f,
                 EDirection direction = EDirection::Vertical, double gearing = DEFAULT_GEARING);
 
   IVKnobControl(const IRECT& bounds, IActionFunction actionFunction,
                 const char* label = "",
                 const IVStyle& style = DEFAULT_STYLE,
-                bool valueIsEditable = false, bool valueInWidget = false,
+                bool valueIsEditable = false, bool valueInWidget = false, bool rotary = false,
                 float a1 = -135.f, float a2 = 135.f, float aAnchor = -135.f,
                 EDirection direction = EDirection::Vertical, double gearing = DEFAULT_GEARING);
 
@@ -236,6 +236,7 @@ public:
   void OnMouseUp(float x, float y, const IMouseMod& mod) override;
   void OnMouseOver(float x, float y, const IMouseMod& mod) override;
   void OnMouseOut() override { mValueMouseOver = false; IKnobControlBase::OnMouseOut(); }
+  void OnMouseDrag(float x, float y, float dX, float dY, const IMouseMod& mod) override;
 
 //  void OnMouseDblClick(float x, float y, const IMouseMod& mod) override {  OnMouseDown(x, y, mod); }
   void OnResize() override;
@@ -243,9 +244,12 @@ public:
   void SetDirty(bool push, int valIdx = kNoValIdx) override;
   void OnInit() override;
 
+  void SetRotaryMode(bool enable) { mRotary = enable; }
+    
 protected:
   float mAngle1, mAngle2;
   float mAnchorAngle; // for bipolar arc
+  bool mRotary = false;
   bool mValueMouseOver = false;
 };
 

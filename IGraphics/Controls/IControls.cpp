@@ -469,24 +469,26 @@ int IVRadioButtonControl::GetButtonForPoint(float x, float y) const
     return IVTabSwitchControl::GetButtonForPoint(x, y);
 }
 
-IVKnobControl::IVKnobControl(const IRECT& bounds, int paramIdx, const char* label, const IVStyle& style, bool valueIsEditable, bool valueInWidget, float a1, float a2, float aAnchor,  EDirection direction, double gearing)
+IVKnobControl::IVKnobControl(const IRECT& bounds, int paramIdx, const char* label, const IVStyle& style, bool valueIsEditable, bool valueInWidget, bool rotary, float a1, float a2, float aAnchor, EDirection direction, double gearing)
 : IKnobControlBase(bounds, paramIdx, direction, gearing)
 , IVectorBase(style, false, valueInWidget)
 , mAngle1(a1)
 , mAngle2(a2)
 , mAnchorAngle(aAnchor)
+, mRotary(rotary)
 {
   DisablePrompt(!valueIsEditable);
   mText = style.valueText;
   AttachIControl(this, label);
 }
 
-IVKnobControl::IVKnobControl(const IRECT& bounds, IActionFunction actionFunc, const char* label, const IVStyle& style, bool valueIsEditable, bool valueInWidget,  float a1, float a2, float aAnchor, EDirection direction, double gearing)
+IVKnobControl::IVKnobControl(const IRECT& bounds, IActionFunction actionFunc, const char* label, const IVStyle& style, bool valueIsEditable, bool valueInWidget, bool rotary, float a1, float a2, float aAnchor, EDirection direction, double gearing)
 : IKnobControlBase(bounds, kNoParameter, direction, gearing)
 , IVectorBase(style, false, valueInWidget)
 , mAngle1(a1)
 , mAngle2(a2)
 , mAnchorAngle(aAnchor)
+, mRotary(rotary)
 {
   DisablePrompt(!valueIsEditable);
   mText = style.valueText;
@@ -566,6 +568,22 @@ void IVKnobControl::OnMouseOver(float x, float y, const IMouseMod& mod)
     mValueMouseOver = mValueBounds.Contains(x,y);
   
   IKnobControlBase::OnMouseOver(x, y, mod);
+}
+
+void IVKnobControl::OnMouseDrag(float x, float y, float dX, float dY, const IMouseMod& mod)
+{
+  if(mRotary)
+  {
+    float result = RadToDeg(-std::atan2(y - mWidgetBounds.MH(), mWidgetBounds.MW() - x)) - 90.f;
+    result = result < -180.f ? result + 360.f : result;
+    
+    auto angle = Clip(result, mAngle1,  mAngle2);
+
+    SetValue((angle + (-mAngle1)) / (mAngle2-mAngle1));
+    SetDirty(true);
+  }
+  else
+    IKnobControlBase::OnMouseDrag(x,y,dX,dY,mod);
 }
 
 void IVKnobControl::OnResize()
