@@ -55,6 +55,8 @@
 
 #include <stack>
 #include <memory>
+#include <vector>
+#include <unordered_map>
 
 #ifdef FillRect
 #undef FillRect
@@ -204,8 +206,8 @@ public:
    * @param cx The X coordinate in the graphics context of the centre of the circle on which the arc lies
    * @param cy The Y coordinate in the graphics context of the centre of the circle on which the arc lies
    * @param r The radius of the circle on which the arc lies
-   * @param a1 the start angle  of the arc at in degrees clockwise where 0 is up
-   * @param a2 the end angle  of the arc at in degrees clockwise where 0 is up
+   * @param a1 the start angle of the arc at in degrees clockwise where 0 is up
+   * @param a2 the end angle of the arc at in degrees clockwise where 0 is up
    * @param pBlend Optional blend method, see IBlend documentation
    * @param thickness Optional line thickness */
   virtual void DrawArc(const IColor& color, float cx, float cy, float r, float a1, float a2, const IBlend* pBlend = 0, float thickness = 1.f) = 0;
@@ -486,7 +488,7 @@ public:
   
   /** /todo 
    * @param r /todo*/
-  void StartLayer(const IRECT& r);
+  void StartLayer(IControl *owner, const IRECT& r);
   
   /** /todo
    * @param layer /todo*/
@@ -641,6 +643,10 @@ public:
    * @param x /todo
    * @param y /todo */
   virtual void PathLineTo(float x, float y) {}
+
+  /** /todo
+  * @param clockwise /todo*/
+  virtual void PathSetWinding(bool clockwise) {}
 
   /** /todo
    * @param c1x  /todo
@@ -856,7 +862,7 @@ public:
 
   /** Get the bundle ID on macOS and iOS, returns emtpy string on other OSs */
   virtual const char* GetBundleID() { return ""; }
-  
+
 protected:
   /** /todo
    * @param control /todo
@@ -1020,7 +1026,10 @@ public:
   
   /** @return An EUIResizerMode Representing whether the graphics context should scale or be resized, e.g. when dragging a corner resizer */
   EUIResizerMode GetResizerMode() const { return mGUISizeMode; }
-  
+
+  /** @return true if resizing is in process */
+  bool GetResizingInProcess() const { return mResizingInProcess; }
+
   /** @param enable Set \c true to enable tool tips when the user mouses over a control */
   void EnableTooltips(bool enable);
   
@@ -1052,7 +1061,11 @@ public:
    * This is useful for programatically arranging UI elements by slicing up the IRECT using the various IRECT methods
    * @return An IRECT that corresponds to the entire UI area, with, L = 0, T = 0, R = Width() and B  = Height() */
   IRECT GetBounds() const { return IRECT(0.f, 0.f, (float) Width(), (float) Height()); }
-  
+
+  /** Sets a function that is called at the frame rate, prior to checking for dirty controls 
+ * @param func The function to call */
+  void SetDisplayTickFunc(IDisplayTickFunc func) { mDisplayTickFunc = func; }
+
   /** /todo
    * @param keyHandlerFunc /todo */
   void SetKeyHandlerFunc(IKeyHandlerFunc func) { mKeyHandlerFunc = func; }
@@ -1063,6 +1076,12 @@ public:
   
   /** /todo */
   void AttachImGui(std::function<void(IGraphics*)> drawFunc, std::function<void()> setupFunc = nullptr);
+  
+  /** Called by platform class to see if the point at x, y is linked to a gesture recognizer */
+  bool RespondsToGesture(float x, float y);
+  
+  /** Called by platform class when a gesture is recognized */
+  void OnGestureRecognized(const IGestureInfo& info);
 
   /** Returns a scaling factor for resizing parent windows via the host/plugin API
    * @return A scaling factor for resizing parent windows */
@@ -1096,8 +1115,8 @@ private:
    * @param isContext Determines if the menu is a contextual menu or not
    * @param valIdx The value index for the control value that the prompt relates to */
   void DoCreatePopupMenu(IControl& control, IPopupMenu& menu, const IRECT& bounds, int valIdx, bool isContext);
-    
-protected: // TODO: correct?
+  
+protected:
   /** /todo */
   void StartResizeGesture() { mResizingInProcess = true; };
   
@@ -1173,18 +1192,18 @@ public:
   
   /** Attach an IControl to the graphics context and add it to the top of the control stack. The control is owned by the graphics context and will be deleted when the context is deleted.
    * @param pControl A pointer to an IControl to attach.
-   * @param controlTag An integer tag that you can use to identify the control
+   * @param ctrlTag An integer tag that you can use to identify the control
    * @param group A CString that you can use to address controlled by group
    * @return The index of the control (and the number of controls in the stack) */
-  IControl* AttachControl(IControl* pControl, int controlTag = kNoTag, const char* group = "");
+  IControl* AttachControl(IControl* pControl, int ctrlTag = kNoTag, const char* group = "");
 
   /** @param idx The index of the control to get
    * @return A pointer to the IControl object at idx or nullptr if not found */
   IControl* GetControl(int idx) { return mControls.Get(idx); }
 
-  /** @param controlTag The tag to look for
+  /** @param ctrlTag The tag to look for
    * @return A pointer to the IControl object with the tag of nullptr if not found */
-  IControl* GetControlWithTag(int controlTag);
+  IControl* GetControlWithTag(int ctrlTag);
   
   /** Get a pointer to the IControl that is currently captured i.e. during dragging
    * @return Pointer to currently captured control */
@@ -1211,6 +1230,9 @@ public:
   /** @return The number of controls that have been added to this graphics context */
   int NControls() const { return mControls.GetSize(); }
 
+  /** Remove controls from the control list with a particular tag.  */
+  void RemoveControlWithTag(int ctrlTag);
+  
   /** Remove controls from the control list above a particular index, (frees memory).  */
   void RemoveControls(int fromIdx);
   
@@ -1222,10 +1244,10 @@ public:
    * @param hide /true to hide */
   void HideControl(int paramIdx, bool hide);
 
-  /** Gray-out controls linked to a specific parameter
+  /** Disable or enable controls linked to a specific parameter
    * @param paramIdx The parameter index
-   * @param gray /true to gray-out */
-  void GrayOutControl(int paramIdx, bool gray);
+   * @param disable /true to disable */
+  void DisableControl(int paramIdx, bool diable);
 
   /** Calls SetDirty() on every control */
   void SetAllControlsDirty();
@@ -1370,7 +1392,13 @@ public:
   void PopupHostContextMenuForParam(IControl* pControl, int paramIdx, float x, float y);
   
 #pragma mark - Resource/File Loading
-    
+  
+  /** Gets the name of the shared resources subpath. */
+  const char* GetSharedResourcesSubPath() const { return mSharedResourcesSubPath.Get(); }
+  
+  /** Sets the name of the shared resources subpath. */
+  void SetSharedResourcesSubPath(const char* sharedResourcesSubPath) { mSharedResourcesSubPath.Set(sharedResourcesSubPath); }
+  
   /** Load a bitmap image from disk or from windows resource
    * @param fileNameOrResID CString file name or resource ID
    * @param nStates The number of states/frames in a multi-frame stacked bitmap
@@ -1383,8 +1411,22 @@ public:
    * @param fileNameOrResID A CString absolute path or resource ID
    * @return An ISVG representing the image */
   virtual ISVG LoadSVG(const char* fileNameOrResID, const char* units = "px", float dpi = 72.f);
+
+  /** Registers a gesture recognizer with the graphics context
+   * @param type The type of gesture recognizer */
+  virtual void AttachGestureRecognizer(EGestureType type); //TODO: should be protected?
   
+  /** Attach a gesture recognizer to a rectangular region of the GUI, i.e. not linked to an IControl
+   * @param bounds The area that should recognize the gesture
+   * @param type The type of gesture to recognize
+   * @param func The function to call when the gesture is recognized */
+  void AttachGestureRecognizerToRegion(const IRECT& bounds, EGestureType type, IGestureFunc func);
+  
+  /** Remove all gesture recognizers linked to regions */
+  void ClearGestureRegions();
+
 protected:
+
   /** /todo
    * @param fileNameOrResID /todo 
    * @param scale /todo
@@ -1407,13 +1449,13 @@ protected:
    * @return bool* /todo */
   virtual bool LoadAPIFont(const char* fontID, const PlatformFontPtr& font) = 0;
 
-  /** /todo */
+  /** Specialized in IGraphicsCanvas drawing backend */
   virtual bool AssetsLoaded() { return true; }
     
-  /** /todo */
+  /** @return int The index of the alpha component in a drawing backend's pixel (RGBA or ARGB) */
   virtual int AlphaChannel() const = 0;
 
-  /** /todo */
+  /** @return bool \c true if the drawing backend flips images (e.g. OpenGL) */
   virtual bool FlippedBitmap() const = 0;
 
   /** Utility used by SearchImageResource/SearchBitmapInCache
@@ -1464,11 +1506,10 @@ protected:
    * @param rect /todo
    * @param tx /todo
    * @param ty /todo */
-  void CalulateTextRotation(const IText& text, const IRECT& bounds, IRECT& rect, double& tx, double& ty) const;
+  void CalculateTextRotation(const IText& text, const IRECT& bounds, IRECT& rect, double& tx, double& ty) const;
   
   /** @return float /todo */
   virtual float GetBackingPixelScale() const = 0;
-  
 #pragma mark -
 
 private:
@@ -1489,6 +1530,8 @@ private:
   
   IPopupMenu mPromptPopupMenu;
   
+  WDL_String mSharedResourcesSubPath;
+  
   ECursor mCursorType = ECursor::ARROW;
   int mWidth;
   int mHeight;
@@ -1497,6 +1540,11 @@ private:
   float mDrawScale = 1.f; // scale deviation from  default width and height i.e stretching the UI by dragging bottom right hand corner
 
   int mIdleTicks = 0;
+  
+  std::vector<EGestureType> mRegisteredGestures; // All the types of gesture registered with the graphics context
+  IRECTList mGestureRegions; // Rectangular regions linked to gestures (excluding IControls)
+  std::unordered_map<int, IGestureFunc> mGestureRegionFuncs; // Map of gesture region index to gesture function
+  
   IControl* mMouseCapture = nullptr;
   IControl* mMouseOver = nullptr;
   IControl* mInTextEntry = nullptr;
@@ -1524,6 +1572,8 @@ private:
   EUIResizerMode mGUISizeMode = EUIResizerMode::Scale;
   double mPrevTimestamp = 0.;
   IKeyHandlerFunc mKeyHandlerFunc = nullptr;
+  IDisplayTickFunc mDisplayTickFunc = nullptr;
+
 protected:
   IGEditorDelegate* mDelegate;
   void* mPlatformContext = nullptr;
@@ -1538,7 +1588,7 @@ protected:
   friend class IGraphicsLiveEdit;
   friend class ICornerResizerControl;
   friend class ITextEntryControl;
-
+  
   std::stack<ILayer*> mLayers;
   
 #ifdef IGRAPHICS_IMGUI

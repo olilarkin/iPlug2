@@ -19,6 +19,8 @@ using namespace igraphics;
 using namespace emscripten;
 
 extern IGraphicsWeb* gGraphics;
+double gPrevMouseDownTime = 0.;
+bool gFirstClick = false;
 
 #pragma mark - Private Classes and Structs
 
@@ -343,11 +345,31 @@ static EM_BOOL mouse_callback(int eventType, const EmscriptenMouseEvent* pEvent,
   
   switch (eventType)
   {
-    case EMSCRIPTEN_EVENT_CLICK: break;
-    case EMSCRIPTEN_EVENT_MOUSEDOWN: pGraphics->OnMouseDown(x, y, modifiers); break;
+    case EMSCRIPTEN_EVENT_MOUSEDOWN:
+    {
+      const double timestamp = GetTimestamp();
+      const double timeDiff = timestamp - gPrevMouseDownTime;
+      
+      if (gFirstClick && timeDiff < 0.3)
+      {
+        gFirstClick = false;
+        pGraphics->OnMouseDblClick(x, y, modifiers);
+      }
+      else
+      {
+        gFirstClick = true;
+        pGraphics->OnMouseDown(x, y, modifiers);
+      }
+        
+      gPrevMouseDownTime = timestamp;
+      
+      break;
+    }
     case EMSCRIPTEN_EVENT_MOUSEUP: pGraphics->OnMouseUp(x, y, modifiers); break;
-    case EMSCRIPTEN_EVENT_DBLCLICK: pGraphics->OnMouseDblClick(x, y, modifiers); break;
     case EMSCRIPTEN_EVENT_MOUSEMOVE:
+    {
+      gFirstClick = false;
+      
       if(pEvent->buttons == 0)
         pGraphics->OnMouseOver(x, y, modifiers);
       else
@@ -356,6 +378,7 @@ static EM_BOOL mouse_callback(int eventType, const EmscriptenMouseEvent* pEvent,
           pGraphics->OnMouseDrag(x, y, pEvent->movementX, pEvent->movementY, modifiers);
       }
       break;
+    }
     case EMSCRIPTEN_EVENT_MOUSEENTER:
       pGraphics->OnSetCursor();
       pGraphics->OnMouseOver(x, y, modifiers);
@@ -431,10 +454,8 @@ IGraphicsWeb::IGraphicsWeb(IGEditorDelegate& dlg, int w, int h, int fps, float s
   
   DBGMSG("Preloaded %i images\n", keys["length"].as<int>());
   
-  emscripten_set_click_callback("canvas", this, 1, mouse_callback);
   emscripten_set_mousedown_callback("canvas", this, 1, mouse_callback);
   emscripten_set_mouseup_callback("canvas", this, 1, mouse_callback);
-  emscripten_set_dblclick_callback("canvas", this, 1, mouse_callback);
   emscripten_set_mousemove_callback("canvas", this, 1, mouse_callback);
   emscripten_set_mouseenter_callback("canvas", this, 1, mouse_callback);
   emscripten_set_mouseleave_callback("canvas", this, 1, mouse_callback);
@@ -442,6 +463,34 @@ IGraphicsWeb::IGraphicsWeb(IGEditorDelegate& dlg, int w, int h, int fps, float s
   emscripten_set_keydown_callback("#window", this, 1, key_callback);
   emscripten_set_keyup_callback("#window", this, 1, key_callback);
 }
+
+static EM_BOOL complete_text_entry(int eventType, const EmscriptenFocusEvent* focusEvent, void* pUserData)
+{
+  IGraphicsWeb* pGraphics = (IGraphicsWeb*) pUserData;
+  
+  val input = val::global("document").call<val>("getElementById", std::string("textEntry"));
+  std::string str = input["value"].as<std::string>();
+  val::global("document")["body"].call<void>("removeChild", input);
+  pGraphics->SetControlValueAfterTextEdit(str.c_str());
+  
+  return true;
+}
+
+static EM_BOOL text_entry_keydown(int eventType, const EmscriptenKeyboardEvent* pEvent, void* pUserData)
+{
+  IGraphicsWeb* pGraphicsWeb = (IGraphicsWeb*) pUserData;
+  
+  IKeyPress keyPress {pEvent->key, domVKToWinVK(pEvent->keyCode),
+    static_cast<bool>(pEvent->shiftKey),
+    static_cast<bool>(pEvent->ctrlKey),
+    static_cast<bool>(pEvent->altKey)};
+  
+  if (keyPress.VK == kVK_RETURN || keyPress.VK ==  kVK_TAB)
+    return complete_text_entry(0, nullptr, pUserData);
+  
+  return false;
+}
+
 
 IGraphicsWeb::~IGraphicsWeb()
 {
@@ -582,6 +631,8 @@ EMsgBoxResult IGraphicsWeb::ShowMessageBox(const char* str, const char* caption,
 
 void IGraphicsWeb::PromptForFile(WDL_String& filename, WDL_String& path, EFileAction action, const char* ext)
 {
+  ReleaseMouseCapture();
+
   val inputEl = val::global("document").call<val>("createElement", std::string("input"));
   
   inputEl.call<void>("setAttribute", std::string("accept"), std::string(ext));
@@ -590,6 +641,8 @@ void IGraphicsWeb::PromptForFile(WDL_String& filename, WDL_String& path, EFileAc
 
 void IGraphicsWeb::PromptForDirectory(WDL_String& path)
 {
+  ReleaseMouseCapture();
+
   val inputEl = val::global("document").call<val>("createElement", std::string("input"));
 
   inputEl.call<void>("setAttribute", std::string("directory"));
@@ -599,6 +652,8 @@ void IGraphicsWeb::PromptForDirectory(WDL_String& path)
 
 bool IGraphicsWeb::PromptForColor(IColor& color, const char* str, IColorPickerHandlerFunc func)
 {
+  ReleaseMouseCapture();
+
   gColorPickerHandlerFunc = func;
 
   val inputEl = val::global("document").call<val>("createElement", std::string("input"));
@@ -610,33 +665,6 @@ bool IGraphicsWeb::PromptForColor(IColor& color, const char* str, IColorPickerHa
   inputEl.call<void>("addEventListener", std::string("input"), val::module_property("color_picker_callback"), false);
   inputEl.call<void>("addEventListener", std::string("onChange"), val::module_property("color_picker_callback"), false);
 
-  return false;
-}
-
-static EM_BOOL complete_text_entry(int eventType, const EmscriptenFocusEvent* focusEvent, void* pUserData)
-{
-  IGraphicsWeb* pGraphics = (IGraphicsWeb*) pUserData;
-  
-  val input = val::global("document").call<val>("getElementById", std::string("textEntry"));
-  std::string str = input["value"].as<std::string>();
-  val::global("document")["body"].call<void>("removeChild", input);
-  pGraphics->SetControlValueAfterTextEdit(str.c_str());
-  
-  return true;
-}
-
-static EM_BOOL text_entry_keydown(int eventType, const EmscriptenKeyboardEvent* pEvent, void* pUserData)
-{
-  IGraphicsWeb* pGraphicsWeb = (IGraphicsWeb*) pUserData;
-  
-  IKeyPress keyPress {pEvent->key, domVKToWinVK(pEvent->keyCode),
-    static_cast<bool>(pEvent->shiftKey),
-    static_cast<bool>(pEvent->ctrlKey),
-    static_cast<bool>(pEvent->altKey)};
-  
-  if (keyPress.VK == kVK_RETURN || keyPress.VK ==  kVK_TAB)
-    return complete_text_entry(0, nullptr, pUserData);
-  
   return false;
 }
 
@@ -725,7 +753,7 @@ void IGraphicsWeb::DrawResize()
 PlatformFontPtr IGraphicsWeb::LoadPlatformFont(const char* fontID, const char* fileNameOrResID)
 {
   WDL_String fullPath;
-  const EResourceLocation fontLocation = LocateResource(fileNameOrResID, "ttf", fullPath, GetBundleID(), nullptr);
+  const EResourceLocation fontLocation = LocateResource(fileNameOrResID, "ttf", fullPath, GetBundleID(), nullptr, nullptr);
   
   if (fontLocation == kNotFound)
     return nullptr;

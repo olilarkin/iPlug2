@@ -108,7 +108,7 @@ void ITextEntryControl::Draw(IGraphics& g)
     }
     IRECT selectionRect(selectionStart, mRECT.T + row.ymin, selectionEnd, mRECT.T + row.ymax);
     selectionRect = selectionRect.GetVPadded(-mText.mSize*0.1f);
-    IBlend blend(EBlend::Default, 0.2);
+    IBlend blend(EBlend::Default, 0.2f);
     g.FillRect(mText.mTextEntryFGColor, selectionRect, &blend);
   }
 
@@ -161,7 +161,7 @@ void ITextEntryControl::OnMouseDown(float x, float y, const IMouseMod& mod)
   
   if(mod.R)
   {
-    static IPopupMenu menu {{"Cut", "Copy", "Paste"}, [&](int indexInMenu, IPopupMenu::Item* itemChosen) {
+    static IPopupMenu menu {"", {"Cut", "Copy", "Paste"}, [&](int indexInMenu, IPopupMenu::Item* itemChosen) {
       switch (indexInMenu) {
         case 0: Cut(); break;
         case 1: CopySelection(); break;

@@ -28,10 +28,10 @@ StaticStorage<CoreTextFontDescriptor> sFontDescriptorCache;
 
 #pragma mark -
 
-std::map<std::string, void*> gTextureMap;
+std::map<std::string, MTLTexturePtr> gTextureMap;
 
 IGraphicsIOS::IGraphicsIOS(IGEditorDelegate& dlg, int w, int h, int fps, float scale)
-: IGraphicsNanoVG(dlg, w, h, fps, scale)
+: IGRAPHICS_DRAW_CLASS(dlg, w, h, fps, scale)
 {
  
   if(!gTextureMap.size())
@@ -68,7 +68,7 @@ IGraphicsIOS::~IGraphicsIOS()
 
 void* IGraphicsIOS::OpenWindow(void* pParent)
 {
-  TRACE;
+  TRACE
   CloseWindow();
   IGraphicsIOS_View* view = (IGraphicsIOS_View*) [[IGraphicsIOS_View alloc] initWithIGraphics: this];
   mView = view;
@@ -129,6 +129,12 @@ EMsgBoxResult IGraphicsIOS::ShowMessageBox(const char* str, const char* caption,
   ReleaseMouseCapture();
   [(IGraphicsIOS_View*) mView showMessageBox:str :caption :type :completionHandler];
   return EMsgBoxResult::kNoResult; // we need to rely on completionHandler
+}
+
+void IGraphicsIOS::AttachGestureRecognizer(EGestureType type)
+{
+  IGraphics::AttachGestureRecognizer(type);
+  [(IGraphicsIOS_View*) mView attachGestureRecognizer:type];
 }
 
 void IGraphicsIOS::ForceEndUserEdit()
@@ -245,3 +251,11 @@ void IGraphicsIOS::LaunchBluetoothMidiDialog(float x, float y)
   NSDictionary* dic = @{@"x": @(x), @"y": @(y)};
   [[NSNotificationCenter defaultCenter] postNotificationName:@"LaunchBTMidiDialog" object:nil userInfo:dic];
 }
+
+#if defined IGRAPHICS_NANOVG
+  #include "IGraphicsNanoVG.cpp"
+#elif defined IGRAPHICS_SKIA
+  #include "IGraphicsSkia.cpp"
+#else
+  #error Either NO_IGRAPHICS or one and only one choice of graphics library must be defined!
+#endif

@@ -20,10 +20,12 @@
 #include <chrono>
 #include <numeric>
 
-#include "IGraphicsPrivate.h"
-#include "IGraphicsUtilities.h"
 #include "IPlugUtilities.h"
 #include "IPlugLogger.h"
+#include "IPlugStructs.h"
+
+#include "IGraphicsPrivate.h"
+#include "IGraphicsUtilities.h"
 #include "IGraphicsConstants.h"
 
 BEGIN_IPLUG_NAMESPACE
@@ -33,9 +35,10 @@ class IGraphics;
 class IControl;
 class ILambdaControl;
 struct IRECT;
+struct IVec2;
 struct IMouseInfo;
-struct IKeyPress;
 struct IColor;
+struct IGestureInfo;
 
 using IActionFunction = std::function<void(IControl*)>;
 using IAnimationFunction = std::function<void(IControl*)>;
@@ -43,6 +46,8 @@ using ILambdaDrawFunction = std::function<void(ILambdaControl*, IGraphics&, IREC
 using IKeyHandlerFunc = std::function<bool(const IKeyPress& key, bool isUp)>;
 using IMsgBoxCompletionHanderFunc = std::function<void(EMsgBoxResult result)>;
 using IColorPickerHandlerFunc = std::function<void(const IColor& result)>;
+using IGestureFunc = std::function<void(IControl*, const IGestureInfo&)>;
+using IDisplayTickFunc = std::function<void()>;
 
 void EmptyClickActionFunc(IControl* pCaller);
 void DefaultClickActionFunc(IControl* pCaller);
@@ -50,8 +55,10 @@ void DefaultAnimationFunc(IControl* pCaller);
 void SplashClickActionFunc(IControl* pCaller);
 void SplashAnimationFunc(IControl* pCaller);
 
-using TimePoint = std::chrono::time_point<std::chrono::high_resolution_clock>;
+using MTLTexturePtr = void*;
+
 using Milliseconds = std::chrono::duration<double, std::chrono::milliseconds::period>;
+using TimePoint = std::chrono::time_point<std::chrono::high_resolution_clock, Milliseconds>;
 
 /** User-facing bitmap abstraction that you use to manage bitmap data, independant of draw class/platform.
  * IBitmap doesn't actually own the image data \see APIBitmap
@@ -133,6 +140,39 @@ private:
 
 /** User-facing SVG abstraction that you use to manage SVG data
  * ISVG doesn't actually own the image data */
+
+#ifdef IGRAPHICS_SKIA
+struct ISVG
+{
+  ISVG(sk_sp<SkSVGDOM> svgDom)
+  : mSVGDom(svgDom)
+  {
+  }
+  
+  /** /todo */
+  float W() const
+  {
+    if (mSVGDom)
+      return mSVGDom->containerSize().width();
+    else
+      return 0;
+  }
+  
+  /** /todo */
+  float H() const
+  {
+    if (mSVGDom)
+      return mSVGDom->containerSize().height();
+    else
+      return 0;
+  }
+  
+  /** @return \true if the SVG has valid data */
+  inline bool IsValid() const { return mSVGDom != nullptr; }
+  
+  sk_sp<SkSVGDOM> mSVGDom;
+};
+#else
 struct ISVG
 {  
   ISVG(NSVGimage* pImage)
@@ -163,6 +203,7 @@ struct ISVG
   
   NSVGimage* mImage = nullptr;
 };
+#endif
 
 /** Used to manage color data, independent of draw class/platform. */
 struct IColor
@@ -174,6 +215,8 @@ struct IColor
   bool operator==(const IColor& rhs) { return (rhs.A == A && rhs.R == R && rhs.G == G && rhs.B == B); }
   
   bool operator!=(const IColor& rhs) { return !operator==(rhs); }
+  
+  void Set(int a = 255, int r = 0, int g = 0, int b = 0) { A = a; R = r; G = g; B = b; }
   
   /** /todo */
   bool Empty() const { return A == 0 && R == 0 && G == 0 && B == 0; }
@@ -245,9 +288,9 @@ struct IColor
   static IColor FromRGBf(float* rgbf)
   {
     int A = 255;
-    int R = rgbf[0] * 255;
-    int G = rgbf[1] * 255;
-    int B = rgbf[2] * 255;
+    int R = static_cast<int>(rgbf[0] * 255.f);
+    int G = static_cast<int>(rgbf[1] * 255.f);
+    int B = static_cast<int>(rgbf[2] * 255.f);
     
     return IColor(A, R, G, B);
   }
@@ -257,12 +300,50 @@ struct IColor
    * @return IColor A new IColor based on the input array */
   static IColor FromRGBAf(float* rgbaf)
   {
-    int R = rgbaf[0] * 255;
-    int G = rgbaf[1] * 255;
-    int B = rgbaf[2] * 255;
-    int A = rgbaf[3] * 255;
+    int R = static_cast<int>(rgbaf[0] * 255.f);
+    int G = static_cast<int>(rgbaf[1] * 255.f);
+    int B = static_cast<int>(rgbaf[2] * 255.f);
+    int A = static_cast<int>(rgbaf[3] * 255.f);
 
     return IColor(A, R, G, B);
+  }
+
+  /** Create an IColor from a color code. Can be used to convert a hex code into an IColor object.
+   * @code
+   *   IColor color = IColor::FromColorCode(0x55a6ff);
+   *   IColor colorWithAlpha = IColor::FromColorCode(0x55a6ff, 0x88); // alpha is 0x88
+   * @endcode
+   * 
+   * @param colorCode Integer representation of the color. Use with hexadecimal numbers, e.g. 0xff38a2
+   * @param A Integer representation of the alpha channel
+   * @return IColor A new IColor based on the color code provided */
+  static IColor FromColorCode(int colorCode, int A = 0xFF)
+  {
+    int R = (colorCode >> 16) & 0xFF;
+    int G = (colorCode >> 8) & 0xFF;
+    int B = colorCode & 0xFF;
+
+    return IColor(A, R, G, B);
+  }
+  
+  /** Create an IColor from a color code in a CString. Can be used to convert a hex code into an IColor object.
+   * @param colorCode CString representation of the color code (no alpha). Use with hex numbers, e.g. "#ff38a2". WARNING: This does very little error checking
+   * @return IColor A new IColor based on the color code provided */
+  static IColor FromColorCodeStr(const char* hexStr)
+  {
+    WDL_String str(hexStr);
+    
+    if(str.GetLength() == 7 && str.Get()[0] == '#')
+    {
+      str.DeleteSub(0, 1);
+
+      return FromColorCode(static_cast<int>(std::stoul(str.Get(), nullptr, 16)));
+    }
+    else
+    {
+      assert(0 && "Invalid color code str, returning black");
+      return IColor();
+    }
   }
   
   /** /todo 
@@ -299,7 +380,7 @@ struct IColor
     col.A = static_cast<int>(a * 255.f);
     return col;
   }
-
+  
   /** /todo 
    * @return int /todo */
   int GetLuminosity() const
@@ -337,6 +418,24 @@ const IColor COLOR_GREEN(255, 0, 255, 0);
 const IColor COLOR_BLUE(255, 0, 0, 255);
 const IColor COLOR_YELLOW(255, 255, 255, 0);
 const IColor COLOR_ORANGE(255, 255, 127, 0);
+const IColor COLOR_INDIGO(255, 75, 0, 130);
+const IColor COLOR_VIOLET(255, 148, 0, 211);
+
+static IColor GetRainbow(int colorIdx)
+{
+  switch (colorIdx) {
+    case 0: return COLOR_RED;
+    case 1: return COLOR_ORANGE;
+    case 2: return COLOR_YELLOW;
+    case 3: return COLOR_GREEN;
+    case 4: return COLOR_BLUE;
+    case 5: return COLOR_INDIGO;
+    case 6: return COLOR_VIOLET;
+    default:
+      assert(0);
+      return COLOR_WHITE;
+  }
+}
 
 const IColor DEFAULT_GRAPHICS_BGCOLOR = COLOR_GRAY;
 const IColor DEFAULT_BGCOLOR = COLOR_TRANSPARENT;
@@ -387,13 +486,8 @@ const IBlend BLEND_01 = IBlend(EBlend::Default, 0.01f);
 /** Used to manage fill behaviour for path based drawing back ends */
 struct IFillOptions
 {
-  IFillOptions()
-  : mFillRule(EFillRule::Winding)
-  , mPreserve(false)
-  {}
-
-  EFillRule mFillRule;
-  bool mPreserve;
+  EFillRule mFillRule { EFillRule::Winding };
+  bool mPreserve { false };
 };
 
 /** Used to manage stroke behaviour for path based drawing back ends */
@@ -403,6 +497,16 @@ struct IStrokeOptions
   class DashOptions
   {
   public:
+
+    DashOptions()
+    : mCount(0)
+    , mOffset(0)
+    {}
+
+    DashOptions(float* array, float offset, int count)
+    {
+      SetDash(array, offset, count);
+    }
 
     /** @return int /todo */
     int GetCount() const { return mCount; }
@@ -430,8 +534,8 @@ struct IStrokeOptions
 
   private:
     float mArray[8];
-    float mOffset = 0;
-    int mCount = 0;
+    float mOffset;
+    int mCount;
   };
 
   float mMiterLimit = 10.f;
@@ -445,9 +549,11 @@ static const char* TextStyleString(ETextStyle style)
 {
   switch (style)
   {
-    case ETextStyle::Normal:  return "Regular";
-    case ETextStyle::Bold:    return "Bold";
-    case ETextStyle::Italic:  return "Italic";
+    case ETextStyle::Bold: return "Bold";
+    case ETextStyle::Italic: return "Italic";
+    case ETextStyle::Normal:
+    default:
+      return "Regular";
   }
 }
 
@@ -669,6 +775,13 @@ struct IRECT
 
     if (y < T) y = T;
     else if (y > B) y = B;
+  }
+  
+  /** Offsets the input IRECT based on the parent
+   * @param rhs IRECT to offset */
+  IRECT Inset(const IRECT& rhs) const
+  {
+    return IRECT(L + rhs.L, T + rhs.T, L + rhs.R, T + rhs.B);
   }
   
   /** /todo
@@ -1358,29 +1471,8 @@ struct IRECT
     else
       return H();
   }
-};
-
-/** Used for key press info, such as ASCII representation, virtual key (mapped to win32 codes) and modifiers */
-struct IKeyPress
-{
-  int VK; // Windows VK_XXX
-  char utf8[5] = {0}; // UTF8 key
-  bool S, C, A; // SHIFT / CTRL(WIN) or CMD (MAC) / ALT
   
-  /** /todo 
-   * @param _utf8 /todo
-   * @param vk /todo
-   * @param s /todo
-   * @param c /todo
-   * @param a /todo */
-  IKeyPress(const char* _utf8, int vk, bool s = false, bool c = false, bool a = false)
-  : VK(vk)
-  , S(s), C(c), A(a)
-  {
-    strcpy(utf8, _utf8);
-  }
-  
-  void DBGPrint() const { DBGMSG("VK: %i\n", VK); }
+  void DBGPrint() { DBGMSG("L: %f, T: %f, R: %f, B: %f,: W: %f, H: %f\n", L, T, R, B, W(), H()); }
 };
 
 /** Used to manage mouse modifiers i.e. right click and shift/control/alt keys. */
@@ -1407,6 +1499,18 @@ struct IMouseInfo
 {
   float x, y;
   IMouseMod ms;
+};
+
+/** Used to describe a particular gesture */
+struct IGestureInfo
+{
+  float x = 0.f;
+  float y = 0.f;
+  float scale = 0.f; // pinch,
+  float velocity = 0.f; // pinch, rotate
+  float angle = 0.f; // rotate,
+  EGestureState state = EGestureState::Unknown;
+  EGestureType type = EGestureType::Unknown;
 };
 
 /** Used to manage a list of rectangular areas and optimize them for drawing to the screen. */
@@ -1482,6 +1586,21 @@ public:
       r.PixelAlign(scale);
       Set(i, r);
     }
+  }
+  
+  /** Find the first index of the rect that contains point x, y, if it exists
+   * @param x Horizontal position to check
+   * @param y Vertical position to check
+   * @return integer index of rect that contains point x,y or -1 if not found */
+  int Find(float x, float y) const
+  {
+    for (auto i = 0; i < Size(); i++)
+    {
+      if(Get(i).Contains(x, y))
+        return i;
+    }
+    
+    return -1;
   }
   
   /** /todo 
@@ -1937,9 +2056,13 @@ class ILayer
 public:
   /** /todo 
    * @param pBitmap /todo
-   * @param r /todo */
-  ILayer(APIBitmap* pBitmap, IRECT r)
+   * @param r /todo
+   * @param pControl /todo
+   * @param cr /todo */
+  ILayer(APIBitmap* pBitmap, const IRECT& r, IControl* pControl, const IRECT& cr)
   : mBitmap(pBitmap)
+  , mControl(pControl)
+  , mControlRECT(cr)
   , mRECT(r)
   , mInvalid(false)
   {}
@@ -1960,9 +2083,10 @@ public:
   const IRECT& Bounds() const { return mRECT; }
   
 private:
-  APIBitmap* AccessAPIBitmap() { return mBitmap.get(); }
   
   std::unique_ptr<APIBitmap> mBitmap;
+  IControl* mControl;
+  IRECT mControlRECT;
   IRECT mRECT;
   bool mInvalid;
 };
@@ -2106,7 +2230,7 @@ struct IVStyle
   
   IVStyle(bool showLabel = DEFAULT_SHOW_LABEL,
           bool showValue = DEFAULT_SHOW_VALUE,
-          const std::initializer_list<IColor>& colors = {DEFAULT_BGCOLOR, DEFAULT_FGCOLOR, DEFAULT_PRCOLOR, DEFAULT_FRCOLOR, DEFAULT_HLCOLOR, DEFAULT_SHCOLOR, DEFAULT_X1COLOR, DEFAULT_X2COLOR, DEFAULT_X3COLOR},
+          const IVColorSpec& colors = {DEFAULT_BGCOLOR, DEFAULT_FGCOLOR, DEFAULT_PRCOLOR, DEFAULT_FRCOLOR, DEFAULT_HLCOLOR, DEFAULT_SHCOLOR, DEFAULT_X1COLOR, DEFAULT_X2COLOR, DEFAULT_X3COLOR},
           const IText& labelText = DEFAULT_LABEL_TEXT,
           const IText& valueText = DEFAULT_VALUE_TEXT,
           bool hideCursor = DEFAULT_HIDE_CURSOR,

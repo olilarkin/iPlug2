@@ -170,7 +170,7 @@ static BOOL EnumResNameProc(HANDLE module, LPCTSTR type, LPTSTR name, LONG_PTR p
   return true; // keep enumerating
 }
 
-EResourceLocation LocateResource(const char* name, const char* type, WDL_String& result, const char*, void* pHInstance)
+EResourceLocation LocateResource(const char* name, const char* type, WDL_String& result, const char*, void* pHInstance, const char*)
 {
   if (CStringHasContents(name))
   {
@@ -230,6 +230,11 @@ const void* LoadWinResource(const char* resid, const char* type, int& sizeInByte
   }
 }
 
+bool AppIsSandboxed()
+{
+  return false;
+}
+
 #elif defined OS_WEB
 #pragma mark - OS_WEB
 
@@ -253,7 +258,7 @@ void VST3PresetsPath(WDL_String& path, const char* mfrName, const char* pluginNa
   path.Set("Presets");
 }
 
-EResourceLocation LocateResource(const char* name, const char* type, WDL_String& result, const char*, void*)
+EResourceLocation LocateResource(const char* name, const char* type, WDL_String& result, const char*, void*, const char*)
 {
   if (CStringHasContents(name))
   {
@@ -283,6 +288,11 @@ EResourceLocation LocateResource(const char* name, const char* type, WDL_String&
     }
   }
   return EResourceLocation::kNotFound;
+}
+
+bool AppIsSandboxed()
+{
+  return true;
 }
 
 #endif

@@ -109,12 +109,12 @@ void IControl::SetParamIdx(int paramIdx, int valIdx)
   mVals.at(valIdx).idx = paramIdx;
 }
 
-const IParam* IControl::GetParam(int valIdx)
+const IParam* IControl::GetParam(int valIdx) const
 {
   int paramIdx = GetParamIdx(valIdx);
   
   if(paramIdx > kNoParameter)
-    return GetDelegate()->GetParam(paramIdx);
+    return mDelegate->GetParam(paramIdx);
   else
     return nullptr;
 }
@@ -212,12 +212,16 @@ void IControl::SetDirty(bool triggerAction, int valIdx)
   }
 }
 
+void IControl::Animate()
+{
+  if (GetAnimationFunction())
+    mAnimationFunc(this);
+}
+
 bool IControl::IsDirty()
 {
-  if(GetAnimationFunction()) {
-    mAnimationFunc(this);
+  if (GetAnimationFunction())
     return true;
-  }
   
   return mDirty;
 }
@@ -228,9 +232,9 @@ void IControl::Hide(bool hide)
   SetDirty(false);
 }
 
-void IControl::GrayOut(bool gray)
+void IControl::SetDisabled(bool disable)
 {
-  mGrayed = gray;
+  mDisabled = disable;
   SetDirty(false);
 }
 
@@ -278,6 +282,45 @@ void IControl::OnPopupMenuSelection(IPopupMenu* pSelectedMenu, int valIdx)
   {
     SetValueFromUserInput(GetParam()->ToNormalized( (double) pSelectedMenu->GetChosenItemIdx()), valIdx);
   }
+}
+
+void IControl::SetPosition(float x, float y)
+{
+  if (x < 0.f) x = 0.f;
+  if (y < 0.f) y = 0.f;
+
+  SetTargetAndDrawRECTs({x, y, x + mRECT.W(), y + mRECT.H()});
+}
+
+void IControl::SetSize(float w, float h)
+{
+  if (w < 0.f) w = 0.f;
+  if (h < 0.f) h = 0.f;
+
+  SetTargetAndDrawRECTs({mRECT.L, mRECT.T, mRECT.L + w, mRECT.T + h});
+}
+
+IControl* IControl::AttachGestureRecognizer(EGestureType type, IGestureFunc func)
+{
+  mGestureFuncs.insert(std::make_pair(type, func));
+  
+  GetUI()->AttachGestureRecognizer(type); // this will crash if called in constructor
+  
+  return this; //for chaining
+}
+
+bool IControl::OnGesture(const IGestureInfo& info)
+{
+  auto itr = mGestureFuncs.find(info.type);
+  
+  if(itr != mGestureFuncs.end())
+  {
+    mLastGesture = info.type;
+    itr->second(this, info);
+    return true;
+  }
+  
+  return false;
 }
 
 void IControl::PromptUserInput(int valIdx)
@@ -363,6 +406,30 @@ void IControl::SnapToMouse(float x, float y, EDirection direction, const IRECT& 
   
   ForValIdx(valIdx, valFunc);
   SetDirty(true, valIdx);
+}
+
+void IControl::OnEndAnimation()
+{
+  mAnimationFunc = nullptr;
+  SetDirty(false);
+  
+  if(mAnimationEndActionFunc)
+    mAnimationEndActionFunc(this);
+}
+
+void IControl::StartAnimation(int duration)
+{
+  mAnimationStartTime = std::chrono::high_resolution_clock::now();
+  mAnimationDuration = Milliseconds(duration);
+}
+
+double IControl::GetAnimationProgress() const
+{
+  if(!mAnimationFunc)
+    return 0.;
+  
+  auto elapsed = Milliseconds(std::chrono::high_resolution_clock::now() - mAnimationStartTime);
+  return elapsed.count() / mAnimationDuration.count();
 }
 
 ITextControl::ITextControl(const IRECT& bounds, const char* str, const IText& text, const IColor& BGColor, bool setBoundsBasedOnStr)
@@ -541,6 +608,54 @@ void ICaptionControl::OnResize()
   }
 }
 
+PlaceHolder::PlaceHolder(const IRECT& bounds, const char* str)
+: ITextControl(bounds, str, IText(20))
+{
+  mBGColor = COLOR_WHITE;
+  mDisablePrompt = false;
+  mDblAsSingleClick = false;
+  mIgnoreMouse = false;
+}
+
+void PlaceHolder::Draw(IGraphics& g)
+{
+  g.FillRect(mBGColor, mRECT);
+  g.DrawLine(COLOR_RED, mRECT.L, mRECT.T, mRECT.R, mRECT.B, &BLEND_50, 2.f);
+  g.DrawLine(COLOR_RED, mRECT.L, mRECT.B, mRECT.R, mRECT.T, &BLEND_50, 2.f);
+  
+  IRECT r = {};
+  g.MeasureText(mHeightText, mHeightStr.Get(), r);
+  g.FillRect(mBGColor, r.GetTranslated(mRECT.L + mInset, mRECT.MH()), &BLEND_50);
+  g.DrawText(mHeightText, mHeightStr.Get(), mRECT.L + mInset, mRECT.MH());
+  
+  r = {};
+  g.MeasureText(mWidthText, mWidthStr.Get(), r);
+  g.FillRect(mBGColor, r.GetTranslated(mRECT.MW(), mRECT.T + mInset), &BLEND_75);
+  g.DrawText(mWidthText, mWidthStr.Get(), mRECT.MW(), mRECT.T + mInset);
+  
+  r = {};
+  g.MeasureText(mTLGCText, mTLHCStr.Get(), r);
+  g.FillRect(mBGColor, r.GetTranslated(mRECT.L + mInset, mRECT.T + mInset), &BLEND_50);
+  g.DrawText(mTLGCText, mTLHCStr.Get(), mRECT.L + mInset, mRECT.T + mInset);
+  
+  if (mStr.GetLength())
+  {
+    r = mRECT;
+    g.MeasureText(mText, mStr.Get(), r);
+    g.FillRect(mBGColor, r, &BLEND_75);
+    g.DrawText(mText, mStr.Get(), r);
+    
+    mCentreLabelBounds = r;
+  }
+}
+
+void PlaceHolder::OnResize()
+{
+  mTLHCStr.SetFormatted(32, "%0.1f, %0.1f", mRECT.L, mRECT.T);
+  mWidthStr.SetFormatted(32, "%0.1f", mRECT.W());
+  mHeightStr.SetFormatted(32, "%0.1f", mRECT.H());
+}
+
 IButtonControlBase::IButtonControlBase(const IRECT& bounds, IActionFunction actionFunc)
 : IControl(bounds, kNoParameter, actionFunc)
 {
@@ -616,9 +731,9 @@ void IKnobControlBase::OnMouseDrag(float x, float y, float dX, float dY, const I
   double gearing = IsFineControl(mod, false) ? mGearing * 10.0 : mGearing;
 
   if (mDirection == EDirection::Vertical)
-    SetValue(GetValue() + (double)dY / (double)(mRECT.T - mRECT.B) / gearing);
+    SetValue(GetValue() + (double)dY / (double)(mActiveArea.T - mActiveArea.B) / gearing);
   else
-    SetValue(GetValue() + (double)dX / (double)(mRECT.R - mRECT.L) / gearing);
+    SetValue(GetValue() + (double)dX / (double)(mActiveArea.R - mActiveArea.L) / gearing);
 
   SetDirty();
 }
