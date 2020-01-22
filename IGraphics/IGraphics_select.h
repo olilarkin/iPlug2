@@ -20,6 +20,9 @@
     #if defined OS_IOS
       #include <OpenGLES/ES2/gl.h>
     #elif defined OS_WEB || defined OS_WIN
+      #include <EGL/egl.h>
+      #include <EGL/eglext.h>
+      #include <EGL/eglplatform.h>
       #include <GLES2/gl2.h>
     #endif
   #elif defined IGRAPHICS_GLES3
@@ -30,7 +33,6 @@
       #include <EGL/egl.h>
       #include <EGL/eglext.h>
       #include <EGL/eglplatform.h>
-
       #include <GLES3/gl3.h>
     #endif
   #elif defined IGRAPHICS_GL2 || defined IGRAPHICS_GL3
