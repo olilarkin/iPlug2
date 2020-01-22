@@ -55,6 +55,8 @@
 
 #include <stack>
 #include <memory>
+#include <vector>
+#include <unordered_map>
 
 #ifdef FillRect
 #undef FillRect
@@ -72,7 +74,7 @@ class IPopupMenuControl;
 class ITextEntryControl;
 class ICornerResizerControl;
 class IFPSDisplayControl;
-
+class IBubbleControl;
 
 /**  The lowest level base class of an IGraphics context */
 class IGraphics
@@ -1074,6 +1076,12 @@ public:
   
   /** /todo */
   void AttachImGui(std::function<void(IGraphics*)> drawFunc, std::function<void()> setupFunc = nullptr);
+  
+  /** Called by platform class to see if the point at x, y is linked to a gesture recognizer */
+  bool RespondsToGesture(float x, float y);
+  
+  /** Called by platform class when a gesture is recognized */
+  void OnGestureRecognized(const IGestureInfo& info);
 
   /** Returns a scaling factor for resizing parent windows via the host/plugin API
    * @return A scaling factor for resizing parent windows */
@@ -1171,6 +1179,15 @@ public:
    @param text The text style to use for the menu
    @param bounds The area that the menu should occupy /todo check */
   void AttachPopupMenuControl(const IText& text = DEFAULT_TEXT, const IRECT& bounds = IRECT());
+  
+  /** Attach the default control to show text as a control changes*/
+  void AttachBubbleControl(const IText& text = DEFAULT_TEXT);
+
+  /** Attach a custom control to show text as a control changes*/
+  void AttachBubbleControl(IBubbleControl* pControl);
+  
+  /* Called by controls to display text in the bubble control */
+  void ShowBubbleControl(IControl* pCaller, float x, float y, const char* str, EDirection dir = EDirection::Horizontal, IRECT minimumContentBounds = IRECT());
 
   /** Shows a control to display the frame rate of drawing
    * @param enable \c true to show */
@@ -1222,6 +1239,9 @@ public:
   /** @return The number of controls that have been added to this graphics context */
   int NControls() const { return mControls.GetSize(); }
 
+  /** Remove control from the control list */
+  void RemoveControl(IControl* pControl);
+  
   /** Remove controls from the control list with a particular tag.  */
   void RemoveControlWithTag(int ctrlTag);
   
@@ -1403,8 +1423,22 @@ public:
    * @param fileNameOrResID A CString absolute path or resource ID
    * @return An ISVG representing the image */
   virtual ISVG LoadSVG(const char* fileNameOrResID, const char* units = "px", float dpi = 72.f);
+
+  /** Registers a gesture recognizer with the graphics context
+   * @param type The type of gesture recognizer */
+  virtual void AttachGestureRecognizer(EGestureType type); //TODO: should be protected?
   
+  /** Attach a gesture recognizer to a rectangular region of the GUI, i.e. not linked to an IControl
+   * @param bounds The area that should recognize the gesture
+   * @param type The type of gesture to recognize
+   * @param func The function to call when the gesture is recognized */
+  void AttachGestureRecognizerToRegion(const IRECT& bounds, EGestureType type, IGestureFunc func);
+  
+  /** Remove all gesture recognizers linked to regions */
+  void ClearGestureRegions();
+
 protected:
+
   /** /todo
    * @param fileNameOrResID /todo 
    * @param scale /todo
@@ -1501,6 +1535,7 @@ private:
 
   // Order (front-to-back) ToolTip / PopUp / TextEntry / LiveEdit / Corner / PerfDisplay
   std::unique_ptr<ICornerResizerControl> mCornerResizer;
+  std::unique_ptr<IBubbleControl> mBubbleControl;
   std::unique_ptr<IPopupMenuControl> mPopupControl;
   std::unique_ptr<IFPSDisplayControl> mPerfDisplay;
   std::unique_ptr<ITextEntryControl> mTextEntryControl;
@@ -1518,6 +1553,11 @@ private:
   float mDrawScale = 1.f; // scale deviation from  default width and height i.e stretching the UI by dragging bottom right hand corner
 
   int mIdleTicks = 0;
+  
+  std::vector<EGestureType> mRegisteredGestures; // All the types of gesture registered with the graphics context
+  IRECTList mGestureRegions; // Rectangular regions linked to gestures (excluding IControls)
+  std::unordered_map<int, IGestureFunc> mGestureRegionFuncs; // Map of gesture region index to gesture function
+  
   IControl* mMouseCapture = nullptr;
   IControl* mMouseOver = nullptr;
   IControl* mInTextEntry = nullptr;
@@ -1561,7 +1601,7 @@ protected:
   friend class IGraphicsLiveEdit;
   friend class ICornerResizerControl;
   friend class ITextEntryControl;
-
+  
   std::stack<ILayer*> mLayers;
   
 #ifdef IGRAPHICS_IMGUI

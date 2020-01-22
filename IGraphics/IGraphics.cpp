@@ -34,6 +34,7 @@ using VST3_API_BASE = iplug::IPlugVST3Controller;
 #include "ICornerResizerControl.h"
 #include "IPopupMenuControl.h"
 #include "ITextEntryControl.h"
+#include "IBubbleControl.h"
 
 using namespace iplug;
 using namespace igraphics;
@@ -153,6 +154,7 @@ void IGraphics::RemoveAllControls()
   ClearMouseOver();
 
   mPopupControl = nullptr;
+  mBubbleControl = nullptr;
   mTextEntryControl = nullptr;
   mCornerResizer = nullptr;
   mPerfDisplay = nullptr;
@@ -218,6 +220,7 @@ IControl* IGraphics::AttachControl(IControl* pControl, int ctrlTag, const char* 
   pControl->SetTag(ctrlTag);
   pControl->SetGroup(group);
   mControls.Add(pControl);
+  pControl->OnAttached();
   return pControl;
 }
 
@@ -241,6 +244,26 @@ void IGraphics::AttachCornerResizer(ICornerResizerControl* pControl, EUIResizerM
   }
 }
 
+void IGraphics::AttachBubbleControl(const IText& text)
+{
+  if (!mBubbleControl)
+  {
+    mBubbleControl = std::make_unique<IBubbleControl>(text);
+    mBubbleControl->SetDelegate(*GetDelegate());
+  }
+}
+
+void IGraphics::AttachBubbleControl(IBubbleControl* pControl)
+{
+  std::unique_ptr<IBubbleControl> control(pControl);
+
+  if (!mBubbleControl)
+  {
+    mBubbleControl.swap(control);
+    mBubbleControl->SetDelegate(*GetDelegate());
+  }
+}
+
 void IGraphics::AttachPopupMenuControl(const IText& text, const IRECT& bounds)
 {
   if (!mPopupControl)
@@ -256,6 +279,16 @@ void IGraphics::AttachTextEntryControl()
   {
     mTextEntryControl = std::make_unique<ITextEntryControl>();
     mTextEntryControl->SetDelegate(*GetDelegate());
+  }
+}
+
+void IGraphics::ShowBubbleControl(IControl* pCaller, float x, float y, const char* str, EDirection dir, IRECT minimumContentBounds)
+{
+  assert(mBubbleControl && "No bubble control attached");
+  
+  if(mBubbleControl)
+  {
+    mBubbleControl->ShowBubble(pCaller, x, y, str, dir, minimumContentBounds);
   }
 }
 
@@ -357,6 +390,9 @@ void IGraphics::ForAllControlsFunc(std::function<void(IControl& control)> func)
   
   if (mPopupControl)
     func(*mPopupControl);
+  
+  if (mBubbleControl)
+    func(*mBubbleControl);
 }
 
 template<typename T, typename... Args>
@@ -1322,8 +1358,36 @@ ISVG IGraphics::LoadSVG(const char* fileName, const char* units, float dpi)
     if (!success)
       return ISVG(nullptr); // return invalid SVG
 
+    // If an SVG doesn't have a container size, SKIA doesn't seem to have access to any meaningful size info.
+    // So use NanoSVG to get the size.
     if (svgDOM->containerSize().width() == 0)
-      svgDOM->setContainerSize(SkSize::Make(1000, 1000)); //TODO: what should be done when no container size?
+    {
+      NSVGimage* pImage;
+
+      if (resourceFound == EResourceLocation::kAbsolutePath)
+      {
+        pImage = nsvgParseFromFile(path.Get(), units, dpi);
+      }
+      #ifdef OS_WIN
+      else if (resourceFound == EResourceLocation::kWinBinary)
+      {
+        int size = 0;
+        const void* pResData = LoadWinResource(path.Get(), "svg", size, GetWinModuleHandle());
+
+        if (pResData)
+        {
+          WDL_String svgStr{ static_cast<const char*>(pResData) };
+          pImage = nsvgParse(svgStr.Get(), units, dpi);
+        }
+      }
+      #endif
+      
+      assert(pImage);
+
+      svgDOM->setContainerSize(SkSize::Make(pImage->width, pImage->height));
+
+      nsvgDelete(pImage);
+    }
 
     pHolder = new SVGHolder(svgDOM);
     
@@ -1900,6 +1964,62 @@ void IGraphics::SetQwertyMidiKeyHandlerFunc(std::function<void(const IMidiMsg& m
     
     return true;
   });
+}
+
+bool IGraphics::RespondsToGesture(float x, float y)
+{
+  IControl* pControl = GetMouseControl(x, y, false, false);
+
+  if(pControl && pControl->GetWantsGestures())
+    return true;
+  
+  if(mGestureRegions.Size() == 0)
+    return false;
+  else
+  {
+    int regionIdx = mGestureRegions.Find(x, y);
+    
+    if(regionIdx > -1)
+      return true;
+  }
+  
+  return false;
+}
+
+void IGraphics::OnGestureRecognized(const IGestureInfo& info)
+{
+  IControl* pControl = GetMouseControl(info.x, info.y, false, false);
+
+  if(pControl && pControl->GetWantsGestures())
+    pControl->OnGesture(info);
+  else
+  {
+    int regionIdx = mGestureRegions.Find(info.x, info.y);
+    
+    if(regionIdx > -1)
+      mGestureRegionFuncs.find(regionIdx)->second(nullptr, info);
+  }
+}
+
+void IGraphics::AttachGestureRecognizer(EGestureType type)
+{
+  if (std::find(std::begin(mRegisteredGestures), std::end(mRegisteredGestures), type) != std::end(mRegisteredGestures))
+  {
+    mRegisteredGestures.push_back(type);
+  }
+}
+
+void IGraphics::AttachGestureRecognizerToRegion(const IRECT& bounds, EGestureType type, IGestureFunc func)
+{
+  mGestureRegions.Add(bounds);
+  AttachGestureRecognizer(type);
+  mGestureRegionFuncs.insert(std::make_pair(mGestureRegions.Size()-1, func));
+}
+
+void IGraphics::ClearGestureRegions()
+{
+  mGestureRegions.Clear();
+  mGestureRegionFuncs.clear();
 }
 
 #ifdef IGRAPHICS_IMGUI
