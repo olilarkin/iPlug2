@@ -125,8 +125,8 @@ private:
 #ifdef IGRAPHICS_GL
   void CreateGLContext(); // OpenGL context management - TODO: RAII instead ?
   void DestroyGLContext();
-  void ActivateGLContext(); // Captures previously active GLContext and HDC for restoring, Gets DC
-  void DeactivateGLContext(); // Restores previous GL context and Releases DC
+  void ActivateGLContext() override;
+  void DeactivateGLContext() override;
 
 #ifdef IGRAPHICS_ANGLE
   EGLDisplay mEGLDisplay = EGL_NO_DISPLAY;
