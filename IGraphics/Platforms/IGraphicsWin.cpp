@@ -933,12 +933,13 @@ void IGraphicsWin::CreateGLContext()
     EGL_BLUE_SIZE, 8,
     EGL_ALPHA_SIZE, 8,
     EGL_DEPTH_SIZE, 24,
+    EGL_STENCIL_SIZE, 8,
     EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
     EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
     EGL_NONE
   };
 
-  EGLint num_config;
+  EGLint numConfigs;
   EGLint majorVersion, minorVersion;
 
   mEGLDisplay = eglGetDisplay(NULL);
@@ -951,23 +952,23 @@ void IGraphicsWin::CreateGLContext()
 
   DBGMSG("version: %d %d\n", majorVersion, minorVersion);
 
-  if (!eglChooseConfig(mEGLDisplay, attribute_list, &mEGLConfig, 1, &num_config))
+  if (!eglChooseConfig(mEGLDisplay, attribute_list, &mEGLConfig, 1, &numConfigs))
     DBGMSG("Choose config failed\n");
 
-  DBGMSG("num_config=%d\n", num_config);
+  DBGMSG("num_config = %d\n", numConfigs);
 
-  EGLint contextAttributes[] = {
-    EGL_CONTEXT_CLIENT_VERSION,
-    3,
-    EGL_NONE,
-  };
+#ifdef IGRAPHICS_GLES2
+  EGLint contextAttributes[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE, };
+#elif defined IGRAPHICS_GLES3
+  EGLint contextAttributes[] = { EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE, };
+#endif
 
   mEGLContext = eglCreateContext(mEGLDisplay, mEGLConfig, EGL_NO_CONTEXT, contextAttributes);
 
   if (mEGLContext == EGL_NO_CONTEXT)
     DBGMSG("No context\n");
 
-  mEGLSurface = eglCreateWindowSurface(mEGLDisplay, mEGLConfig, (NativeWindowType)GetWindow(), NULL);
+  mEGLSurface = eglCreateWindowSurface(mEGLDisplay, mEGLConfig, (NativeWindowType) GetWindow(), NULL);
 
   if (mEGLSurface == EGL_NO_SURFACE)
     DBGMSG("No surface\n");
