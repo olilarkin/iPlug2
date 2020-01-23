@@ -105,7 +105,7 @@ void IGraphicsStressTest::LayoutUI(IGraphics* pGraphics)
           case 8:  g.FillArc(rc, rr.MW(), rr.MH(), rr.W() > rr.H() ? rr.H() : rr.W(), rrad1, rrad2, &rb); break;
           case 9:  g.DrawLine(rc, dir == 0 ? rr.L : rr.R, rr.B, dir == 0 ? rr.R : rr.L, rr.T, &rb,thickness); break;
           case 10: g.DrawDottedLine(rc, dir == 0 ? rr.L : rr.R, rr.B, dir == 0 ? rr.R : rr.L, rr.T, &rb, thickness); break;
-          case 11: g.DrawFittedBitmap(smiley, rr, &rb); break;
+          case 11: g.DrawFittedBitmap(smiley, rr, false, &rb); break;
           case 12: g.DrawSVG(tiger, rr); break;
           default:
             break;

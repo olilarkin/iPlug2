@@ -62,7 +62,7 @@ public:
 
   void DrawBitmap(const IBitmap& bitmap, const IRECT& dest, int srcX, int srcY, const IBlend* pBlend) override;
   void DrawRotatedBitmap(const IBitmap& bitmap, float destCtrX, float destCtrY, double angle, int yOffsetZeroDeg, const IBlend* pBlend) override;
-  void DrawFittedBitmap(const IBitmap& bitmap, const IRECT& bounds, const IBlend* pBlend) override;
+  void DrawFittedBitmap(const IBitmap& bitmap, const IRECT& bounds, bool keepDimensions, const IBlend* pBlend) override;
   
   void DrawPoint(const IColor& color, float x, float y, const IBlend* pBlend) override;
   void DrawLine(const IColor& color, float x1, float y1, float x2, float y2, const IBlend* pBlend, float thickness) override;

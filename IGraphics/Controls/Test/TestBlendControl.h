@@ -40,11 +40,10 @@ public:
       return mRECT.GetGridCell(cell++, 4, 4);
     };
 
-    auto drawBlendPic = [this](IGraphics& g, IRECT r, EBlend blend, const char* name, float alpha)
-    {
+    auto drawBlendPic = [this](IGraphics& g, IRECT r, EBlend blend, const char* name, float alpha) {
       IBlend blendMode { blend, alpha };
       g.FillCircle(IColor(128, 255, 0, 0), r.MW(), r.MH(), r.W() / 2.f);
-      g.DrawFittedBitmap(mBitmap, r, &blendMode);
+      g.DrawFittedBitmap(mBitmap, r, false, &blendMode);
       g.DrawText(mText, name, r);
     };
 

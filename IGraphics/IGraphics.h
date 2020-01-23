@@ -124,8 +124,9 @@ public:
   /** Draw a bitmap (raster) image to the graphics context, scaling the image to fit the bounds
    * @param bitmap The bitmap image to draw to the graphics context
    * @param bounds The rectangular region to draw the image in
+   * @param keepDimensions Should the bitmap dimensions be retained or should it be stretched to fill the bounds changing the aspect
    * @param pBlend Optional blend method, see IBlend documentation */
-  virtual void DrawFittedBitmap(const IBitmap& bitmap, const IRECT& bounds, const IBlend* pBlend = 0) = 0;
+  virtual void DrawFittedBitmap(const IBitmap& bitmap, const IRECT& bounds, bool keepDimensions = false, const IBlend* pBlend = 0) = 0;
   
   /** Draw a bitmap (raster) image to the graphics context with rotation
    * @param bitmap The bitmap image to draw to the graphics context
@@ -511,8 +512,9 @@ public:
   /** /todo
    * @param layer /todo
    * @param bounds /todo
+   * @param keepDimensions Should the layer dimensions be retained or should it be stretched to fill the bounds changing the aspect
    * @param pBlend /todo */
-  void DrawFittedLayer(const ILayerPtr& layer, const IRECT& bounds, const IBlend* pBlend);
+  void DrawFittedLayer(const ILayerPtr& layer, const IRECT& bounds, bool keepDimensions, const IBlend* pBlend = nullptr);
 
   /** /todo
    * @param layer /todo

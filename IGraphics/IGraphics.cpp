@@ -1713,16 +1713,10 @@ void IGraphics::DrawLayer(const ILayerPtr& layer, const IBlend* pBlend)
   PathTransformRestore();
 }
 
-void IGraphics::DrawFittedLayer(const ILayerPtr& layer, const IRECT& bounds, const IBlend* pBlend)
+void IGraphics::DrawFittedLayer(const ILayerPtr& layer, const IRECT& bounds, bool keepDimensions, const IBlend* pBlend)
 {
   IBitmap bitmap = layer->GetBitmap();
-  IRECT layerBounds = layer->Bounds();
-  PathTransformSave();
-  PathTransformTranslate(bounds.L, bounds.T);
-  IRECT newBounds(0., 0., layerBounds.W(), layerBounds.H());
-  PathTransformScale(bounds.W() / layerBounds.W(), bounds.H() / layerBounds.H());
-  DrawBitmap(bitmap, newBounds, 0, 0, pBlend);
-  PathTransformRestore();
+  DrawFittedBitmap(bitmap, bounds, keepDimensions, pBlend);
 }
 
 void IGraphics::DrawRotatedLayer(const ILayerPtr& layer, double angle)

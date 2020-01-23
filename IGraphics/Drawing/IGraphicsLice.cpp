@@ -270,7 +270,7 @@ void IGraphicsLice::DrawRotatedBitmap(const IBitmap& bitmap, float destCtrX, flo
   LICE_RotatedBlit(mRenderBitmap, pLB, destX, destY, W, H, 0.0f, 0.0f, (float) W, (float) H, (float) DegToRad(angle), false, BlendWeight(pBlend), LiceBlendMode(pBlend) | LICE_BLIT_FILTER_BILINEAR, 0.0f, (float) yOffsetZeroDeg);
 }
 
-void IGraphicsLice::DrawFittedBitmap(const IBitmap& bitmap, const IRECT& bounds, const IBlend* pBlend)
+void IGraphicsLice::DrawFittedBitmap(const IBitmap& bitmap, const IRECT& bounds, bool keepDimensions, const IBlend* pBlend)
 {
   NeedsClipping();
   // TODO - clipping

@@ -404,12 +404,31 @@ public:
     PathTransformSetMatrix(mTransform);
   }
   
-  void DrawFittedBitmap(const IBitmap& bitmap, const IRECT& bounds, const IBlend* pBlend) override
+  void DrawFittedBitmap(const IBitmap& bitmap, const IRECT& bounds, bool keepDimensions, const IBlend* pBlend) override
   {
     PathTransformSave();
     PathTransformTranslate(bounds.L, bounds.T);
-    IRECT newBounds(0., 0., static_cast<float>(bitmap.W()), static_cast<float>(bitmap.H()));
-    PathTransformScale(bounds.W() / static_cast<float>(bitmap.W()), bounds.H() / static_cast<float>(bitmap.H()));
+    IRECT newBounds;
+    float ratio1;
+    float ratio2;
+    
+    if (keepDimensions)
+    {
+      ratio1 = bounds.W() / bitmap.W();
+      if (bitmap.H() * ratio1 > bounds.H()) ratio1 = bounds.H() / bitmap.H();
+      ratio2 = ratio1;
+      float newleft = (bounds.W() / ratio1 - static_cast<float>(bitmap.W())) / 2.f;
+      float newtop = (bounds.H() / ratio1 - static_cast<float>(bitmap.H())) / 2.f;
+      newBounds = IRECT(newleft, newtop, newleft + static_cast<float>(bitmap.W()), newtop + static_cast<float>(bitmap.H()));
+    }
+    else
+    {
+      newBounds = IRECT(0.f, 0.f, static_cast<float>(bitmap.W()), static_cast<float>(bitmap.H()));
+      ratio1 = bounds.W() / static_cast<float>(bitmap.W());
+      ratio2 = bounds.H() / static_cast<float>(bitmap.H());
+    }
+    
+    PathTransformScale(ratio1, ratio2);
     DrawBitmap(bitmap, newBounds, 0, 0, pBlend);
     PathTransformRestore();
   }
