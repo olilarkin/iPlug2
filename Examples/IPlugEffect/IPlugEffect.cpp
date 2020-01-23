@@ -1,6 +1,29 @@
 #include "IPlugEffect.h"
 #include "IPlug_include_in_plug_src.h"
 #include "IControls.h"
+#include "IPopupMenuControl.h"
+
+
+class BlehMenu : public IPopupMenuControl
+{
+public:
+  BlehMenu(const IRECT& bounds, const IRECT& expanded)
+  : IPopupMenuControl(kNoParameter, {50.f, EAlign::Center}, bounds, expanded)
+  {
+    mHide = false;
+    SetPopupMenu(mThisMenu);
+  }
+  
+  void OnMouseDown(float x, float y, const IMouseMod &mod) override
+  {
+    if(!GetExpanded())
+      CreatePopupMenu(mThisMenu, mSpecifiedExpandedBounds.GetTranslated(0, -mSpecifiedExpandedBounds.H()));
+    else
+      IPopupMenuControl::OnMouseDown(x, y, mod);
+  }
+private:
+  IPopupMenu mThisMenu {"Test", {"One", "Two", "Three"}};
+};
 
 IPlugEffect::IPlugEffect(const InstanceInfo& info)
 : Plugin(info, MakeConfig(kNumParams, kNumPrograms))
@@ -15,10 +38,12 @@ IPlugEffect::IPlugEffect(const InstanceInfo& info)
   mLayoutFunc = [&](IGraphics* pGraphics) {
     pGraphics->AttachCornerResizer(EUIResizerMode::Scale, false);
     pGraphics->AttachPanelBackground(COLOR_GRAY);
+    pGraphics->HandleMouseOver(true);
     pGraphics->LoadFont("Roboto-Regular", ROBOTO_FN);
     const IRECT b = pGraphics->GetBounds();
-    pGraphics->AttachControl(new ITextControl(b.GetMidVPadded(50), "Hello iPlug 2!", IText(50)));
-    pGraphics->AttachControl(new IVKnobControl(b.GetCentredInside(100).GetVShifted(-100), kGain));
+    // pGraphics->AttachControl(new ITextControl(b.GetMidVPadded(50), "Hello iPlug 2!", IText(50)));
+//    pGraphics->AttachControl(new MyNewControl(b.GetCentredInside(300)), kNoTag, "Experiment");
+    pGraphics->AttachControl(new BlehMenu(b.GetCentredInside(100), b.GetCentredInside(300)));
   };
 #endif
 }

@@ -56,7 +56,7 @@ public:
   * @param text An IText specifying properties of the menu text
   * @param collapsedBounds If this control, when collapsed should occupy an area of the graphics context, specify this, otherwise the collapsed area is empty
   * @param expandedBounds If you want to explicitly specify the size of the expanded pop-up, you can specify an area here */
-  IPopupMenuControl(int paramIdx = kNoParameter, IText text = IText(16), IRECT collapsedBounds = IRECT(), IRECT expandedBounds = IRECT());
+  IPopupMenuControl(int paramIdx = kNoParameter, const IText& text = DEFAULT_TEXT.WithSize(16.f), IRECT collapsedBounds = IRECT(), IRECT expandedBounds = IRECT());
   virtual ~IPopupMenuControl();
 
   //IControl
@@ -100,6 +100,8 @@ public:
    * @param menu Reference to a menu from which to populate this user interface control. NOTE: this object should not be a temporary, otherwise when the menu returns asynchronously, it may not exist.
    * @param anchorArea The pop-up menu opens adjacent to this area, but won't occupy it. At the moment, the menu is always below or right of that region. */
   void CreatePopupMenu(IPopupMenu& menu, const IRECT& anchorArea);
+  
+  void SetPopupMenu(IPopupMenu& menu) { mMenu = &menu; }
 
   /** @return \true if the pop-up is fully expanded */
   bool GetExpanded() const { return mState == kExpanded; }

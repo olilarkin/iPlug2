@@ -23,7 +23,7 @@
 using namespace iplug;
 using namespace igraphics;
 
-IPopupMenuControl::IPopupMenuControl(int paramIdx, IText text, IRECT collapsedBounds, IRECT expandedBounds)
+IPopupMenuControl::IPopupMenuControl(int paramIdx, const IText& text, IRECT collapsedBounds, IRECT expandedBounds)
 : IControl(collapsedBounds, paramIdx)
 , mSpecifiedCollapsedBounds(collapsedBounds)
 , mSpecifiedExpandedBounds(expandedBounds)
@@ -183,6 +183,9 @@ void IPopupMenuControl::OnMouseDrag(float x, float y, float dX, float dY, const 
 
 void IPopupMenuControl::OnMouseOver(float x, float y, const IMouseMod& mod)
 {
+  if(!mActiveMenuPanel)
+    return;
+
   mMouseCellBounds = mActiveMenuPanel->HitTestCells(x, y);
   
   // if the mouse event was outside of the active MenuPanel - could be on another menu or completely outside
@@ -338,7 +341,7 @@ void IPopupMenuControl::DrawCellText(IGraphics& g, const IRECT& bounds, const IP
       mText.mFGColor = COLOR_GRAY;
   }
   
-  mText.mAlign = EAlign::Near;
+//  mText.mAlign = EAlign::Near;
   g.DrawText(mText, pItem->GetText(), textRect, pBlend);
 }
 
@@ -564,7 +567,7 @@ void IPopupMenuControl::CollapseEverything()
   mActiveMenuPanel = nullptr;
 
   mState = kFlickering;
-  Hide(true);
+//  Hide(true);
   SetDirty(true); // triggers animation
 }
 
