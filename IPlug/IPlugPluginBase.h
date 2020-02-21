@@ -19,6 +19,7 @@
 #include "IPlugParameter.h"
 #include "IPlugStructs.h"
 #include "IPlugLogger.h"
+#include <string>
 
 BEGIN_IPLUG_NAMESPACE
 
@@ -34,7 +35,7 @@ public:
 
 #pragma mark - Plug-in properties
   /** @return the name of the plug-in as a CString */
-  const char* GetPluginName() const { return mPluginName.Get(); }
+  const char* GetPluginName() const { return mPluginName.c_str(); }
   
   /** Get the plug-in version number
    * @param decimal Sets the output format
@@ -49,10 +50,10 @@ public:
   void GetPluginVersionStr(WDL_String& str) const;
   
   /** Get the manufacturer name as a CString */
-  const char* GetMfrName() const { return mMfrName.Get(); }
+  const char* GetMfrName() const { return mMfrName.c_str(); }
   
   /** Get the product name as a CString. A shipping product may contain multiple plug-ins, hence this. Not used in all APIs */
-  const char* GetProductName() const { return mProductName.Get(); }
+  const char* GetProductName() const { return mProductName.c_str(); }
   
   /** @return The plug-in's unique four character ID as an integer */
   int GetUniqueID() const { return mUniqueID; }
@@ -61,7 +62,7 @@ public:
   int GetMfrID() const { return mMfrID; }
   
   /** @return The host if it has been identified, see EHost enum for a list of possible hosts */
-   EHost GetHost() const { return mHost; }
+  EHost GetHost() const { return mHost; }
   
   /** Get the host name as a CString
    * @param str string into which to write the host name */
@@ -94,7 +95,7 @@ public:
   bool HasUI() const { return mHasUI; }
   
   /*** @return a CString with the bundle identifier (macOS/IOS only) */
-  const char* GetBundleID() const { return mBundleID.Get(); }
+  const char* GetBundleID() const { return mBundleID.c_str(); }
     
 #pragma mark - Parameters
   
@@ -446,11 +447,11 @@ protected:
   /** \c true if the plug-in does opaque state chunks. If false the host will provide a default interface */
   bool mStateChunks = false;
   /** The name of this plug-in */
-  WDL_String mPluginName;
+  std::string mPluginName;
   /** Product name: if the plug-in is part of collection of plug-ins it might be one product */
-  WDL_String mProductName;
+  std::string mProductName;
   /** Plug-in Manufacturer name */
-  WDL_String mMfrName;
+  std::string mMfrName;
   /* Plug-in unique four char ID as an int */
   int mUniqueID;
   /* Manufacturer unique four char ID as an int */
@@ -464,13 +465,13 @@ protected:
   /** API of this instance */
   EAPI mAPI;
   /** macOS/iOS bundle ID */
-  WDL_String mBundleID;
+  std::string mBundleID;
   /** Saving VST3 format presets requires this see SaveProgramAsVSTPreset */
-  WDL_String mVST3ProductCategory;
+  std::string mVST3ProductCategory;
   /** Saving VST3 format presets requires this see SaveProgramAsVSTPreset */
-  WDL_String mVST3ProcessorUIDStr;
+  std::string mVST3ProcessorUIDStr;
   /** Saving VST3 format presets requires this see SaveProgramAsVSTPreset */
-  WDL_String mVST3ControllerUIDStr;
+  std::string mVST3ControllerUIDStr;
   
   /** \c true if the plug-in has a user interface. If false the host will provide a default interface */
   bool mHasUI = false;

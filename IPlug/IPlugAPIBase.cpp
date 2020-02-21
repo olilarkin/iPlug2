@@ -23,19 +23,21 @@
 using namespace iplug;
 
 IPlugAPIBase::IPlugAPIBase(Config c, EAPI plugAPI)
-  : IPluginBase(c.nParams, c.nPresets)
+ : IPluginBase(c.nParams, c.nPresets)
+
 {
   mUniqueID = c.uniqueID;
   mMfrID = c.mfrID;
   mVersion = c.vendorVersion;
-  mPluginName.Set(c.pluginName, MAX_PLUGIN_NAME_LEN);
-  mProductName.Set(c.productName, MAX_PLUGIN_NAME_LEN);
-  mMfrName.Set(c.mfrName, MAX_PLUGIN_NAME_LEN);
+  mPluginName = std::string(c.pluginName);
+  mProductName = std::string(c.productName);
+  mMfrName = std::string(c.mfrName);
+  mBundleID = std::string(c.bundleID);
+
   mHasUI = c.plugHasUI;
   SetEditorSize(c.plugWidth, c.plugHeight);
   mStateChunks = c.plugDoesChunks;
   mAPI = plugAPI;
-  mBundleID.Set(c.bundleID);
 
   Trace(TRACELOC, "%s:%s", c.pluginName, CurrentTime());
   

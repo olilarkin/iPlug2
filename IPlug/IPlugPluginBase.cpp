@@ -1156,15 +1156,15 @@ void IPluginBase::MakeVSTPresetChunk(IByteChunk& chunk, IByteChunk& componentSta
   metaInfo.Append("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n", 1024);
   metaInfo.Append("<MetaInfo>\n", 1024);
   metaInfo.Append("\t<Attribute id=\"MediaType\" value=\"VstPreset\" type=\"string\" flags=\"writeProtected\"/>\n", 1024);
-  metaInfo.AppendFormatted(1024, "\t<Attribute id=\"plugname\" value=\"%s\" type=\"string\" flags=\"\"/>\n", mProductName.Get());
-  metaInfo.AppendFormatted(1024, "\t<Attribute id=\"plugtype\" value=\"%s\" type=\"string\" flags=\"\"/>\n", mVST3ProductCategory.Get());
+  metaInfo.AppendFormatted(1024, "\t<Attribute id=\"plugname\" value=\"%s\" type=\"string\" flags=\"\"/>\n", mProductName.c_str());
+  metaInfo.AppendFormatted(1024, "\t<Attribute id=\"plugtype\" value=\"%s\" type=\"string\" flags=\"\"/>\n", mVST3ProductCategory.c_str());
   metaInfo.Append("</MetaInfo>\n", 1024);
   
   //HEADER
   chunk.Put(&commonChunks[kHeader]);
   int32_t version = kFormatVersion;
   chunk.Put(&version);
-  chunk.PutBytes(mVST3ProcessorUIDStr.Get(), kClassIDSize);
+  chunk.PutBytes(mVST3ProcessorUIDStr.c_str(), kClassIDSize);
   int64_t offsetToChunkList = componentState.Size() + controllerState.Size() + (2 * sizeof(int) /* 2 ints for sizes */) + strlen(metaInfo.Get()) + kHeaderSize;
   chunk.Put(&offsetToChunkList);
   
