@@ -18,6 +18,8 @@
  */
 
 #include <algorithm>
+#include <string>
+
 #include "wdlstring.h"
 #include "ptrlist.h"
 
@@ -413,14 +415,14 @@ public:
   , mNChans(nchans)
   {
     if(CStringHasContents(label))
-      mLabel.Set(label);
+      mLabel = std::string(label);
     else
-      mLabel.Set(RoutingDirStrs[direction]);
+      mLabel = std::string(RoutingDirStrs[direction]);
   }
 
-  void SetLabel(const char* label) { mLabel.Set(label);  }
+  void SetLabel(const char* label) { mLabel = std::string(label);  }
 
-  const char* GetLabel() const { return mLabel.Get(); }
+  const char* GetLabel() const { return mLabel.c_str(); }
 
   int NChans() const { return mNChans; }
 
@@ -429,7 +431,7 @@ public:
 private:
   ERoute mDirection;
   int mNChans;
-  WDL_String mLabel;
+  std::string mLabel;
 };
 
 /** An IOConfig is used to store bus info for each input/output configuration defined in the channel io string */
