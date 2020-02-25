@@ -205,6 +205,14 @@ extern StaticStorage<CoreTextFontDescriptor> sFontDescriptorCache;
   mMTLLayer.opaque = YES;
   mMTLLayer.contentsScale = [UIScreen mainScreen].scale;
   [self.layer addSublayer: mMTLLayer];
+#elif defined IGRAPHICS_GL
+  mEAGLLayer = [[CAEAGLLayer alloc] init];
+  mEAGLLayer.opaque = YES;
+  mEAGLLayer.frame = self.layer.frame;
+  mEAGLLayer.contentsScale = [UIScreen mainScreen].scale;
+  [self.layer addSublayer: mEAGLLayer];
+  _eaglContext = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
+  [EAGLContext setCurrentContext:_eaglContext];
 #endif
   
   self.multipleTouchEnabled = NO;
@@ -307,6 +315,11 @@ extern StaticStorage<CoreTextFontDescriptor> sFontDescriptorCache;
 - (CAMetalLayer*) metalLayer
 {
   return mMTLLayer;
+}
+
+- (CAEAGLLayer*) eaglLayer
+{
+  return mEAGLLayer;
 }
 
 - (void)didMoveToSuperview

@@ -24,14 +24,14 @@
       #error Define either IGRAPHICS_GL2 or IGRAPHICS_GL3 for IGRAPHICS_NANOVG with OS_MAC
     #endif
   #elif defined OS_IOS
-//    #if defined IGRAPHICS_GLES2
-//      #define NANOVG_GLES2_IMPLEMENTATION
-//    #elif defined IGRAPHICS_GLES3
-//      #define NANOVG_GLES2_IMPLEMENTATION
-//    #else
-//      #error Define either IGRAPHICS_GLES2 or IGRAPHICS_GLES3 when using IGRAPHICS_GL and IGRAPHICS_NANOVG with OS_IOS
-//    #endif
-    #error NOT IMPLEMENTED
+    #if defined IGRAPHICS_GLES2
+      #define NANOVG_GLES2_IMPLEMENTATION
+    #elif defined IGRAPHICS_GLES3
+      #define NANOVG_GLES2_IMPLEMENTATION
+    #else
+      #error Define either IGRAPHICS_GLES2 or IGRAPHICS_GLES3 when using IGRAPHICS_GL and IGRAPHICS_NANOVG with OS_IOS
+    #endif
+//    #error NOT IMPLEMENTED
   #elif defined OS_WIN
     #pragma comment(lib, "opengl32.lib")
     #if defined IGRAPHICS_GL2
@@ -307,7 +307,7 @@ APIBitmap* IGraphicsNanoVG::LoadAPIBitmap(const char* fileNameOrResID, int scale
   int idx = 0;
   int nvgImageFlags = 0;
   
-#ifdef OS_IOS
+#if defined OS_IOS && defined IGRAPHICS_METAL
   if (location == EResourceLocation::kPreloadedTexture)
   {
     idx = mnvgCreateImageFromHandle(mVG, gTextureMap[fileNameOrResID], nvgImageFlags);
@@ -470,7 +470,7 @@ void IGraphicsNanoVG::BeginFrame()
   IGraphics::BeginFrame(); // start perf graph timing
 
 #ifdef IGRAPHICS_METAL
-  //  mnvgClearWithColor(mVG, nvgRGBAf(0, 0, 0, 0));
+  //mnvgClearWithColor(mVG, nvgRGBAf(0, 0, 0, 0));
 #else
     glViewport(0, 0, WindowWidth() * GetScreenScale(), WindowHeight() * GetScreenScale());
     glClearColor(0.f, 0.f, 0.f, 0.f);
@@ -481,6 +481,7 @@ void IGraphicsNanoVG::BeginFrame()
 #endif
   
   nvgBindFramebuffer(mMainFrameBuffer); // begin main frame buffer update
+  
   nvgBeginFrame(mVG, WindowWidth(), WindowHeight(), GetScreenScale());
 }
 

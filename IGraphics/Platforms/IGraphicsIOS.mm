@@ -10,6 +10,7 @@
 
 #import <QuartzCore/QuartzCore.h>
 #import <MetalKit/MetalKit.h>
+#import <OpenGLES/ES2/gl.h>
 
 #include "IGraphicsIOS.h"
 #include "IGraphicsCoreText.h"
@@ -93,7 +94,7 @@ void* IGraphicsIOS::OpenWindow(void* pParent)
   IGRAPHICS_VIEW* view = [[IGRAPHICS_VIEW alloc] initWithIGraphics: this];
   mView = (void*) view;
   
-  OnViewInitialized((void*) [view metalLayer]);
+  OnViewInitialized((void*) [view eaglLayer]);
   
   SetScreenScale([UIScreen mainScreen].scale);
   

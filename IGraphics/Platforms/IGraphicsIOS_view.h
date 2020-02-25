@@ -62,6 +62,7 @@ using namespace igraphics;
   UINavigationController* mMenuNavigationController;
   UITextField* mTextField;
   CAMetalLayer* mMTLLayer;
+  CAEAGLLayer* mEAGLLayer;
   int mTextFieldLength;
 }
 - (id) initWithIGraphics: (IGraphicsIOS*) pGraphics;
@@ -85,6 +86,8 @@ using namespace igraphics;
 - (void) onPinchGesture: (UIPinchGestureRecognizer*) recognizer;
 - (void) onRotateGesture: (UIRotationGestureRecognizer*) recognizer;
 @property (readonly) CAMetalLayer* metalLayer;
+@property (readonly) CAEAGLLayer* eaglLayer;
+@property (nonatomic, strong) EAGLContext* eaglContext;
 @property (nonatomic, strong) CADisplayLink *displayLink;
 
 @end
