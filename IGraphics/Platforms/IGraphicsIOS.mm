@@ -8,44 +8,77 @@
  ==============================================================================
 */
 
-#ifndef NO_IGRAPHICS
 #import <QuartzCore/QuartzCore.h>
-#import "IGraphicsIOS_view.h"
+#import <MetalKit/MetalKit.h>
 
 #include "IGraphicsIOS.h"
-#include "IControl.h"
-#include "IPopupMenuControl.h"
+#include "IGraphicsCoreText.h"
 
-#include "IPlugPluginBase.h"
-#include "IPlugPaths.h"
+#import "IGraphicsIOS_view.h"
 
-NSString* ToNSString(const char* cStr)
-{
-  return [NSString stringWithCString:cStr encoding:NSUTF8StringEncoding];
-}
+#include <map>
+#include <string>
 
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
-//struct CocoaAutoReleasePool
-//{
-//  NSAutoreleasePool* mPool;
-//
-//  CocoaAutoReleasePool()
-//  {
-//    mPool = [[NSAutoreleasePool alloc] init];
-//  }
-//
-//  ~CocoaAutoReleasePool()
-//  {
-//    [mPool release];
-//  }
-//};
+BEGIN_IPLUG_NAMESPACE
+BEGIN_IGRAPHICS_NAMESPACE
+
+void GetScreenDimensions(int& width, int& height)
+{
+  CGRect bounds = [[UIScreen mainScreen] bounds];
+  width = bounds.size.width;
+  height = bounds.size.height;
+}
+
+END_IGRAPHICS_NAMESPACE
+END_IPLUG_NAMESPACE
+
+using namespace iplug;
+using namespace igraphics;
+
+StaticStorage<CoreTextFontDescriptor> sFontDescriptorCache;
 
 #pragma mark -
 
+std::map<std::string, MTLTexturePtr> gTextureMap;
+NSArray<id<MTLTexture>>* gTextures;
+
 IGraphicsIOS::IGraphicsIOS(IGEditorDelegate& dlg, int w, int h, int fps, float scale)
-: IGraphicsNanoVG(dlg, w, h, fps, scale)
+: IGRAPHICS_DRAW_CLASS(dlg, w, h, fps, scale)
 {
+ 
+#ifdef IGRAPHICS_METAL
+  if(!gTextureMap.size())
+  {
+    NSBundle* pBundle = [NSBundle mainBundle];
+
+    if(IsAuv3AppExtension())
+      pBundle = [NSBundle bundleWithPath: [[[pBundle bundlePath] stringByDeletingLastPathComponent] stringByDeletingLastPathComponent]];
+    
+    NSArray<NSURL*>* pTextureFiles = [pBundle URLsForResourcesWithExtension:@"ktx" subdirectory:@""];
+    
+    if ([pTextureFiles count])
+    {
+      MTKTextureLoader* textureLoader = [[MTKTextureLoader alloc] initWithDevice:MTLCreateSystemDefaultDevice()];
+      
+      NSError* pError = nil;
+      NSDictionary* textureOptions = @{ MTKTextureLoaderOptionSRGB: [NSNumber numberWithBool:NO] };
+
+      gTextures = [textureLoader newTexturesWithContentsOfURLs:pTextureFiles options:textureOptions error:&pError];
+    
+      for(int i=0; i < gTextures.count; i++)
+      {
+        gTextureMap.insert(std::make_pair([[[pTextureFiles[i] lastPathComponent] stringByDeletingPathExtension] cStringUsingEncoding:NSUTF8StringEncoding], (MTLTexturePtr) gTextures[i]));
+      }
+    
+      DBGMSG("Preloaded %i textures", (int) [pTextureFiles count]);
+    
+      [textureLoader release];
+      textureLoader = nil;
+    }
+  }
+#endif
 }
 
 IGraphicsIOS::~IGraphicsIOS()
@@ -53,95 +86,25 @@ IGraphicsIOS::~IGraphicsIOS()
   CloseWindow();
 }
 
-bool IGraphicsIOS::GetResourcePathFromBundle(const char* fileName, const char* searchExt, WDL_String& fullPath)
-{
-//  CocoaAutoReleasePool pool;
-  
-  const char* ext = fileName+strlen(fileName)-1;
-  while (ext >= fileName && *ext != '.') --ext;
-  ++ext;
-  
-  bool isCorrectType = !strcasecmp(ext, searchExt);
-  
-  NSBundle* pBundle = [NSBundle bundleWithIdentifier:ToNSString(GetBundleID())];
-  NSString* pFile = [[[NSString stringWithCString:fileName encoding:NSUTF8StringEncoding] lastPathComponent] stringByDeletingPathExtension];
-  NSString* pExt = [NSString stringWithCString:searchExt encoding:NSUTF8StringEncoding];
-  
-  if (isCorrectType && pBundle && pFile)
-  {
-    NSString* pParent = [[[pBundle bundlePath] stringByDeletingLastPathComponent] stringByDeletingLastPathComponent];
-    NSString* pPath = [[[[pParent stringByAppendingString:@"/"] stringByAppendingString:pFile] stringByAppendingString: @"."] stringByAppendingString:pExt];
-
-    if (pPath)
-    {
-      fullPath.Set([pPath cString]);
-      return true;
-    }
-  }
-  
-  fullPath.Set("");
-  return false;
-}
-
-bool IGraphicsIOS::GetResourcePathFromUsersMusicFolder(const char* fileName, const char* searchExt, WDL_String& fullPath)
-{
-  //  CocoaAutoReleasePool pool; TODO:
-  
-  const char* ext = fileName+strlen(fileName)-1;
-  while (ext >= fileName && *ext != '.') --ext;
-  ++ext;
-  
-  bool isCorrectType = !strcasecmp(ext, searchExt);
-  
-  NSString* pFile = [[[NSString stringWithCString:fileName encoding:NSUTF8StringEncoding] lastPathComponent] stringByDeletingPathExtension];
-  NSString* pExt = [NSString stringWithCString:searchExt encoding:NSUTF8StringEncoding];
-  
-//  if (isCorrectType && pFile)
-//  {
-//    WDL_String musicFolder;
-//    SandboxSafeAppSupportPath(musicFolder);
-//    NSString* pPluginName = [NSString stringWithCString: dynamic_cast<IPluginBase&>(GetDelegate()).GetPluginName() encoding:NSUTF8StringEncoding];
-//    NSString* pMusicLocation = [NSString stringWithCString: musicFolder.Get() encoding:NSUTF8StringEncoding];
-//    NSString* pPath = [[[[pMusicLocation stringByAppendingPathComponent:pPluginName] stringByAppendingPathComponent:@"Resources"] stringByAppendingPathComponent: pFile] stringByAppendingPathExtension:pExt];
-//
-//    if (pPath)
-//    {
-//      fullPath.Set([pPath UTF8String]);
-//      return true;
-//    }
-//  }
-  
-  fullPath.Set("");
-  return false;
-}
-
-EResourceLocation IGraphicsIOS::OSFindResource(const char* name, const char* type, WDL_String& result)
-{
-  if(CStringHasContents(name))
-  {
-    if(GetResourcePathFromBundle(name, type, result))
-      return EResourceLocation::kAbsolutePath;
-  }
-  return EResourceLocation::kNotFound;
-}
-
 void* IGraphicsIOS::OpenWindow(void* pParent)
 {
-  TRACE;
+  TRACE
   CloseWindow();
-  mView = (IGraphicsIOS_View*) [[IGraphicsIOS_View alloc] initWithIGraphics: this];
+  IGRAPHICS_VIEW* view = [[IGRAPHICS_VIEW alloc] initWithIGraphics: this];
+  mView = (void*) view;
   
-  IGraphicsIOS_View* view = (IGraphicsIOS_View*) mView;
-  
-  OnViewInitialized([view layer]);
+  OnViewInitialized((void*) [view metalLayer]);
   
   SetScreenScale([UIScreen mainScreen].scale);
   
   GetDelegate()->LayoutUI(this);
+  GetDelegate()->OnUIOpen();
+  
+  [view setMultipleTouchEnabled:MultiTouchEnabled()];
 
   if (pParent)
   {
-    [(UIView*) pParent addSubview: (IGraphicsIOS_View*) mView];
+    [(UIView*) pParent addSubview: view];
   }
 
   return mView;
@@ -151,15 +114,20 @@ void IGraphicsIOS::CloseWindow()
 {
   if (mView)
   {
-    IGraphicsIOS_View* view = (IGraphicsIOS_View*) mView;
-
-    mView = nullptr;
-    
-    if (view->mGraphics)
+#ifdef IGRAPHICS_IMGUI
+    if(mImGuiView)
     {
-      [view removeFromSuperview];  
+      IGRAPHICS_IMGUIVIEW* pImGuiView = (IGRAPHICS_IMGUIVIEW*) mImGuiView;
+      [pImGuiView removeFromSuperview];
+      [pImGuiView release];
+      mImGuiView = nullptr;
     }
-    [view release];
+#endif
+    
+    IGRAPHICS_VIEW* pView = (IGRAPHICS_VIEW*) mView;
+    [pView removeFromSuperview];
+    [pView release];
+    mView = nullptr;
 
     OnViewDestroyed();
   }
@@ -170,7 +138,7 @@ bool IGraphicsIOS::WindowIsOpen()
   return mView;
 }
 
-void IGraphicsIOS::PlatformResize()
+void IGraphicsIOS::PlatformResize(bool parentHasResized)
 {
   if (mView)
   {
@@ -178,17 +146,24 @@ void IGraphicsIOS::PlatformResize()
   }
 }
 
-int IGraphicsIOS::ShowMessageBox(const char* str, const char* caption, EMessageBoxType type)
+EMsgBoxResult IGraphicsIOS::ShowMessageBox(const char* str, const char* caption, EMsgBoxType type, IMsgBoxCompletionHanderFunc completionHandler)
 {
-  //TODO
-  return 0;
+  ReleaseMouseCapture();
+  [(IGRAPHICS_VIEW*) mView showMessageBox:str :caption :type :completionHandler];
+  return EMsgBoxResult::kNoResult; // we need to rely on completionHandler
+}
+
+void IGraphicsIOS::AttachGestureRecognizer(EGestureType type)
+{
+  IGraphics::AttachGestureRecognizer(type);
+  [(IGRAPHICS_VIEW*) mView attachGestureRecognizer:type];
 }
 
 void IGraphicsIOS::ForceEndUserEdit()
 {
   if (mView)
   {
-    [(IGraphicsIOS_View*) mView endUserInput];
+    [(IGRAPHICS_VIEW*) mView endUserInput];
   }
 }
 
@@ -205,37 +180,54 @@ void IGraphicsIOS::PromptForDirectory(WDL_String& dir)
 {
 }
 
-bool IGraphicsIOS::PromptForColor(IColor& color, const char* str)
+bool IGraphicsIOS::PromptForColor(IColor& color, const char* str, IColorPickerHandlerFunc func)
 {
   return false;
 }
 
-IPopupMenu* IGraphicsIOS::CreatePlatformPopupMenu(IPopupMenu& menu, const IRECT& bounds, IControl* pCaller)
+IPopupMenu* IGraphicsIOS::CreatePlatformPopupMenu(IPopupMenu& menu, const IRECT& bounds, bool& isAsync)
 {
   IPopupMenu* pReturnMenu = nullptr;
-  
+  isAsync = true;
   if (mView)
   {
     CGRect areaRect = ToCGRect(this, bounds);
-    pReturnMenu = [(IGraphicsIOS_View*) mView createPopupMenu: menu: areaRect];
+    pReturnMenu = [(IGRAPHICS_VIEW*) mView createPopupMenu: menu: areaRect];
   }
   
   //synchronous
   if(pReturnMenu && pReturnMenu->GetFunction())
     pReturnMenu->ExecFunction();
   
-  if(pCaller)
-    pCaller->OnPopupMenuSelection(pReturnMenu); // should fire even if pReturnMenu == nullptr
-
   return pReturnMenu;
 }
 
-void IGraphicsIOS::CreatePlatformTextEntry(IControl& control, const IText& text, const IRECT& bounds, const char* str)
+void IGraphicsIOS::CreatePlatformTextEntry(int paramIdx, const IText& text, const IRECT& bounds, int length, const char* str)
 {
+  ReleaseMouseCapture();
+  CGRect areaRect = ToCGRect(this, bounds);
+  [(IGRAPHICS_VIEW*) mView createTextEntry: paramIdx : text: str: length: areaRect];
 }
 
 bool IGraphicsIOS::OpenURL(const char* url, const char* msgWindowTitle, const char* confirmMsg, const char* errMsgOnFailure)
 {
+  NSURL* pNSURL = nullptr;
+  if (strstr(url, "http"))
+    pNSURL = [NSURL URLWithString:[NSString stringWithCString:url encoding:NSUTF8StringEncoding]];
+  else
+    pNSURL = [NSURL fileURLWithPath:[NSString stringWithCString:url encoding:NSUTF8StringEncoding]];
+
+  if (pNSURL)
+  {
+    UIResponder* pResponder = (UIResponder*) mView;
+    while(pResponder) {
+      if ([pResponder respondsToSelector: @selector(openURL:)])
+        [pResponder performSelector: @selector(openURL:) withObject: pNSURL];
+
+      pResponder = [pResponder nextResponder];
+    }
+    return true;
+  }
   return false;
 }
 
@@ -258,4 +250,51 @@ bool IGraphicsIOS::GetTextFromClipboard(WDL_String& str)
   return false;
 }
 
-#endif// NO_IGRAPHICS
+bool IGraphicsIOS::SetTextInClipboard(const WDL_String& str)
+{
+  return false;
+}
+
+void IGraphicsIOS::CreatePlatformImGui()
+{
+#ifdef IGRAPHICS_IMGUI
+  if(mView)
+  {
+    IGRAPHICS_VIEW* pView = (IGRAPHICS_VIEW*) mView;
+    
+    IGRAPHICS_IMGUIVIEW* pImGuiView = [[IGRAPHICS_IMGUIVIEW alloc] initWithIGraphicsView:pView];
+    [pView addSubview: pImGuiView];
+    mImGuiView = pImGuiView;
+  }
+#endif
+}
+
+PlatformFontPtr IGraphicsIOS::LoadPlatformFont(const char* fontID, const char* fileNameOrResID)
+{
+  return CoreTextHelpers::LoadPlatformFont(fontID, fileNameOrResID, GetBundleID());
+}
+
+PlatformFontPtr IGraphicsIOS::LoadPlatformFont(const char* fontID, const char* fontName, ETextStyle style)
+{
+  return CoreTextHelpers::LoadPlatformFont(fontID, fontName, style);
+}
+
+void IGraphicsIOS::CachePlatformFont(const char* fontID, const PlatformFontPtr& font)
+{
+  CoreTextHelpers::CachePlatformFont(fontID, font, sFontDescriptorCache);
+}
+
+void IGraphicsIOS::LaunchBluetoothMidiDialog(float x, float y)
+{
+  ReleaseMouseCapture();
+  NSDictionary* dic = @{@"x": @(x), @"y": @(y)};
+  [[NSNotificationCenter defaultCenter] postNotificationName:@"LaunchBTMidiDialog" object:nil userInfo:dic];
+}
+
+#if defined IGRAPHICS_NANOVG
+  #include "IGraphicsNanoVG.cpp"
+#elif defined IGRAPHICS_SKIA
+  #include "IGraphicsSkia.cpp"
+#else
+  #error Either NO_IGRAPHICS or one and only one choice of graphics library must be defined!
+#endif

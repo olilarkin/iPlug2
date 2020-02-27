@@ -20,51 +20,55 @@
 /** Control to test blend methods
  *   @ingroup TestControls */
 class TestBlendControl : public IKnobControlBase
-                       , public IBitmapBase
 {
 public:
-  TestBlendControl(IRECT bounds, const IBitmap& bitmap)
-  : IKnobControlBase(bounds)
-  , IBitmapBase(bitmap)
+  TestBlendControl(const IRECT& bounds, const IBitmap& srcBitmap, const IBitmap& dstBitmap, int paramIdx)
+  : IKnobControlBase(bounds, paramIdx)
+  , mSrc(srcBitmap)
+  , mDst(dstBitmap)
   {
     SetTooltip("TestBlendControl");
+    mText.mSize = 12;
   }
 
   void Draw(IGraphics& g) override
   {
-    const float alpha = static_cast<float>(mValue);
+    g.FillRect(COLOR_WHITE, mRECT);
+    const float alpha = (float) GetValue();
 
     int cell = 0;
-    IRECT r;
     auto nextCell = [&]() {
-      r = mRECT.GetGridCell(cell++, 2, 2);
-      return r;
+      return mRECT.GetGridCell(cell++, 4, 4).GetPadded(-5.f);
     };
 
-    IBlend bNone {kBlendNone, alpha};
-    nextCell();
-    g.FillCircle(COLOR_RED, r.MW(), r.MH(), r.W() / 2.0);
-    g.DrawFittedBitmap(mBitmap, r, &bNone);
-    g.DrawText(mText, "None", r);
+    auto drawBlendPic = [this](IGraphics& g, IRECT r, EBlend blend, const char* name, float alpha)
+    {
+      IBlend blendMode { blend, alpha };
+      g.DrawFittedBitmap(mDst, r.GetPadded(-2.f));
+      g.DrawFittedBitmap(mSrc, r.GetPadded(-2.f), &blendMode);
+      g.DrawRect(COLOR_BLACK, r, nullptr, 1.f);
+      g.DrawText(mText, name, r.GetFromTop(10.f));
+    };
 
-    IBlend bClobber {kBlendClobber, alpha};
+    g.StartLayer(this, mRECT);
     nextCell();
-    g.FillCircle(COLOR_RED, r.MW(), r.MH(), r.W() / 2.0);
-    g.DrawFittedBitmap(mBitmap, r, &bClobber);
-    g.DrawText(mText, "Clobber", r);
-
-#ifndef IGRAPHICS_CAIRO
-    IBlend bColorDodge {kBlendColorDodge, alpha};
     nextCell();
-    g.FillCircle(COLOR_RED, r.MW(), r.MH(), r.W() / 2.0);
-    g.DrawFittedBitmap(mBitmap, r, &bColorDodge);
-    g.DrawText(mText, "Color Dodge", r);
-#endif
-
-    IBlend bAdd {kBlendAdd, alpha};
-    nextCell();
-    g.FillCircle(COLOR_RED, r.MW(), r.MH(), r.W() / 2.0);
-    g.DrawFittedBitmap(mBitmap, r, &bAdd);
-    g.DrawText(mText, "Add", r);
+    drawBlendPic(g, nextCell(), EBlend::SrcOver, "Src Over", alpha);
+    drawBlendPic(g, nextCell(), EBlend::DstOver, "Dst Over", alpha);
+    drawBlendPic(g, nextCell(), EBlend::SrcIn, "Src In", alpha);
+    drawBlendPic(g, nextCell(), EBlend::DstIn, "Dst In", alpha);
+    drawBlendPic(g, nextCell(), EBlend::SrcOut, "Src Out", alpha);
+    drawBlendPic(g, nextCell(), EBlend::DstOut, "Dst Out", alpha);
+    drawBlendPic(g, nextCell(), EBlend::SrcAtop, "Src Atop", alpha);
+    drawBlendPic(g, nextCell(), EBlend::DstAtop, "Dst Atop", alpha);
+    drawBlendPic(g, nextCell(), EBlend::XOR, "XOR", alpha);
+    drawBlendPic(g, nextCell(), EBlend::Add, "Add", alpha);
+    mLayer = g.EndLayer();
+    g.DrawLayer(mLayer);
   }
+    
+private:
+  IBitmap mSrc;
+  IBitmap mDst;
+  ILayerPtr mLayer;
 };

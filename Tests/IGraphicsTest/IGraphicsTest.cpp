@@ -1,7 +1,10 @@
 #include "IGraphicsTest.h"
 #include "IPlug_include_in_plug_src.h"
 
+#if IPLUG_EDITOR
+#include "IControls.h"
 #include "Test/TestControls.h"
+#endif
 
 enum EParam
 {
@@ -11,12 +14,13 @@ enum EParam
 
 enum EControlTags
 {
-  kCtrlTagSize = 0
+  kCtrlTagTestControl = 0
 };
 
-IGraphicsTest::IGraphicsTest(IPlugInstanceInfo instanceInfo)
-: IPLUG_CTOR(kNumParams, 1, instanceInfo)
+IGraphicsTest::IGraphicsTest(const InstanceInfo& info)
+: Plugin(info, MakeConfig(kNumParams, 1))
 {
+  GetParam(kParamDummy)->InitPercentage("Dummy", 100.f);
   
 #if IPLUG_EDITOR
   mMakeGraphicsFunc = [&]() {
@@ -29,124 +33,126 @@ IGraphicsTest::IGraphicsTest(IPlugInstanceInfo instanceInfo)
     {
       IRECT bounds = pGraphics->GetBounds();
       pGraphics->GetBackgroundControl()->SetRECT(bounds);
-      pGraphics->GetControlWithTag(kCtrlTagSize)->SetRECT(bounds);
+//      pGraphics->GetControlWithTag(kCtrlTagSize)->SetRECT(bounds);
       DBGMSG("SELECTED: W %i, H%i\n", pGraphics->Width(), pGraphics->Height());
       
       return;
     }
-    
-    pGraphics->AttachCornerResizer(EUIResizerMode::kUIResizerScale, true);
-    pGraphics->HandleMouseOver(true);
+
+    pGraphics->EnableMouseOver(true);
     pGraphics->EnableTooltips(true);
+    pGraphics->EnableMultiTouch(true);
     
-    pGraphics->SetKeyHandlerFunc([&](const IKeyPress& key)
-    {
-      switch (key.VK) {
-        case kVK_TAB:
-          dynamic_cast<IPanelControl*>(GetUI()->GetBackgroundControl())->SetPattern(IColor::GetRandomColor());
-          break;
-          
-        default:
-          break;
+    pGraphics->AttachCornerResizer(EUIResizerMode::Scale, true);
+    
+    pGraphics->SetKeyHandlerFunc([&](const IKeyPress& key, bool isUp) {
+      if(!isUp) {
+        switch (key.VK) {
+          case kVK_TAB:
+            dynamic_cast<IPanelControl*>(GetUI()->GetBackgroundControl())->SetPattern(IColor::GetRandomColor());
+            break;
+            
+          default:
+            break;
+        }
+        return true;
       }
-      return true;
+      
+      return false;
     });
     
-    pGraphics->LoadFont(ROBOTTO_FN);
-    pGraphics->LoadFont(MONTSERRAT_FN);
-    ISVG tiger = pGraphics->LoadSVG(TIGER_FN);
-    IBitmap smiley = pGraphics->LoadBitmap(SMILEY_FN);
-    IBitmap base = pGraphics->LoadBitmap(BASE_FN);
-    IBitmap mask = pGraphics->LoadBitmap(MASK_FN);
-    IBitmap top = pGraphics->LoadBitmap(TOP_FN);
+    pGraphics->LoadFont("Roboto-Regular", ROBOTO_FN);
+    if (!pGraphics->LoadFont("Alternative Font", "Times New Roman", ETextStyle::Normal)) {
+      // This covers cases where we can't load system fonts, or the font doesn't exist
+      pGraphics->LoadFont("Alternative Font", MONTSERRAT_FN);
+    }
+    pGraphics->LoadFont("Montserrat-LightItalic", MONTSERRAT_FN);
 
-    IRECT bounds = pGraphics->GetBounds();
+    IRECT bounds = pGraphics->GetBounds().GetPadded(-20.f);
+    auto testRect = bounds.GetFromTop(480.f).GetCentredInside(480.f);
+
+    pGraphics->AttachPanelBackground(COLOR_GRAY);
     
-    int cellIdx = 0;
-    
-    auto nextCell = [&](){
-      return bounds.GetPadded(-10).GetGridCell(cellIdx++, 4, 6).GetPadded(-5.);
+    auto testNames = {
+    "Gradient",
+    "Multi-stop gradient",
+    "Polygon",
+    "Arcs",
+    "Beziers",
+    "MultiPath",
+    "Text",
+    "Animation",
+    "Draw contexts",
+    "SVG",
+    "Image",
+    "Layer",
+    "Blend modes",
+    "DropShadow",
+    "Cursor",
+    "Keyboard",
+    "ShadowGradient",
+    "Font",
+    "TextOrientation",
+    "TextSize",
+    "MPS (NanoVG MTL only)",
+    "OpenGL (NanoVG GL only)",
+    "Gesture Recognizers (iOS only)",
+    "MultiTouch (iOS/Windows only)",
+    "FlexBox"
     };
     
-    pGraphics->AttachPanelBackground(COLOR_GRAY);
-    pGraphics->AttachControl(new TestSizeControl(bounds), kCtrlTagSize);
+    auto chooseTestControl = [&, pGraphics, testRect](int idx) {
 
-    pGraphics->AttachControl(new ILambdaControl(nextCell(), [](ILambdaControl* pCaller, IGraphics& g, IRECT& r) {
+      pGraphics->RemoveControlWithTag(kCtrlTagTestControl);
       
-//      const float width = 5.f;
-       const float radius = r.W();
-//      const float cornerSize = 10.f;
-      
-      //    g.FillRect(COLOR_WHITE, r);
-      //    g.FillCircle(COLOR_WHITE, r.MW(), r.MH(), radius);
-      //    g.FillArc(COLOR_WHITE, r.MW(), r.MH(), radius, 0, 90);
-      //    g.FillRoundRect(COLOR_WHITE, r, cornerSize);
+      IControl* pNewControl;
+      switch (idx) {
+        case 0: pNewControl = new TestGradientControl(testRect, kParamDummy); break;
+        case 1: pNewControl = new TestColorControl(testRect); break;
+        case 2: pNewControl = new TestPolyControl(testRect, kParamDummy); break;
+        case 3: pNewControl = new TestArcControl(testRect, kParamDummy); break;
+        case 4: pNewControl = new TestBezierControl(testRect); break;
+        case 5: pNewControl = new TestMultiPathControl(testRect, kParamDummy); break;
+        case 6: pNewControl = new TestTextControl(testRect); break;
+        case 7: pNewControl = new TestAnimationControl(testRect); break;
+        case 8: pNewControl = new TestDrawContextControl(testRect); break;
+        case 9: pNewControl = new TestSVGControl(testRect, pGraphics->LoadSVG(TIGER_FN)); break;
+        case 10: pNewControl = new TestImageControl(testRect, pGraphics->LoadBitmap(IPLUG_FN)); break;
+        case 11: pNewControl = new TestLayerControl(testRect, kParamDummy); break;
+        case 12: pNewControl = new TestBlendControl(testRect, pGraphics->LoadBitmap(SRC_FN), pGraphics->LoadBitmap(DST_FN), kParamDummy); break;
+        case 13: pNewControl = new TestDropShadowControl(testRect, pGraphics->LoadSVG(ORBS_FN)); break;
+        case 14: pNewControl = new TestCursorControl(testRect); break;
+        case 15: pNewControl = new TestKeyboardControl(testRect); break;
+        case 16: pNewControl = new TestShadowGradientControl(testRect); break;
+        case 17: pNewControl = new TestFontControl(testRect); break;
+        case 18: pNewControl = new TestTextOrientationControl(testRect, kParamDummy); break;
+        case 19: pNewControl = new TestTextSizeControl(testRect, kParamDummy); break;
+        case 20: pNewControl = new TestMPSControl(testRect, pGraphics->LoadBitmap(SMILEY_FN), kParamDummy); break;
+        case 21: pNewControl = new TestGLControl(testRect); break;
+        case 22: pNewControl = new TestGesturesControl(testRect); break;
+        case 23: pNewControl = new TestMTControl(testRect); pNewControl->SetWantsMultiTouch(true); break;
+        case 24: pNewControl = new TestFlexBoxControl(testRect); break;
 
-      //    g.DrawDottedLine(COLOR_WHITE, r.L, r.T, r.R, r.MH());
-      //    g.DrawRect(COLOR_WHITE, r, nullptr, width);
-      //    g.DrawCircle(COLOR_WHITE, r.MW(), r.MH(), radius, nullptr, width);
-      //    g.DrawArc(COLOR_WHITE, r.MW(), r.MH(), radius, 0, 90);
-      //    g.DrawRoundRect(COLOR_BLUE, r, cornerSize, nullptr, width);
-      
-      const float x = r.MW();
-      const float y = r.MH();
-      const float rotate = pCaller->GetAnimationProgress() * PI;
-      
-      for(int index = 0, limit = 40; index < limit; ++index)
-      {
-        float firstAngle = (index * 2 * PI) / limit;
-        float secondAngle = ((index + 1) * 2 * PI) / limit;
-        
-        g.PathTriangle(x, y,
-                       x + std::sin(firstAngle + rotate) * radius, y + std::cos(firstAngle + rotate) * radius,
-                       x + std::sin(secondAngle + rotate) * radius, y + std::cos(secondAngle + rotate) * radius);
-        
-        if(index % 2)
-          g.PathFill(COLOR_RED);
-        else
-          g.PathFill(COLOR_BLUE);
       }
       
-      
-    }, 1000, false));
+      pGraphics->AttachControl(pNewControl, kCtrlTagTestControl);
+      SendCurrentParamValuesFromDelegate();
+    };
     
-    pGraphics->AttachControl(new TestGradientControl(nextCell(), kParamDummy));
-    pGraphics->AttachControl(new TestColorControl(nextCell()));
-    pGraphics->AttachControl(new TestPolyControl(nextCell(), kParamDummy));
-    pGraphics->AttachControl(new TestArcControl(nextCell(), kParamDummy));
-    pGraphics->AttachControl(new TestMultiPathControl(nextCell(), kParamDummy));
-    pGraphics->AttachControl(new TestTextControl(nextCell()));
-    pGraphics->AttachControl(new TestAnimationControl(nextCell()));
-    pGraphics->AttachControl(new TestDrawContextControl(nextCell()));
-    pGraphics->AttachControl(new TestSVGControl(nextCell(), tiger));
-    pGraphics->AttachControl(new TestImageControl(nextCell()));
-    pGraphics->AttachControl(new TestLayerControl(nextCell()));
-    pGraphics->AttachControl(new TestBlendControl(nextCell(), smiley));
-    pGraphics->AttachControl(new TestDropShadowControl(nextCell(), tiger));
-    pGraphics->AttachControl(new TestCursorControl(nextCell()));
-    pGraphics->AttachControl(new TestKeyboardControl(nextCell()));
-    pGraphics->AttachControl(new TestShadowGradientControl(nextCell()));
+    pGraphics->AttachControl(new IVRadioButtonControl(bounds.FracRectHorizontal(0.2),
+                                                      [pGraphics, chooseTestControl](IControl* pCaller) {
+                                                        SplashClickActionFunc(pCaller);
+                                                        int selectedTest = dynamic_cast<IVRadioButtonControl*>(pCaller)->GetSelectedIdx();
+                                                        chooseTestControl(selectedTest);
+                                                      },
+                                                      testNames
+                                                      ));
+    
+    pGraphics->AttachControl(new IVSliderControl(bounds.FracRectHorizontal(0.2, true).GetCentredInside(100, 200), kParamDummy, "Value"));
 
-    WDL_String path;
-    //    DesktopPath(path);
-    path.Set(__FILE__);
-    path.remove_filepart();
-#ifdef OS_WIN
-    path.Append("\\resources\\img\\");
-#else
-    path.Append("/resources/img/");
-#endif
-    pGraphics->AttachControl(new TestDirBrowseControl(nextCell(), "png", path.Get()));
-
-    IRECT r = nextCell();
-    pGraphics->AttachControl(new TestRotatingMaskControl(r.L, r.T, base, mask, top));
-
-#if 0
-    pGraphics->AttachControl(new ITextControl(nextCell(), "Hello World!", {24, COLOR_WHITE, "Roboto-Regular", IText::kStyleNormal, IText::kAlignNear, IText::kVAlignTop, 90}));
-    pGraphics->AttachControl(new ITextControl(nextCell(), "Two!", {18, COLOR_GREEN, "Montserrat-LightItalic", IText::kStyleItalic, IText::kAlignCenter, IText::kVAlignMiddle, 45}));
-    pGraphics->AttachControl(new ITextControl(nextCell(), "Three!", {24, COLOR_RED, "Roboto-Regular", IText::kStyleNormal, IText::kAlignFar, IText::kVAlignBottom}));
-    pGraphics->AttachControl(new ITextControl(nextCell(), "Four!", {40, COLOR_ORANGE, "Roboto-Regular", IText::kStyleNormal, IText::kAlignCenter, IText::kVAlignBottom}));
-#endif
+    pGraphics->AttachControl(new GFXLabelControl(bounds.GetFromTRHC(230, 50)));//.GetTranslated(25, -25)));
+    
+    chooseTestControl(0);
   };
   
 #endif

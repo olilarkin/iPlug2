@@ -1,18 +1,19 @@
-include ./../../common-web.mk
+# IPLUG2_ROOT should point to the top level IPLUG2 folder from the project folder
+# By default, that is three directories up from /Examples/IPlugControls/config
+IPLUG2_ROOT = ../../..
 
-SRC += IPlugControls.cpp
+include ../../../common-web.mk
 
-# WAM_SRC += 
+SRC += $(PROJECT_ROOT)/IPlugControls.cpp
+
+# WAM_SRC +=
 
 # WAM_CFLAGS +=
 
-#WEB_CFLAGS += -DIGRAPHICS_CANVAS
 WEB_CFLAGS += -DIGRAPHICS_NANOVG -DIGRAPHICS_GLES2
 
-WAM_LDFLAGS += -s EXPORT_NAME="'AudioWorkletGlobalScope.WAM.IPlugControls'" -O2 -s ASSERTIONS=0
+WAM_LDFLAGS += -O3 -s EXPORT_NAME="'AudioWorkletGlobalScope.WAM.IPlugControls'" -s ASSERTIONS=0
 
-WEB_LDFLAGS += -O2 -s ASSERTIONS=0
+WEB_LDFLAGS += -O3 -s ASSERTIONS=0
 
-#if you want to use NANOVG/WebGL, you must link with -s USE_GLFW=3 -s USE_WEBGL2=0 -s FULL_ES3=1
-
-WEB_LDFLAGS += -s USE_GLFW=3 -s USE_WEBGL2=0 -s FULL_ES3=1
+WEB_LDFLAGS += $(NANOVG_LDFLAGS)

@@ -20,7 +20,9 @@
 
 #include "IPlugAPIBase.h"
 
-IPlugAPIBase::IPlugAPIBase(IPlugConfig c, EAPI plugAPI)
+using namespace iplug;
+
+IPlugAPIBase::IPlugAPIBase(Config c, EAPI plugAPI)
   : IPluginBase(c.nParams, c.nPresets)
 {
   mUniqueID = c.uniqueID;
@@ -30,8 +32,7 @@ IPlugAPIBase::IPlugAPIBase(IPlugConfig c, EAPI plugAPI)
   mProductName.Set(c.productName, MAX_PLUGIN_NAME_LEN);
   mMfrName.Set(c.mfrName, MAX_PLUGIN_NAME_LEN);
   mHasUI = c.plugHasUI;
-  mEditorWidth = c.plugWidth;
-  mEditorHeight = c.plugHeight;
+  SetEditorSize(c.plugWidth, c.plugHeight);
   mStateChunks = c.plugDoesChunks;
   mAPI = plugAPI;
   mBundleID.Set(c.bundleID);
@@ -46,10 +47,9 @@ IPlugAPIBase::~IPlugAPIBase()
   if(mTimer)
   {
     mTimer->Stop();
-    DELETE_NULL(mTimer);
   }
 
-  TRACE;
+  TRACE
 }
 
 void IPlugAPIBase::OnHostRequestingImportantParameters(int count, WDL_TypedBuf<int>& results)
@@ -63,7 +63,7 @@ void IPlugAPIBase::OnHostRequestingImportantParameters(int count, WDL_TypedBuf<i
 
 void IPlugAPIBase::CreateTimer()
 {
-  mTimer = Timer::Create(std::bind(&IPlugAPIBase::OnTimer, this, std::placeholders::_1), IDLE_TIMER_RATE);
+  mTimer = std::unique_ptr<Timer>(Timer::Create(std::bind(&IPlugAPIBase::OnTimer, this, std::placeholders::_1), IDLE_TIMER_RATE));
 }
 
 bool IPlugAPIBase::CompareState(const uint8_t* pIncomingState, int startPos) const
@@ -79,10 +79,16 @@ bool IPlugAPIBase::CompareState(const uint8_t* pIncomingState, int startPos) con
     float v = (float) GetParam(i)->Value();
     float vi = (float) *(data++);
     
-    isEqual &= (fabsf(v - vi) < 0.00001);
+    isEqual &= (std::fabs(v - vi) < 0.00001);
   }
   
   return isEqual;
+}
+
+bool IPlugAPIBase::EditorResize(int viewWidth, int viewHeight)
+{
+  SetEditorSize(viewWidth, viewHeight);
+  return false;
 }
 
 #pragma mark -
@@ -132,20 +138,23 @@ void IPlugAPIBase::SendParameterValueFromAPI(int paramIdx, double value, bool no
 {
   //TODO: Can we assume that no host is stupid enough to try and set parameters on multiple threads at the same time?
   // If that is the case then we need a MPSPC queue not SPSC
-  mParamChangeFromProcessor.Push(IParamChange { paramIdx, value, normalized } );
+  if (normalized)
+    value = GetParam(paramIdx)->FromNormalized(value);
+  
+  mParamChangeFromProcessor.Push(ParamTuple { paramIdx, value } );
 }
 
 void IPlugAPIBase::OnTimer(Timer& t)
 {
   if(HasUI())
   {
-    // in distributed VST 3, parameter changes are managed by the host
-  #if !defined VST3C_API && !defined VST3P_API
+    // in distributed VST3, parameter changes are managed by the host
+  #if !defined VST3C_API && !defined VST3P_API // && !defined VST3_API
     while(mParamChangeFromProcessor.ElementsAvailable())
     {
-      IParamChange p;
+      ParamTuple p;
       mParamChangeFromProcessor.Pop(p);
-      SendParameterValueFromDelegate(p.paramIdx, p.value, p.normalized); // TODO:  if the parameter hasn't changed maybe we shouldn't do anything?
+      SendParameterValueFromDelegate(p.idx, p.value, false); // TODO:  if the parameter hasn't changed maybe we shouldn't do anything?
     }
     
     while (mMidiMsgsFromProcessor.ElementsAvailable())
@@ -164,7 +173,7 @@ void IPlugAPIBase::OnTimer(Timer& t)
   #endif
     
     // Midi messages from the processor to the controller, are sent as IMessages and SendMidiMsgFromDelegate gets triggered on the other side's notify
-  #if defined VST3P_API
+  #if defined VST3P_API // || defined VST3_API
     while (mMidiMsgsFromProcessor.ElementsAvailable())
     {
       IMidiMsg msg;
@@ -196,9 +205,9 @@ void IPlugAPIBase::SendSysexMsgFromUI(const ISysEx& msg)
   EDITOR_DELEGATE_CLASS::SendSysexMsgFromUI(msg); // for remote editors
 }
 
-void IPlugAPIBase::SendArbitraryMsgFromUI(int messageTag, int controlTag, int dataSize, const void* pData)
+void IPlugAPIBase::SendArbitraryMsgFromUI(int msgTag, int ctrlTag, int dataSize, const void* pData)
 {
-  OnMessage(messageTag, controlTag, dataSize, pData); // IPlugAPIBase implementation handles non distributed plug-ins - just call OnMessage() directly
+  OnMessage(msgTag, ctrlTag, dataSize, pData); // IPlugAPIBase implementation handles non distributed plug-ins - just call OnMessage() directly
   
-  EDITOR_DELEGATE_CLASS::SendArbitraryMsgFromUI(messageTag, controlTag, dataSize, pData);
+  EDITOR_DELEGATE_CLASS::SendArbitraryMsgFromUI(msgTag, ctrlTag, dataSize, pData);
 }

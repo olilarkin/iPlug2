@@ -12,6 +12,9 @@
 #include "IGraphics.h"
 #include "IControl.h"
 
+using namespace iplug;
+using namespace igraphics;
+
 IGEditorDelegate::IGEditorDelegate(int nParams)
 : IEditorDelegate(nParams)
 {  
@@ -21,33 +24,13 @@ IGEditorDelegate::~IGEditorDelegate()
 {
 }
 
-void IGEditorDelegate::OnUIOpen()
-{
-  IEditorDelegate::OnUIOpen();
-  
-  int width = GetEditorWidth();
-  int height = GetEditorHeight();
-  float scale = 1.f;
-    
-  // Recall size data (if not present use the defaults above)
-    
-  const IByteChunk& data = GetEditorData();
-    
-  int pos = data.Get(&width, 0);
-  pos = data.Get(&height, pos);
-  pos = data.Get(&scale, pos);
-    
-  if (pos > 0)
-    GetUI()->Resize(width, height, scale);
-    
-  pos = UnSerializeEditorProperties(data, pos);
-}
-
 void* IGEditorDelegate::OpenWindow(void* pParent)
 {
-  if(!mGraphics) {
-    mIGraphicsTransient = true;
-    mGraphics = CreateGraphics();
+  if(!mGraphics)
+  {
+    mGraphics = std::unique_ptr<IGraphics>(CreateGraphics());
+    if (mLastWidth && mLastHeight && mLastScale)
+      GetUI()->Resize(mLastWidth, mLastHeight, mLastScale);
   }
   
   if(mGraphics)
@@ -58,27 +41,42 @@ void* IGEditorDelegate::OpenWindow(void* pParent)
 
 void IGEditorDelegate::CloseWindow()
 {
-  IEditorDelegate::CloseWindow();
+  if (!mClosing)
+  {
+    mClosing = true;
+    IEditorDelegate::CloseWindow();
   
-  if(mGraphics)
-    mGraphics->CloseWindow();
-  
-  if(mIGraphicsTransient)
-    DELETE_NULL(mGraphics);
+    if (mGraphics)
+    {
+      mLastWidth = mGraphics->Width();
+      mLastHeight = mGraphics->Height();
+      mLastScale = mGraphics->GetDrawScale();
+      mGraphics->CloseWindow();
+      mGraphics = nullptr;
+    }
+    
+    mClosing = false;
+  }
 }
 
-void IGEditorDelegate::SendControlValueFromDelegate(int controlTag, double normalizedValue)
+void IGEditorDelegate::SetScreenScale(double scale)
+{
+  if (GetUI())
+    mGraphics->SetScreenScale(static_cast<int>(std::round(scale)));
+}
+
+void IGEditorDelegate::SendControlValueFromDelegate(int ctrlTag, double normalizedValue)
 {
   if(!mGraphics)
     return;
 
-  if (controlTag > kNoTag)
+  if (ctrlTag > kNoTag)
   {
     for (auto c = 0; c < mGraphics->NControls(); c++)
     {
       IControl* pControl = mGraphics->GetControl(c);
       
-      if (pControl->GetTag() == controlTag)
+      if (pControl->GetTag() == ctrlTag)
       {
         pControl->SetValueFromDelegate(normalizedValue);
       }
@@ -86,20 +84,20 @@ void IGEditorDelegate::SendControlValueFromDelegate(int controlTag, double norma
   }
 }
 
-void IGEditorDelegate::SendControlMsgFromDelegate(int controlTag, int messageTag, int dataSize, const void* pData)
+void IGEditorDelegate::SendControlMsgFromDelegate(int ctrlTag, int msgTag, int dataSize, const void* pData)
 {
   if(!mGraphics)
     return;
   
-  if (controlTag > kNoTag)
+  if (ctrlTag > kNoTag)
   {
     for (auto c = 0; c < mGraphics->NControls(); c++)
     {
       IControl* pControl = mGraphics->GetControl(c);
       
-      if (pControl->GetTag() == controlTag)
+      if (pControl->GetTag() == ctrlTag)
       {
-        pControl->OnMsgFromDelegate(messageTag, dataSize, pData);
+        pControl->OnMsgFromDelegate(msgTag, dataSize, pData);
       }
     }
   }
@@ -112,15 +110,21 @@ void IGEditorDelegate::SendParameterValueFromDelegate(int paramIdx, double value
     if (!normalized)
       value = GetParam(paramIdx)->ToNormalized(value);
 
-    for (auto c = 0; c < mGraphics->NControls(); c++)
+    for (int c = 0; c < mGraphics->NControls(); c++)
     {
       IControl* pControl = mGraphics->GetControl(c);
       
-      if (pControl->ParamIdx() == paramIdx)
+      int nVals = pControl->NVals();
+      
+      for(int v = 0; v < nVals; v++)
       {
-        pControl->SetValueFromDelegate(value);
-        // Could be more than one, don't break until we check them all.
+        if (pControl->GetParamIdx(v) == paramIdx)
+        {
+          pControl->SetValueFromDelegate(value, v);
+          // Could be more than one, don't break until we check them all.
+        }
       }
+
     }
   }
   
@@ -145,27 +149,52 @@ void IGEditorDelegate::SendMidiMsgFromDelegate(const IMidiMsg& msg)
   IEditorDelegate::SendMidiMsgFromDelegate(msg);
 }
 
-void IGEditorDelegate::AttachGraphics(IGraphics* pGraphics)
+bool IGEditorDelegate::SerializeEditorSize(IByteChunk& data) const
 {
-  assert(mGraphics == nullptr); // protect against calling AttachGraphics() when mGraphics allready exists
-
-  mGraphics = pGraphics;
-  mIGraphicsTransient = false;
+  bool savedOK = true;
+    
+  int width = mGraphics ? mGraphics->Width() : mLastWidth;
+  int height = mGraphics ? mGraphics->Height() : mLastHeight;
+  float scale = mGraphics ? mGraphics->GetDrawScale() : mLastScale;
+    
+  savedOK &= data.Put(&width);
+  savedOK &= data.Put(&height);
+  savedOK &= data.Put(&scale);
+    
+  return savedOK;
 }
 
-void IGEditorDelegate::EditorPropertiesModified()
+int IGEditorDelegate::UnserializeEditorSize(const IByteChunk& data, int startPos)
 {
-  IByteChunk data;
+  int width = 0;
+  int height = 0;
+  float scale = 0.f;
     
-  int width = mGraphics->Width();
-  int height = mGraphics->Height();
-  float scale = mGraphics->GetDrawScale();
+  startPos = data.Get(&width, startPos);
+  startPos = data.Get(&height, startPos);
+  startPos = data.Get(&scale, startPos);
     
-  data.Put(&width);
-  data.Put(&height);
-  data.Put(&scale);
+  if (GetUI())
+  {
+    if (width && height && scale)
+      GetUI()->Resize(width, height, scale);
+  }
+  else
+  {
+    mLastWidth = width;
+    mLastHeight = height;
+    mLastScale = scale;
+  }
     
-  SerializeEditorProperties(data);
-    
-  EditorPropertiesChangedFromUI(mGraphics->WindowWidth(), mGraphics->WindowHeight(), data);
+  return startPos;
+}
+
+bool IGEditorDelegate::SerializeEditorState(IByteChunk& chunk) const
+{
+  return SerializeEditorSize(chunk);
+}
+
+int IGEditorDelegate::UnserializeEditorState(const IByteChunk& chunk, int startPos)
+{
+  return UnserializeEditorSize(chunk, startPos);
 }

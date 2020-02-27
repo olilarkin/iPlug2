@@ -22,7 +22,7 @@
 class TestTextControl : public IControl
 {
 public:
-  TestTextControl(IRECT bounds)
+  TestTextControl(const IRECT& bounds)
   : IControl(bounds)
   {
     SetTooltip("TestTextControl");
@@ -33,7 +33,7 @@ public:
   {
     const char* words[] = { "there", "are many" , "possible", "ways", "to display text", "here" };
 
-    g.FillRect(COLOR_BLACK, mRECT);
+    g.FillRect(COLOR_WHITE, mRECT);
     g.DrawText(mText, words[mStringIndex], mRECT);
   }
 
@@ -42,11 +42,16 @@ public:
     Randomise();
     SetDirty(false);
   }
+    
+  void OnMouseDblClick(float x, float y, const IMouseMod& mod) override
+  {
+    GetUI()->CreateTextEntry(*this, mText, mRECT);
+    SetDirty(false);
+  }
 
   void Randomise()
   {
-    int size = (std::rand() % 100) + 5;
-    int style = (std::rand() % 3);
+    int size = (std::rand() % 200) + 12;
     int align = (std::rand() % 3);
     int valign = (std::rand() % 3);
     int type = (std::rand() % 2);
@@ -54,7 +59,7 @@ public:
 
     const char* types[] = { "Roboto-Regular", "Montserrat-LightItalic" };
 
-    mText = IText(size, IColor::GetRandomColor(), types[type], (IText::EStyle) style, (IText::EAlign) align, (IText::EVAlign) valign);
+    mText = IText(static_cast<float>(size), IColor::GetRandomColor(), types[type], (EAlign) align, (EVAlign) valign);
   }
 
 private:

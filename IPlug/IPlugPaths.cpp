@@ -14,10 +14,57 @@
  */
 
 #include "IPlugPlatform.h"
+#include "IPlugConstants.h"
 #include "IPlugPaths.h"
 
-#ifdef OS_WIN
+#if defined OS_WEB
+#include <emscripten/val.h>
+#elif defined OS_WIN
 #include <windows.h>
+#include <Shlobj.h>
+#include <Shlwapi.h>
+#endif
+
+BEGIN_IPLUG_NAMESPACE
+
+#if defined OS_WIN
+#pragma mark - OS_WIN
+
+// Unicode helpers
+void UTF8ToUTF16(wchar_t* utf16Str, const char* utf8Str, int maxLen)
+{
+  int requiredSize = MultiByteToWideChar(CP_UTF8, 0, utf8Str, -1, NULL, 0);
+
+  if (requiredSize > 0 && requiredSize <= maxLen)
+  {
+    MultiByteToWideChar(CP_UTF8, 0, utf8Str, -1, utf16Str, requiredSize);
+    return;
+  }
+
+  utf16Str[0] = 0;
+}
+
+void UTF16ToUTF8(WDL_String& utf8Str, const wchar_t* utf16Str)
+{
+  int requiredSize = WideCharToMultiByte(CP_UTF8, 0, utf16Str, -1, NULL, 0, NULL, NULL);
+
+  if (requiredSize > 0 && utf8Str.SetLen(requiredSize))
+  {
+    WideCharToMultiByte(CP_UTF8, 0, utf16Str, -1, utf8Str.Get(), requiredSize, NULL, NULL);
+    return;
+  }
+
+  utf8Str.Set("");
+}
+
+ // Helper for getting a known folder in UTF8
+void GetKnownFolder(WDL_String &path, int identifier, int flags = 0)
+{
+  wchar_t wideBuffer[1024];
+
+  SHGetFolderPathW(NULL, identifier, NULL, flags, wideBuffer);
+  UTF16ToUTF8(path, wideBuffer);
+}
 
 static void GetModulePath(HMODULE hModule, WDL_String& path)
 {
@@ -41,14 +88,27 @@ static void GetModulePath(HMODULE hModule, WDL_String& path)
   }
 }
 
-void HostPath(WDL_String& path)
+void HostPath(WDL_String& path, const char* bundleID)
 {
   GetModulePath(0, path);
 }
 
-void PluginPath(WDL_String& path)
+void PluginPath(WDL_String& path, HMODULE pExtra)
 {
-  GetModulePath(mHInstance, path);
+  GetModulePath(pExtra, path);
+}
+
+void BundleResourcePath(WDL_String& path, HMODULE pExtra)
+{
+#ifdef VST3_API
+  GetModulePath(pExtra, path);
+#ifdef ARCH_64BIT
+  path.SetLen(path.GetLength() - strlen("x86_64-win/"));
+#else
+  path.SetLen(path.GetLength() - strlen("x86-win/"));
+#endif
+  path.Append("Resources\\");
+#endif
 }
 
 void DesktopPath(WDL_String& path)
@@ -76,19 +136,114 @@ void VST3PresetsPath(WDL_String& path, const char* mfrName, const char* pluginNa
   path.AppendFormatted(MAX_WIN32_PATH_LEN, "\\VST3 Presets\\%s\\%s", mfrName, pluginName);
 }
 
-void SandboxSafeAppSupportPath(WDL_String& path)
+void SandboxSafeAppSupportPath(WDL_String& path, const char* appGroupID)
 {
   AppSupportPath(path);
 }
 
+void INIPath(WDL_String& path, const char * pluginName)
+{
+  GetKnownFolder(path, CSIDL_LOCAL_APPDATA);
+
+  path.AppendFormatted(MAX_WIN32_PATH_LEN, "\\%s", pluginName);
+}
+
+static BOOL EnumResNameProc(HANDLE module, LPCTSTR type, LPTSTR name, LONG_PTR param)
+{
+  if (IS_INTRESOURCE(name)) return true; // integer resources not wanted
+  else {
+    WDL_String* search = (WDL_String*)param;
+    if (search != 0 && name != 0)
+    {
+      //strip off extra quotes
+      WDL_String strippedName(strlwr(name + 1));
+      strippedName.SetLen(strippedName.GetLength() - 1);
+
+      if (strcmp(strlwr(search->Get()), strippedName.Get()) == 0) // if we are looking for a resource with this name
+      {
+        search->SetFormatted(strippedName.GetLength() + 7, "found: %s", strippedName.Get());
+        return false;
+      }
+    }
+  }
+
+  return true; // keep enumerating
+}
+
+EResourceLocation LocateResource(const char* name, const char* type, WDL_String& result, const char*, void* pHInstance, const char*)
+{
+  if (CStringHasContents(name))
+  {
+    WDL_String search(name);
+    WDL_String typeUpper(type);
+
+    HMODULE hInstance = static_cast<HMODULE>(pHInstance);
+
+    EnumResourceNames(hInstance, _strupr(typeUpper.Get()), (ENUMRESNAMEPROC)EnumResNameProc, (LONG_PTR)&search);
+
+    if (strstr(search.Get(), "found: ") != 0)
+    {
+      result.SetFormatted(MAX_PATH, "\"%s\"", search.Get() + 7, search.GetLength() - 7); // 7 = strlen("found: ")
+      return EResourceLocation::kWinBinary;
+    }
+    else
+    {
+      if (PathFileExists(name))
+      {
+        result.Set(name);
+        return EResourceLocation::kAbsolutePath;
+      }
+    }
+  }
+  return EResourceLocation::kNotFound;
+}
+
+const void* LoadWinResource(const char* resid, const char* type, int& sizeInBytes, void* pHInstance)
+{
+  WDL_String typeUpper(type);
+
+  HMODULE hInstance = static_cast<HMODULE>(pHInstance);
+
+  HRSRC hResource = FindResource(hInstance, resid, _strupr(typeUpper.Get()));
+
+  if (!hResource)
+    return NULL;
+
+  DWORD size = SizeofResource(hInstance, hResource);
+
+  if (size < 8)
+    return NULL;
+
+  HGLOBAL res = LoadResource(hInstance, hResource);
+
+  const void* pResourceData = LockResource(res);
+
+  if (!pResourceData)
+  {
+    sizeInBytes = 0;
+    return NULL;
+  }
+  else
+  {
+    sizeInBytes = size;
+    return pResourceData;
+  }
+}
+
+bool AppIsSandboxed()
+{
+  return false;
+}
+
 #elif defined OS_WEB
+#pragma mark - OS_WEB
 
 void AppSupportPath(WDL_String& path, bool isSystem)
 {
   path.Set("Settings");
 }
 
-void SandboxSafeAppSupportPath(WDL_String& path)
+void SandboxSafeAppSupportPath(WDL_String& path, const char* appGroupID)
 {
   path.Set("Settings");
 }
@@ -103,4 +258,45 @@ void VST3PresetsPath(WDL_String& path, const char* mfrName, const char* pluginNa
   path.Set("Presets");
 }
 
+EResourceLocation LocateResource(const char* name, const char* type, WDL_String& result, const char*, void*, const char*)
+{
+  if (CStringHasContents(name))
+  {
+    WDL_String plusSlash;
+    WDL_String path(name);
+    const char* file = path.get_filepart();
+      
+    bool foundResource = false;
+    
+    //TODO: FindResource is not sufficient here
+    
+    if(strcmp(type, "png") == 0) { //TODO: lowercase/uppercase png
+      plusSlash.SetFormatted(strlen("/resources/img/") + strlen(file) + 1, "/resources/img/%s", file);
+      foundResource = emscripten::val::global("Module")["preloadedImages"].call<bool>("hasOwnProperty", std::string(plusSlash.Get()));
+    }
+    else if(strcmp(type, "ttf") == 0) { //TODO: lowercase/uppercase ttf
+      plusSlash.SetFormatted(strlen("/resources/fonts/") + strlen(file) + 1, "/resources/fonts/%s", file);
+      foundResource = true; // TODO: check ttf
+    }
+    else if(strcmp(type, "svg") == 0) { //TODO: lowercase/uppercase svg
+      plusSlash.SetFormatted(strlen("/resources/img/") + strlen(file) + 1, "/resources/img/%s", file);
+      foundResource = true; // TODO: check svg
+    }
+    
+    if(foundResource)
+    {
+      result.Set(plusSlash.Get());
+      return EResourceLocation::kAbsolutePath;
+    }
+  }
+  return EResourceLocation::kNotFound;
+}
+
+bool AppIsSandboxed()
+{
+  return true;
+}
+
 #endif
+
+END_IPLUG_NAMESPACE

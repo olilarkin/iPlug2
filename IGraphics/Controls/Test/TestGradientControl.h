@@ -31,10 +31,12 @@ public:
 
   void Draw(IGraphics& g) override
   {
+    g.DrawDottedRect(COLOR_BLACK, mRECT);
+
     if (g.HasPathSupport())
     {
-      double cr = mValue * (mRECT.H() / 2.0);
-      g.PathRoundRect(mRECT.GetPadded(-2), cr);
+      float cr = static_cast<float>(GetValue()) * (mRECT.H() / 2.f);
+      g.PathRoundRect(mRECT.GetPadded(-2.f), cr);
       IFillOptions fillOptions;
       IStrokeOptions strokeOptions;
       fillOptions.mPreserve = true;
@@ -50,19 +52,26 @@ public:
     RandomiseGradient();
     SetDirty(false);
   }
+  
+  void OnResize() override
+  {
+    RandomiseGradient();
+  }
 
+private:
+  
   void RandomiseGradient()
   {
-    //IPattern tmp(kLinearPattern);
+    //IPattern tmp(EPatternType::Linear);
     //tmp.SetTransform(1.0/mRECT.W(), 0, 0, 1.0/mRECT.W(), 1.0/mRECT.W()*-mRECT.L, 1.0/mRECT.W()*-mRECT.T);
-    IPattern tmp(kSolidPattern);
+    IPattern tmp(EPatternType::Solid);
 
     if (std::rand() & 0x100)
       tmp = IPattern::CreateRadialGradient(mRECT.MW(), mRECT.MH(), mRECT.MH());
     else
-      tmp = IPattern::CreateLinearGradient(mRECT.L, mRECT.MH(), mRECT.L + mRECT.W() * 0.5, mRECT.MH());
+      tmp = IPattern::CreateLinearGradient(mRECT.L, mRECT.MH(), mRECT.L + mRECT.W() * 0.5f, mRECT.MH());
 
-    tmp.mExtend = (std::rand() & 0x10) ? ((std::rand() & 0x1000) ? kExtendNone : kExtendPad) : ((std::rand() & 0x1000) ? kExtendRepeat : kExtendReflect);
+    tmp.mExtend = (std::rand() & 0x10) ? ((std::rand() & 0x1000) ? EPatternExtend::None : EPatternExtend::Pad) : ((std::rand() & 0x1000) ? EPatternExtend::Repeat : EPatternExtend::Reflect);
 
     tmp.AddStop(IColor::GetRandomColor(), 0.0);
     tmp.AddStop(IColor::GetRandomColor(), 0.1);
@@ -73,6 +82,5 @@ public:
     mPattern = tmp;
   }
 
-private:
-  IPattern mPattern = IPattern(kLinearPattern);
+  IPattern mPattern = IPattern(EPatternType::Linear);
 };

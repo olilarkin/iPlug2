@@ -19,9 +19,10 @@
 #include "IPlugParameter.h"
 #include "IPlugLogger.h"
 
+using namespace iplug;
+
 #pragma mark - Shape
 
-// Linear
 double IParam::ShapeLinear::NormalizedToValue(double value, const IParam& param) const
 {
   return param.mMin + value * (param.mMax - param.mMin);
@@ -32,7 +33,6 @@ double IParam::ShapeLinear::ValueToNormalized(double value, const IParam& param)
   return (value - param.mMin) / (param.mMax - param.mMin);
 }
 
-// Power curve shape
 IParam::ShapePowCurve::ShapePowCurve(double shape)
 : mShape(shape)
 {
@@ -58,7 +58,6 @@ double IParam::ShapePowCurve::ValueToNormalized(double value, const IParam& para
   return std::pow((value - param.GetMin()) / (param.GetMax() - param.GetMin()), 1.0 / mShape);
 }
 
-// Exponential shape
 void IParam::ShapeExp::Init(const IParam& param)
 {
   double min = param.GetMin();
@@ -84,7 +83,7 @@ double IParam::ShapeExp::ValueToNormalized(double value, const IParam& param) co
 
 IParam::IParam()
 {
-  mShape = new ShapeLinear;
+  mShape = std::make_unique<ShapeLinear>();
   memset(mName, 0, MAX_PARAM_NAME_LEN * sizeof(char));
   memset(mLabel, 0, MAX_PARAM_LABEL_LEN * sizeof(char));
   memset(mParamGroup, 0, MAX_PARAM_LABEL_LEN * sizeof(char));
@@ -118,6 +117,19 @@ void IParam::InitEnum(const char* name, int defaultVal, int nEnums, const char* 
   }
 }
 
+void IParam::InitEnum(const char* name, int defaultVal, const std::initializer_list<const char*>& listItems, int flags, const char* group)
+{
+  if (mType == kTypeNone) mType = kTypeEnum;
+
+  InitInt(name, defaultVal, 0, static_cast<int>(listItems.size()) - 1, "", flags | kFlagStepped, group);
+
+  int idx = 0;
+  for (auto& item : listItems)
+  {
+    SetDisplayText(idx++, item);
+  }
+}
+
 void IParam::InitInt(const char* name, int defaultVal, int minVal, int maxVal, const char* label, int flags, const char* group)
 {
   if (mType == kTypeNone) mType = kTypeInt;
@@ -125,7 +137,7 @@ void IParam::InitInt(const char* name, int defaultVal, int minVal, int maxVal, c
   InitDouble(name, (double) defaultVal, (double) minVal, (double) maxVal, 1.0, label, flags | kFlagStepped, group);
 }
 
-void IParam::InitDouble(const char* name, double defaultVal, double minVal, double maxVal, double step, const char* label, int flags, const char* group, Shape* shape, EParamUnit unit, DisplayFunc displayFunc)
+void IParam::InitDouble(const char* name, double defaultVal, double minVal, double maxVal, double step, const char* label, int flags, const char* group, const Shape& shape, EParamUnit unit, DisplayFunc displayFunc)
 {
   if (mType == kTypeNone) mType = kTypeDouble;
   
@@ -154,49 +166,49 @@ void IParam::InitDouble(const char* name, double defaultVal, double minVal, doub
     ;
   }
     
-  if (shape)
-  {
-    delete mShape;
-    mShape = shape;
-  }
-  
+  mShape = std::unique_ptr<Shape>(shape.Clone());
   mShape->Init(*this);
 }
 
 void IParam::InitFrequency(const char *name, double defaultVal, double minVal, double maxVal, double step, int flags, const char *group)
 {
-  InitDouble(name, defaultVal, minVal, maxVal, step, "Hz", flags, group, new ShapeExp, kUnitFrequency);
+  InitDouble(name, defaultVal, minVal, maxVal, step, "Hz", flags, group, ShapeExp(), kUnitFrequency);
 }
 
 void IParam::InitSeconds(const char *name, double defaultVal, double minVal, double maxVal, double step, int flags, const char *group)
 {
-  InitDouble(name, defaultVal, minVal, maxVal, step, "Seconds", flags, group, nullptr, kUnitSeconds);
+  InitDouble(name, defaultVal, minVal, maxVal, step, "Seconds", flags, group, ShapeLinear(), kUnitSeconds);
 }
 
-void IParam::InitPitch(const char *name, int defaultVal, int minVal, int maxVal, int flags, const char *group)
+void IParam::InitMilliseconds(const char *name, double defaultVal, double minVal, double maxVal, int flags, const char *group)
+{
+  InitDouble(name, defaultVal, minVal, maxVal, 1, "ms", flags, group, ShapeLinear(), kUnitMilliseconds);
+}
+
+void IParam::InitPitch(const char *name, int defaultVal, int minVal, int maxVal, int flags, const char *group, bool middleCisC)
 {
   InitEnum(name, defaultVal, (maxVal - minVal) + 1, "", flags, group);
   WDL_String displayText;
   for (auto i = minVal; i <= maxVal; i++)
   {
-    MidiNoteName(i, displayText);
+    MidiNoteName(i, displayText, /*cents*/false, middleCisC);
     SetDisplayText(i - minVal, displayText.Get());
   }
 }
 
 void IParam::InitGain(const char *name, double defaultVal, double minVal, double maxVal, double step, int flags, const char *group)
 {
-  InitDouble(name, defaultVal, minVal, maxVal, step, "dB", flags, group, nullptr, kUnitDB);
+  InitDouble(name, defaultVal, minVal, maxVal, step, "dB", flags, group, ShapeLinear(), kUnitDB);
 }
 
 void IParam::InitPercentage(const char *name, double defaultVal, double minVal, double maxVal, int flags, const char *group)
 {
-  InitDouble(name, defaultVal, minVal, maxVal, 1, "%", flags, group, nullptr, kUnitPercentage);
+  InitDouble(name, defaultVal, minVal, maxVal, 1, "%", flags, group, ShapeLinear(), kUnitPercentage);
 }
 
 void IParam::InitAngleDegrees(const char *name, double defaultVal, double minVal, double maxVal, int flags, const char *group)
 {
-  InitDouble(name, defaultVal, minVal, maxVal, 1, "degrees", flags, group, nullptr, kUnitDegrees);
+  InitDouble(name, defaultVal, minVal, maxVal, 1, "degrees", flags, group, ShapeLinear(), kUnitDegrees);
 }
 
 void IParam::Init(const IParam& p, const char* searchStr, const char* replaceStr, const char* newGroup)
@@ -223,7 +235,7 @@ void IParam::Init(const IParam& p, const char* searchStr, const char* replaceStr
     group.Set(newGroup);
   }
   
-  InitDouble(str.Get(), p.mDefault, p.mMin, p.mMax, p.mStep, p.mLabel, p.mFlags, group.Get(), p.mShape->Clone(), p.mUnit, p.mDisplayFunction);
+  InitDouble(str.Get(), p.mDefault, p.mMin, p.mMax, p.mStep, p.mLabel, p.mFlags, group.Get(), *p.mShape, p.mUnit, p.mDisplayFunction);
   
   for (auto i=0; i<p.NDisplayTexts(); i++)
   {

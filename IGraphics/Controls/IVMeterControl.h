@@ -20,6 +20,9 @@
 #include "IPlugQueue.h"
 #include "IPlugStructs.h"
 
+BEGIN_IPLUG_NAMESPACE
+BEGIN_IGRAPHICS_NAMESPACE
+
 /** Vectorial multichannel capable meter control
  * @ingroup IControls */
 template <int MAXNC = 1, int QUEUE_SIZE = 1024>
@@ -50,11 +53,11 @@ public:
   };
 
   /** Used on the DSP side in order to queue sample values and transfer data to low priority thread. */
-  class IVMeterBallistics
+  class Sender
   {
   public:
-    IVMeterBallistics(int controlTag)
-    : mControlTag(controlTag)
+    Sender(int ctrlTag)
+    : mCtrlTag(ctrlTag)
     {
     }
 
@@ -81,6 +84,11 @@ public:
       mPrevAboveThreshold = d.AboveThreshold();
     }
 
+    void ProcessData(Data d)
+    {
+      mQueue.Push(d);
+    }
+
     // this must be called on the main thread - typically in MyPlugin::OnIdle()
     void TransmitData(IEditorDelegate& dlg)
     {
@@ -88,42 +96,56 @@ public:
       {
         Data d;
         mQueue.Pop(d);
-        dlg.SendControlMsgFromDelegate(mControlTag, kUpdateMessage, sizeof(Data), (void*) &d);
+        dlg.SendControlMsgFromDelegate(mCtrlTag, kUpdateMessage, sizeof(Data), (void*) &d);
       }
     }
 
   private:
-    int mControlTag;
+    int mCtrlTag;
     bool mPrevAboveThreshold = true;
     IPlugQueue<Data> mQueue {QUEUE_SIZE};
   };
 
-  IVMeterControl(IRECT bounds, const char* trackNames = 0, ...)
-  : IVTrackControlBase(bounds, MAXNC, 0, 1., trackNames)
+  IVMeterControl(const IRECT& bounds, const char* label, const IVStyle& style = DEFAULT_STYLE, EDirection dir = EDirection::Vertical, const char* trackNames = 0, ...)
+  : IVTrackControlBase(bounds, label, style, MAXNC, dir, 0, 1., trackNames)
   {
   }
 
-  //  void OnResize() override;
+  void Draw(IGraphics& g) override
+  {
+    DrawBackGround(g, mRECT);
+    DrawWidget(g);
+    DrawLabel(g);
+
+    if(mStyle.drawFrame)
+      g.DrawRect(GetColor(kFR), mWidgetBounds, &mBlend, mStyle.frameThickness);
+  }
+
   //  void OnMouseDblClick(float x, float y, const IMouseMod& mod) override;
   //  void OnMouseDown(float x, float y, const IMouseMod& mod) override;
 
-  void OnMsgFromDelegate(int messageTag, int dataSize, const void* pData) override
+  void OnMsgFromDelegate(int msgTag, int dataSize, const void* pData) override
   {
-    IByteStream stream(pData, dataSize);
-
-    int pos = 0;
-    Data data;
-    pos = stream.Get(&data.nchans, pos);
-
-    while(pos < stream.Size())
+    if (!IsDisabled())
     {
-      for (auto i = 0; i < data.nchans; i++) {
-        pos = stream.Get(&data.vals[i], pos);
-        float* pVal = GetTrackData(i);
-        *pVal = Clip(data.vals[i], 0.f, 1.f);
-      }
-    }
+      IByteStream stream(pData, dataSize);
 
-    SetDirty(false);
+      int pos = 0;
+      Data data;
+      pos = stream.Get(&data.nchans, pos);
+
+      while (pos < stream.Size())
+      {
+        for (auto i = 0; i < data.nchans; i++) {
+          pos = stream.Get(&data.vals[i], pos);
+          SetValue(Clip(data.vals[i], 0.f, 1.f), i);
+        }
+      }
+
+      SetDirty(false);
+    }
   }
 };
+
+END_IGRAPHICS_NAMESPACE
+END_IPLUG_NAMESPACE

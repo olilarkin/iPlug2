@@ -97,7 +97,7 @@ const char* vk_to_string(int vk_code)
 class TestKeyboardControl : public IControl
 {
 public:
-  TestKeyboardControl(IRECT rect)
+  TestKeyboardControl(const IRECT& rect)
   : IControl(rect)
   {
     mX = rect.MW();
@@ -116,7 +116,7 @@ public:
 
       if(mNewText)
       {
-        g.DrawText(IText((rand() % 50) + 10, COLOR_WHITE), mStr.Get(), mX, mY);
+        g.DrawText(IText(static_cast<float>((rand() % 50) + 10), COLOR_WHITE), mStr.Get(), mX, mY);
         mNewText = false;
       }
 
@@ -127,7 +127,7 @@ public:
     }
     else
     {
-      g.StartLayer(mRECT);
+      g.StartLayer(this, mRECT);
       g.DrawText(IText(20, COLOR_WHITE), mStr.Get(), mX, mY);
     }
 
@@ -147,11 +147,13 @@ public:
     mStr.Set(vk_to_string(key.VK));
 
     if(strcmp(mStr.Get(),"Unknown VK code")==0)
-      mStr.Set(&key.Ascii);
-
+    {
+      mStr.Set(key.utf8);
+    }
+    
     mNewText = true;
     SetAnimation(DefaultAnimationFunc);
-    StartAnimation(5000.);
+    StartAnimation(5000);
     mX = x;
     mY = y;
 

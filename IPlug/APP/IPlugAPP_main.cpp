@@ -17,6 +17,8 @@
 #include "config.h"
 #include "resource.h"
 
+using namespace iplug;
+
 #pragma mark - WINDOWS
 #if defined OS_WIN
 #include <windows.h>
@@ -54,6 +56,22 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 
     HACCEL hAccel = LoadAccelerators(gHINSTANCE, MAKEINTRESOURCE(IDR_ACCELERATOR1));
 
+    static UINT(WINAPI *__SetProcessDpiAwarenessContext)(DPI_AWARENESS_CONTEXT);
+
+    double scale = 1.;
+
+    if (!__SetProcessDpiAwarenessContext)
+    {
+      HINSTANCE h = LoadLibrary("user32.dll");
+      if (h) *(void **)&__SetProcessDpiAwarenessContext = GetProcAddress(h, "SetProcessDpiAwarenessContext");
+      if (!__SetProcessDpiAwarenessContext)
+        *(void **)&__SetProcessDpiAwarenessContext = (void*)(INT_PTR)1;
+    }
+    if ((UINT_PTR)__SetProcessDpiAwarenessContext > (UINT_PTR)1)
+    {
+      __SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    }
+
     CreateDialog(gHINSTANCE, MAKEINTRESOURCE(IDD_DIALOG_MAIN), GetDesktopWindow(), IPlugAPPHost::MainDlgProc);
 
 #ifndef _DEBUG
@@ -61,7 +79,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
     RemoveMenu(menu, 1, MF_BYPOSITION);
     DrawMenuBar(gHWND);
 #endif
-
 
     for(;;)
     {
@@ -71,7 +88,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
       if (!vvv)
         break;
       
-      if (vvv<0)
+      if (vvv < 0)
       {
         Sleep(10);
         continue;
@@ -83,7 +100,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
         continue;
       }
       
-      if (gHWND && IsDialogMessage(gHWND, &msg)) continue;
+      if (gHWND && (TranslateAccelerator(gHWND, hAccel, &msg) || IsDialogMessage(gHWND, &msg)))
+        continue;
       
       // default processing for other dialogs
       HWND hWndParent = NULL;
@@ -93,20 +111,18 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
       {
         if (GetClassLong(temphwnd, GCW_ATOM) == (INT)32770)
         {
-          hWndParent=temphwnd;
-          if (!(GetWindowLong(temphwnd, GWL_STYLE) &WS_CHILD))
+          hWndParent = temphwnd;
+          if (!(GetWindowLong(temphwnd, GWL_STYLE) & WS_CHILD))
             break; // not a child, exit
         }
       }
       while (temphwnd = GetParent(temphwnd));
       
-      if (hWndParent && IsDialogMessage(hWndParent,&msg)) continue;
+      if (hWndParent && IsDialogMessage(hWndParent,&msg))
+        continue;
 
-      if (!TranslateAccelerator(gHWND, hAccel, &msg))
-      {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-      }
+      TranslateMessage(&msg);
+      DispatchMessage(&msg);
     }
     
     // in case gHWND didnt get destroyed -- this corresponds to SWELLAPP_DESTROY roughly
@@ -124,7 +140,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 #pragma mark - MAC
 #elif defined(OS_MAC)
 #import <Cocoa/Cocoa.h>
-#include "swell.h"
+#include "IPlugSWELL.h"
+#include "IPlugPaths.h"
+
 HWND gHWND;
 extern HMENU SWELL_app_stocksysmenu;
 
@@ -140,11 +158,11 @@ int main(int argc, char *argv[])
       NSLog(@"Registered audiounit app extension\n");
     else
       NSLog(@"Failed to register audiounit app extension\n");
-
-//    if(IsSandboxed())
-//      NSLog(@"SANDBOXED\n");
   }
 #endif
+  
+  if(AppIsSandboxed())
+    DBGMSG("App is sandboxed, file system access etc restricted!\n");
   
   return NSApplicationMain(argc,  (const char **) argv);
 }
@@ -162,7 +180,7 @@ INT_PTR SWELLAppMain(int msg, INT_PTR parm1, INT_PTR parm2)
       break;
     case SWELLAPP_LOADED:
     {
-      pAppHost = IPlugAPPHost::sInstance;
+      pAppHost = IPlugAPPHost::sInstance.get();
 
       HMENU menu = SWELL_GetCurrentMenu();
 
@@ -250,17 +268,20 @@ INT_PTR SWELLAppMain(int msg, INT_PTR parm1, INT_PTR parm2)
       MSG* pMSG = (MSG*) parm1;
       NSView* pContentView = (NSView*) pMSG->hwnd;
       NSEvent* pEvent = (NSEvent*) parm2;
-      int etype = [pEvent type];
-
-      if(etype == NSKeyDown)
+      int etype = (int) [pEvent type];
+          
+      bool textField = [pContentView isKindOfClass:[NSText class]];
+          
+      if (!textField && etype == NSKeyDown)
       {
         int flag, code = SWELL_MacKeyToWindowsKey(pEvent, &flag);
         
-        if (!(flag&~FVIRTKEY))
-          if(code == VK_RETURN || code == VK_ESCAPE)
-            [pContentView keyDown: pEvent];
+        if (!(flag&~FVIRTKEY) && (code == VK_RETURN || code == VK_ESCAPE))
+        {
+          [pContentView keyDown: pEvent];
+          return 1;
+        }
       }
-      
       break;
   }
   return 0;
@@ -279,7 +300,7 @@ INT_PTR SWELLAppMain(int msg, INT_PTR parm1, INT_PTR parm2)
 
 #pragma mark - LINUX
 #elif defined(OS_LINUX)
-//#include "swell.h"
+//#include <IPlugSWELL.h>
 //#include "swell-internal.h" // fixes problem with HWND forward decl
 //
 //HWND gHWND;

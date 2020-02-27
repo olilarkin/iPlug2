@@ -8,16 +8,27 @@
  ==============================================================================
 */
 
-#ifndef NO_IGRAPHICS
-
-#ifdef IGRAPHICS_NANOVG
 #import <QuartzCore/QuartzCore.h>
+
+#if defined IGRAPHICS_METAL
+#import <Metal/Metal.h>
 #endif
+
+#ifdef IGRAPHICS_IMGUI
+#import <Metal/Metal.h>
+#include "imgui.h"
+#import "imgui_impl_metal.h"
+#endif
+
+#include "wdlutf8.h"
 
 #import "IGraphicsMac_view.h"
 #include "IControl.h"
 #include "IPlugParameter.h"
 #include "IPlugLogger.h"
+
+using namespace iplug;
+using namespace igraphics;
 
 static int MacKeyCodeToVK(int code)
 {
@@ -182,9 +193,7 @@ static int MacKeyEventToVK(NSEvent* pEvent, int& flag)
       [subMenu release];
     }
     else if (pMenuItem->GetIsSeparator())
-    {
       [self addItem:[NSMenuItem separatorItem]];
-    }
     else
     {
       nsMenuItem = [self addItemWithTitle:nsMenuItemTitle action:@selector(onMenuSelection:) keyEquivalent:@""];
@@ -192,27 +201,17 @@ static int MacKeyEventToVK(NSEvent* pEvent, int& flag)
       [nsMenuItem setTarget:pView];
       
       if (pMenuItem->GetIsTitle ())
-      {
         [nsMenuItem setIndentationLevel:1];
-      }
 
       if (pMenuItem->GetChecked())
-      {
         [nsMenuItem setState:NSOnState];
-      }
       else
-      {
         [nsMenuItem setState:NSOffState];
-      }
 
       if (pMenuItem->GetEnabled())
-      {
         [nsMenuItem setEnabled:YES];
-      }
       else
-      {
         [nsMenuItem setEnabled:NO];
-      }
 
     }
   }
@@ -229,15 +228,21 @@ static int MacKeyEventToVK(NSEvent* pEvent, int& flag)
 
 @end
 
-NSString* ToNSString(const char* cStr)
+@implementation IGRAPHICS_TEXTFIELD
+
+- (bool) becomeFirstResponder;
 {
-  return [NSString stringWithCString:cStr encoding:NSUTF8StringEncoding];
+  bool success = [super becomeFirstResponder];
+  if (success)
+  {
+    NSTextView *textField = (NSTextView*) [self currentEditor];
+    if( [textField respondsToSelector: @selector(setInsertionPointColor:)] )
+      [textField setInsertionPointColor: [self textColor]];
+  }
+  return success;
 }
 
-inline int GetMouseOver(IGraphicsMac* pGraphics)
-{
-  return pGraphics->GetMouseOver();
-}
+@end
 
 // IGRAPHICS_TEXTFIELDCELL based on...
 
@@ -268,15 +273,13 @@ inline int GetMouseOver(IGraphicsMac* pGraphics)
   if (mIsEditingOrSelecting == NO)
   {
     // Get our ideal size for current text
-    NSSize textSize = [self cellSizeForBounds:theRect];
+    NSSize textSize = [self cellSize];
     
     // Center that in the proposed rect
     float heightDelta = newRect.size.height - textSize.height;
-    if (heightDelta > 0)
-    {
-      newRect.size.height -= heightDelta;
-      newRect.origin.y += (heightDelta / 2);
-    }
+    
+    newRect.size.height -= heightDelta;
+    newRect.origin.y += (heightDelta / 2);
   }
   
   return newRect;
@@ -377,33 +380,98 @@ inline int GetMouseOver(IGraphicsMac* pGraphics)
 }
 @end
 
+@implementation IGRAPHICS_GLLAYER
+
+- (id) initWithIGraphicsView: (IGRAPHICS_VIEW*) pView;
+{
+  mView = pView;
+  
+  self = [super init];
+  if ( self != nil )
+  {
+    self.needsDisplayOnBoundsChange = YES;
+    self.asynchronous = NO;
+  }
+  
+  return self;
+}
+
+- (NSOpenGLContext *)openGLContextForPixelFormat:(NSOpenGLPixelFormat *)pixelFormat
+{
+  NSOpenGLContext* context = [super openGLContextForPixelFormat: pixelFormat];
+  
+  [context makeCurrentContext];
+  
+  if(!mView->mGraphics->GetDrawContext())
+    mView->mGraphics->ContextReady(self);
+  
+  return context;
+}
+
+- (NSOpenGLPixelFormat *)openGLPixelFormatForDisplayMask:(uint32_t)mask
+{
+  NSOpenGLPixelFormatAttribute profile = NSOpenGLProfileVersionLegacy;
+  #if defined IGRAPHICS_GL3
+    profile = (NSOpenGLPixelFormatAttribute)NSOpenGLProfileVersion3_2Core;
+  #endif
+  
+  const NSOpenGLPixelFormatAttribute kAttributes[] =  {
+    NSOpenGLPFAAccelerated,
+    NSOpenGLPFANoRecovery,
+    NSOpenGLPFADoubleBuffer,
+    NSOpenGLPFAAlphaSize, 8,
+    NSOpenGLPFAColorSize, 24,
+    NSOpenGLPFADepthSize, 0,
+    NSOpenGLPFAStencilSize, 8,
+    NSOpenGLPFAOpenGLProfile, profile,
+    (NSOpenGLPixelFormatAttribute) 0
+  };
+
+  return [[NSOpenGLPixelFormat alloc] initWithAttributes:kAttributes];
+}
+
+//- (BOOL)canDrawInOpenGLContext:(NSOpenGLContext *)context pixelFormat:(NSOpenGLPixelFormat *)pixelFormat forLayerTime:(CFTimeInterval)timeInterval displayTime:(const CVTimeStamp *)timeStamp
+//{
+//}
+
+- (void)drawInOpenGLContext:(NSOpenGLContext *)context pixelFormat:(NSOpenGLPixelFormat *)pixelFormat forLayerTime:(CFTimeInterval)timeInterval displayTime:(const CVTimeStamp *)timeStamp
+{
+  [mView render];
+}
+
+@end
+
 #pragma mark -
+
+extern StaticStorage<CoreTextFontDescriptor> sFontDescriptorCache;
 
 @implementation IGRAPHICS_VIEW
 
 - (id) initWithIGraphics: (IGraphicsMac*) pGraphics
 {
-  TRACE;
+  TRACE
 
   mGraphics = pGraphics;
-  NSRect r;
-  r.origin.x = r.origin.y = 0.0f;
-  r.size.width = (float) pGraphics->WindowWidth();
-  r.size.height = (float) pGraphics->WindowHeight();
+  NSRect r = NSMakeRect(0.f, 0.f, (float) pGraphics->WindowWidth(), (float) pGraphics->WindowHeight());
   self = [super initWithFrame:r];
   
-#if defined IGRAPHICS_NANOVG
-  #if defined IGRAPHICS_METAL
-    if (!self.wantsLayer) {
-      self.layer = [CAMetalLayer new];
-      self.layer.opaque = YES;
-      self.wantsLayer = YES;
-    }
-  #elif defined IGRAPHICS_GL
-  //TODO: IGRAPHICS_GL context setup
-  #endif
+  mMouseOutDuringDrag = false;
+    
+#if defined IGRAPHICS_NANOVG || defined IGRAPHICS_SKIA
+  if (!self.wantsLayer) {
+    #if defined IGRAPHICS_METAL
+    self.layer = [CAMetalLayer new];
+    [(CAMetalLayer*)[self layer] setPixelFormat:MTLPixelFormatBGRA8Unorm];
+    ((CAMetalLayer*) self.layer).device = MTLCreateSystemDefaultDevice();
+    #elif defined IGRAPHICS_GL
+    self.layer = [[IGRAPHICS_GLLAYER alloc] initWithIGraphicsView:self];
+    self.wantsBestResolutionOpenGLSurface = YES;
+    #endif
+    self.layer.opaque = YES;
+    self.wantsLayer = YES;
+  }
 #endif
-
+  
   [self registerForDraggedTypes:[NSArray arrayWithObjects: NSFilenamesPboardType, nil]];
 
   double sec = 1.0 / (double) pGraphics->FPS();
@@ -415,7 +483,12 @@ inline int GetMouseOver(IGraphicsMac* pGraphics)
 
 - (void)dealloc
 {
+  if([NSColorPanel sharedColorPanelExists])
+    [[NSColorPanel sharedColorPanel] close];
+  
+  mColorPickerFunc = nullptr;
   [mMoveCursor release];
+  [mTrackingArea release];
   [[NSNotificationCenter defaultCenter] removeObserver:self];
   [super dealloc];
 }
@@ -449,8 +522,17 @@ inline int GetMouseOver(IGraphicsMac* pGraphics)
     [pWindow makeFirstResponder: self];
     [pWindow setAcceptsMouseMovedEvents: YES];
     
+    CGFloat newScale = [pWindow backingScaleFactor];
+
     if (mGraphics)
-      mGraphics->SetScreenScale([pWindow backingScaleFactor]);
+      mGraphics->SetScreenScale(newScale);
+    
+    #ifdef IGRAPHICS_METAL
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(frameDidChange:)
+                                                 name:NSViewFrameDidChangeNotification
+                                               object:self];
+    #endif
     
 //    [[NSNotificationCenter defaultCenter] addObserver:self
 //                                             selector:@selector(windowResized:) name:NSWindowDidEndLiveResizeNotification
@@ -475,19 +557,26 @@ inline int GetMouseOver(IGraphicsMac* pGraphics)
   
   CGFloat newScale = [pWindow backingScaleFactor];
   
+  mGraphics->SetPlatformContext(nullptr);
+  
   if (newScale != mGraphics->GetScreenScale())
     mGraphics->SetScreenScale(newScale);
+
+#if defined IGRAPHICS_GL
+  self.layer.contentsScale = 1./newScale;
+#elif defined IGRAPHICS_METAL
+  [(CAMetalLayer*)[self layer] setDrawableSize:CGSizeMake(self.frame.size.width * newScale,
+                                                          self.frame.size.height * newScale)];
+#endif
 }
 
 - (CGContextRef) getCGContextRef
 {
-  CGContextRef pCGC = (CGContextRef) [[NSGraphicsContext currentContext] graphicsPort];
-  NSGraphicsContext* gc = [NSGraphicsContext graphicsContextWithGraphicsPort: pCGC flipped: YES];
-  pCGC = (CGContextRef) [gc graphicsPort];
-  return pCGC;
+  CGContextRef pCGC = [NSGraphicsContext currentContext].CGContext;
+  return [NSGraphicsContext graphicsContextWithCGContext: pCGC flipped: YES].CGContext;
 }
 
-// not called for METAL
+// not called for layer backed views
 - (void) drawRect: (NSRect) bounds
 {
   if (mGraphics)
@@ -510,19 +599,29 @@ inline int GetMouseOver(IGraphicsMac* pGraphics)
   }
 }
 
+- (void) render
+{
+#if !defined IGRAPHICS_GL && !defined IGRAPHICS_METAL // for layer-backed views setNeedsDisplayInRect/drawRect is not called
+  for (int i = 0; i < mDirtyRects.Size(); i++)
+    [self setNeedsDisplayInRect:ToNSRect(mGraphics, mDirtyRects.Get(i))];
+#else
+  // so just draw on each frame, if something is dirty
+  mGraphics->Draw(mDirtyRects);
+#endif
+}
+
 - (void) onTimer: (NSTimer*) pTimer
 {
-  IRECTList rects;
-  if (mGraphics->IsDirty(rects))
+  mDirtyRects.Clear();
+  
+  if (mGraphics->IsDirty(mDirtyRects))
   {
     mGraphics->SetAllControlsClean();
-    // for METAL layer-backed view drawRect is not called
-#if !defined IGRAPHICS_NANOVG
-    for (int i = 0; i < rects.Size(); i++)
-      [self setNeedsDisplayInRect:ToNSRect(mGraphics, rects.Get(i))];
+      
+#ifdef IGRAPHICS_GL
+    [self.layer setNeedsDisplay];
 #else
-    // so just draw on each frame, if something is dirty
-    mGraphics->Draw(rects);
+    [self render];
 #endif
   }
 }
@@ -560,18 +659,57 @@ inline int GetMouseOver(IGraphicsMac* pGraphics)
   return info;
 }
 
+- (void) updateTrackingAreas
+{
+  [super updateTrackingAreas]; // This is needed to get mouseEntered and mouseExited
+    
+  if (mTrackingArea != nil) {
+      [self removeTrackingArea:mTrackingArea];
+    [mTrackingArea release];
+  }
+    
+  int opts = (NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways);
+  mTrackingArea = [ [NSTrackingArea alloc] initWithRect:[self bounds] options:opts owner:self userInfo:nil];
+  [self addTrackingArea:mTrackingArea];
+}
+
+- (void) mouseEntered: (NSEvent *)event
+{
+  mMouseOutDuringDrag = false;
+  if (mGraphics)
+  {
+    mGraphics->OnSetCursor();
+  }
+}
+
+- (void) mouseExited: (NSEvent *)event
+{
+  if (mGraphics)
+  {
+    if (!mGraphics->ControlIsCaptured())
+    {
+      mGraphics->OnMouseOut();
+    }
+    else
+    {
+      mMouseOutDuringDrag = true;
+    }
+  }
+}
+
 - (void) mouseDown: (NSEvent*) pEvent
 {
   IMouseInfo info = [self getMouseLeft:pEvent];
   if (mGraphics)
   {
-    if ([pEvent clickCount] > 1)
+    if (([pEvent clickCount] - 1) % 2)
     {
       mGraphics->OnMouseDblClick(info.x, info.y, info.ms);
     }
     else
     {
-      mGraphics->OnMouseDown(info.x, info.y, info.ms);
+      std::vector<IMouseInfo> list {info};
+      mGraphics->OnMouseDown(list);
     }
   }
 }
@@ -580,7 +718,16 @@ inline int GetMouseOver(IGraphicsMac* pGraphics)
 {
   IMouseInfo info = [self getMouseLeft:pEvent];
   if (mGraphics)
-    mGraphics->OnMouseUp(info.x, info.y, info.ms);
+  {
+    std::vector<IMouseInfo> list {info};
+    mGraphics->OnMouseUp(list);
+
+    if (mMouseOutDuringDrag)
+    {
+      mGraphics->OnMouseOut();
+      mMouseOutDuringDrag = false;
+    }
+  }
 }
 
 - (void) mouseDragged: (NSEvent*) pEvent
@@ -589,22 +736,33 @@ inline int GetMouseOver(IGraphicsMac* pGraphics)
   float prevX = mPrevX;
   float prevY = mPrevY;
   IMouseInfo info = [self getMouseLeft:pEvent];
-  if (mGraphics && !mTextFieldView)
-    mGraphics->OnMouseDrag(info.x, info.y, info.x - prevX, info.y - prevY, info.ms);
+  if (mGraphics && !mGraphics->IsInPlatformTextEntry())
+  {
+    info.dX = info.x - prevX;
+    info.dY = info.y - prevY;
+    std::vector<IMouseInfo> list {info};
+    mGraphics->OnMouseDrag(list);
+  }
 }
 
 - (void) rightMouseDown: (NSEvent*) pEvent
 {
   IMouseInfo info = [self getMouseRight:pEvent];
   if (mGraphics)
-    mGraphics->OnMouseDown(info.x, info.y, info.ms);
+  {
+    std::vector<IMouseInfo> list {info};
+    mGraphics->OnMouseDown(list);
+  }
 }
 
 - (void) rightMouseUp: (NSEvent*) pEvent
 {
   IMouseInfo info = [self getMouseRight:pEvent];
   if (mGraphics)
-    mGraphics->OnMouseUp(info.x, info.y, info.ms);
+  {
+    std::vector<IMouseInfo> list {info};
+    mGraphics->OnMouseUp(list);
+  }
 }
 
 - (void) rightMouseDragged: (NSEvent*) pEvent
@@ -615,7 +773,12 @@ inline int GetMouseOver(IGraphicsMac* pGraphics)
   IMouseInfo info = [self getMouseRight:pEvent];
 
   if (mGraphics && !mTextFieldView)
-    mGraphics->OnMouseDrag(info.x, info.y, info.x - prevX, info.y - prevY, info.ms);
+  {
+    info.dX = info.x - prevX;
+    info.dY = info.y - prevY;
+    std::vector<IMouseInfo> list {info};
+    mGraphics->OnMouseDrag(list);
+  }
 }
 
 - (void) mouseMoved: (NSEvent*) pEvent
@@ -641,15 +804,49 @@ inline int GetMouseOver(IGraphicsMac* pGraphics)
     code = kVK_NONE;
   }
   
-  IKeyPress keyPress {static_cast<char>(c), code, static_cast<bool>(flag & kFSHIFT),
-                                                  static_cast<bool>(flag & kFCONTROL),
-                                                  static_cast<bool>(flag & kFALT)};
+  char utf8[5];
+  WDL_MakeUTFChar(utf8, c, 4);
+  
+  IKeyPress keyPress {utf8, code, static_cast<bool>(flag & kFSHIFT),
+                                  static_cast<bool>(flag & kFCONTROL),
+                                  static_cast<bool>(flag & kFALT)};
   
   bool handle = mGraphics->OnKeyDown(mPrevX, mPrevY, keyPress);
   
   if (!handle)
   {
     [[self nextResponder] keyDown:pEvent];
+  }
+}
+
+- (void)keyUp: (NSEvent *)pEvent
+{
+  int flag = 0;
+  int code = MacKeyEventToVK(pEvent, flag);
+  NSString *s = [pEvent charactersIgnoringModifiers];
+  
+  unichar c = 0;
+  
+  if ([s length] == 1)
+    c = [s characterAtIndex:0];
+  
+  if(!static_cast<bool>(flag & kFVIRTKEY))
+  {
+    code = kVK_NONE;
+  }
+  
+  char utf8[5];
+  WDL_MakeUTFChar(utf8, c, 4);
+  
+  IKeyPress keyPress {utf8, code, static_cast<bool>(flag & kFSHIFT),
+                                                  static_cast<bool>(flag & kFCONTROL),
+                                                  static_cast<bool>(flag & kFALT)};
+  
+  bool handle = mGraphics->OnKeyUp(mPrevX, mPrevY, keyPress);
+  
+  if (!handle)
+  {
+    [[self nextResponder] keyUp:pEvent];
   }
 }
 
@@ -662,43 +859,74 @@ inline int GetMouseOver(IGraphicsMac* pGraphics)
     mGraphics->OnMouseWheel(info.x, info.y, info.ms, d);
 }
 
-static void MakeCursorFromData(NSCursor*& cursor, uint16* data, int hotspot_x, int hotspot_y)
+static void MakeCursorFromName(NSCursor*& cursor, const char *name)
 {
-  NSImage *img = [[NSImage alloc] init];
-  NSBitmapImageRep* bmp = [[NSBitmapImageRep alloc]
-                           initWithBitmapDataPlanes:0
-                           pixelsWide:16
-                           pixelsHigh:16
-                           bitsPerSample:8
-                           samplesPerPixel:2
-                           hasAlpha:YES
-                           isPlanar:NO
-                           colorSpaceName:NSCalibratedWhiteColorSpace
-                           bytesPerRow:(16*2)
-                           bitsPerPixel:16];
+  // get paths and intialise images etc.
+  const char* basePath = "/System/Library/Frameworks/ApplicationServices.framework/Versions/A/Frameworks/HIServices.framework/Versions/A/Resources/cursors/";
   
-  unsigned char* p = bmp ? [bmp bitmapData] : nullptr;
+  NSString* imagePath = [NSString stringWithFormat:@"%s%s/cursor.pdf", basePath, name];
+  NSString* infoPath = [NSString stringWithFormat:@"file:%s%s/info.plist", basePath, name];
+  NSImage* fileImage = [[NSImage alloc] initByReferencingFile: imagePath];
+  NSImage *cursorImage = [[NSImage alloc] initWithSize:[fileImage size]];
+  NSDictionary* info = [NSDictionary dictionaryWithContentsOfURL:[NSURL URLWithString:infoPath]];
   
-  if (p && img)
+  // get info from dictionary
+  double hotX = [info[@"hotx-scaled"] doubleValue];
+  double hotY = [info[@"hoty-scaled"] doubleValue];
+  double blur = [info[@"blur"] doubleValue];
+  double offsetX = [info[@"shadowoffsetx"] doubleValue];
+  double offsetY = [info[@"shadowoffsety"] doubleValue];
+  double red = [info[@"shadowcolor"][0] doubleValue];
+  double green = [info[@"shadowcolor"][1] doubleValue];
+  double blue = [info[@"shadowcolor"][2] doubleValue];
+  double alpha = [info[@"shadowcolor"][3] doubleValue];
+  CGColorRef shadowColor = CGColorCreateGenericRGB(red, green, blue, alpha);
+  
+  for (int scale = 1; scale <= 4; scale++)
   {
-    memcpy(p, data, sizeof(uint16) * 16 * 16);
-    [img addRepresentation:bmp];
-    NSPoint hs = NSMakePoint(hotspot_x, hotspot_y);
-    cursor = [[NSCursor alloc] initWithImage:img hotSpot:hs];
+    // scale
+    NSAffineTransform* xform = [NSAffineTransform transform];
+    [xform scaleBy:scale];
+    id hints = @{ NSImageHintCTM: xform };
+    CGImageRef rasterCGImage = [fileImage CGImageForProposedRect:NULL context:nil hints:hints];
+    
+    // apply shadow
+    size_t width = CGImageGetWidth(rasterCGImage);
+    size_t height = CGImageGetHeight(rasterCGImage);
+    CGSize offset = CGSize { static_cast<CGFloat>(offsetX * scale), static_cast<CGFloat>(offsetY * scale) };
+    CGContextRef shadowContext = CGBitmapContextCreate(NULL, width, height, CGImageGetBitsPerComponent(rasterCGImage), 0, CGImageGetColorSpace(rasterCGImage), CGImageGetBitmapInfo(rasterCGImage));
+    CGContextSetShadowWithColor(shadowContext, offset, blur * scale, shadowColor);
+    CGContextDrawImage(shadowContext, CGRectMake(0, 0, width, height), rasterCGImage);
+    CGImageRef shadowCGImage = CGBitmapContextCreateImage(shadowContext);
+    
+    // add to cursor inmge
+    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithCGImage:shadowCGImage];
+    [rep setSize:[fileImage size]];
+    [cursorImage addRepresentation:rep];
+    
+    // release
+    [rep release];
+    CGContextRelease(shadowContext);
+    CGImageRelease(shadowCGImage);
   }
   
-  [bmp release];
-  [img release];
+  // create cursor
+  cursor = [[NSCursor alloc] initWithImage:cursorImage hotSpot:NSMakePoint(hotX, hotY)];
+  
+  // release
+  [cursorImage release];
+  [fileImage release];
+  CGColorRelease(shadowColor);
 }
 
-- (void) setMouseCursor: (ECursor) cursor
+- (void) setMouseCursor: (ECursor) cursorType
 {
   NSCursor* pCursor = nullptr;
   
   bool helpCurrent = false;
   bool helpRequested = false;
     
-  switch (cursor)
+  switch (cursorType)
   {
     case ECursor::ARROW: pCursor = [NSCursor arrowCursor]; break;
     case ECursor::IBEAM: pCursor = [NSCursor IBeamCursor]; break;
@@ -734,37 +962,14 @@ static void MakeCursorFromData(NSCursor*& cursor, uint16* data, int hotspot_x, i
         pCursor = [NSCursor resizeUpDownCursor];
       break;
     case ECursor::SIZEALL:
-      {
-        const uint16 B = 0xFF03;
-        const uint16 W = 0xFFFF;
-        
-        static uint16 p[16 * 16] =
-        {
-          0, 0, 0, 0, 0, 0, 0, W, W, 0, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, W, B, B, W, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, W, B, B, B, B, W, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, W, B, B, B, B, B, B, W, 0, 0, 0, 0,
-          0, 0, 0, W, W, W, W, B, B, W, W, W, W, 0, 0, 0,
-          0, 0, W, B, W, 0, W, B, B, W, 0, W, B, W, 0, 0,
-          0, W, B, B, W, W, W, B, B, W, W, W, B, B, W, 0,
-          W, B, B, B, B, B, B, B, B, B, B, B, B, B, B, W,
-          W, B, B, B, B, B, B, B, B, B, B, B, B, B, B, W,
-          0, W, B, B, W, W, W, B, B, W, W, W, B, B, W, 0,
-          0, 0, W, B, W, 0, W, B, B, W, 0, W, B, W, 0, 0,
-          0, 0, 0, W, W, W, W, B, B, W, W, W, W, 0, 0, 0,
-          0, 0, 0, 0, W, B, B, B, B, B, B, W, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, W, B, B, B, B, W, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, W, B, B, W, 0, 0, 0, 0, 0, 0,
-          0, 0, 0, 0, 0, 0, 0, W, W, 0, 0, 0, 0, 0, 0, 0,
-        };
-        
-        if (!mMoveCursor)
-          MakeCursorFromData(mMoveCursor, p, 8, 8);
-        pCursor = mMoveCursor;
+    {
+      if (!mMoveCursor)
+        MakeCursorFromName(mMoveCursor, "move");
+      pCursor = mMoveCursor;
       break;
-      }
+    }
     case ECursor::INO: pCursor = [NSCursor operationNotAllowedCursor]; break;
-    case ECursor::HAND: pCursor = [NSCursor openHandCursor]; break;
+    case ECursor::HAND: pCursor = [NSCursor pointingHandCursor]; break;
     case ECursor::APPSTARTING:
       if ([NSCursor respondsToSelector:@selector(busyButClickableCursor)])
         pCursor = [NSCursor performSelector:@selector(busyButClickableCursor)];
@@ -806,20 +1011,10 @@ static void MakeCursorFromData(NSCursor*& cursor, uint16* data, int hotspot_x, i
   if (mTextFieldView)
     [self endUserInput ];
   
-//  if (mWebView) {
-//    [mWebView removeFromSuperview ];
-//    mWebView = nullptr;
-//  }
-  
-  if (mGraphics)
-  {
-    IGraphics* pGraphics = mGraphics;
-    mGraphics = nullptr;
-    pGraphics->SetPlatformContext(nullptr);
+  mGraphics->SetPlatformContext(nullptr);
     
-    //For some APIs (AUv2) this is where we know about the window being closed, close via delegate
-    pGraphics->GetDelegate()->CloseWindow();
-  }
+  //For some APIs (AUv2) this is where we know about the window being closed, close via delegate
+  mGraphics->GetDelegate()->CloseWindow();
   [super removeFromSuperview];
 }
 
@@ -827,10 +1022,7 @@ static void MakeCursorFromData(NSCursor*& cursor, uint16* data, int hotspot_x, i
 {
   char* txt = (char*)[[mTextFieldView stringValue] UTF8String];
 
-  if (mEdControl->GetParam())
-    mGraphics->SetControlValueFromStringAfterPrompt(*mEdControl, txt);
-
-  mEdControl->OnTextEntryCompletion(txt);
+  mGraphics->SetControlValueAfterTextEdit(txt);
   mGraphics->SetAllControlsDirty();
 
   [self endUserInput ];
@@ -841,7 +1033,7 @@ static void MakeCursorFromData(NSCursor*& cursor, uint16* data, int hotspot_x, i
 {
   IGRAPHICS_MENU_RCVR* pDummyView = [[[IGRAPHICS_MENU_RCVR alloc] initWithFrame:bounds] autorelease];
   NSMenu* pNSMenu = [[[IGRAPHICS_MENU alloc] initWithIPopupMenuAndReciever:&menu : pDummyView] autorelease];
-  NSPoint wp = {bounds.origin.x, bounds.origin.y - 4};
+  NSPoint wp = {bounds.origin.x, bounds.origin.y + 4};
 
   [pNSMenu popUpMenuPositioningItem:nil atLocation:wp inView:self];
   
@@ -856,17 +1048,18 @@ static void MakeCursorFromData(NSCursor*& cursor, uint16* data, int hotspot_x, i
     pIPopupMenu->SetChosenItemIdx((int) chosenItemIdx);
     return pIPopupMenu;
   }
-  else return nullptr;
+  else
+    return nullptr;
 }
 
-- (void) createTextEntry: (IControl&) control : (const IText&) text : (const char*) str : (NSRect) areaRect;
+- (void) createTextEntry: (int) paramIdx : (const IText&) text : (const char*) str : (int) length : (NSRect) areaRect;
 {
   if (mTextFieldView)
     return;
 
-  mTextFieldView = [[NSTextField alloc] initWithFrame: areaRect];
+  mTextFieldView = [[IGRAPHICS_TEXTFIELD alloc] initWithFrame: areaRect];
   
-  if (text.mVAlign == IText::kVAlignMiddle)
+  if (text.mVAlign == EVAlign::Middle)
   {
     IGRAPHICS_TEXTFIELDCELL* pCell = [[IGRAPHICS_TEXTFIELDCELL alloc] initTextCell:@"textfield"];
     [mTextFieldView setCell: pCell];
@@ -874,31 +1067,28 @@ static void MakeCursorFromData(NSCursor*& cursor, uint16* data, int hotspot_x, i
     [mTextFieldView setDrawsBackground: TRUE];
   }
 
-  //TODO: address font types for platform text entries
-#ifdef IGRAPHICS_NANOVG
-  NSString* font = [NSString stringWithUTF8String: "Arial"];
-#else
-  NSString* font = [NSString stringWithUTF8String: text.mFont];
-#endif
-
-  [mTextFieldView setFont: [NSFont fontWithName:font size: text.mSize * 0.75f]];
+  CoreTextFontDescriptor* CTFontDescriptor = CoreTextHelpers::GetCTFontDescriptor(text, sFontDescriptorCache);
+  double ratio = CTFontDescriptor->GetEMRatio() * mGraphics->GetDrawScale();
+  NSFontDescriptor* fontDescriptor = (NSFontDescriptor*) CTFontDescriptor->GetDescriptor();
+  NSFont* font = [NSFont fontWithDescriptor: fontDescriptor size: text.mSize * ratio];
+  [mTextFieldView setFont: font];
   
   switch (text.mAlign)
   {
-    case IText::kAlignNear:
+    case EAlign::Near:
       [mTextFieldView setAlignment: NSLeftTextAlignment];
       break;
-    case IText::kAlignCenter:
+    case EAlign::Center:
       [mTextFieldView setAlignment: NSCenterTextAlignment];
       break;
-    case IText::kAlignFar:
+    case EAlign::Far:
       [mTextFieldView setAlignment: NSRightTextAlignment];
       break;
     default:
       break;
   }
 
-  const IParam* pParam = control.GetParam();
+  const IParam* pParam = paramIdx > kNoParameter ? mGraphics->GetDelegate()->GetParam(paramIdx) : nullptr;
 
   // set up formatter
   if (pParam)
@@ -921,7 +1111,7 @@ static void MakeCursorFromData(NSCursor*& cursor, uint16* data, int hotspot_x, i
 
     [mTextFieldView setFormatter:[[[IGRAPHICS_FORMATTER alloc] init] autorelease]];
     [[mTextFieldView formatter] setAcceptableCharacterSet:characterSet];
-    [[mTextFieldView formatter] setMaximumLength:control.GetTextEntryLength()];
+    [[mTextFieldView formatter] setMaximumLength:length];
     [characterSet release];
   }
 
@@ -930,7 +1120,7 @@ static void MakeCursorFromData(NSCursor*& cursor, uint16* data, int hotspot_x, i
   [mTextFieldView setTextColor:ToNSColor(text.mTextEntryFGColor)];
   [mTextFieldView setBackgroundColor:ToNSColor(text.mTextEntryBGColor)];
 
-  [mTextFieldView setStringValue: ToNSString(str)];
+  [mTextFieldView setStringValue: [NSString stringWithCString:str encoding:NSUTF8StringEncoding]];
 
 #ifndef COCOA_TEXTENTRY_BORDERED
   [mTextFieldView setBordered: NO];
@@ -943,8 +1133,6 @@ static void MakeCursorFromData(NSCursor*& cursor, uint16* data, int hotspot_x, i
   NSWindow* pWindow = [self window];
   [pWindow makeKeyAndOrderFront:nil];
   [pWindow makeFirstResponder: mTextFieldView];
-
-  mEdControl = &control;
 }
 
 - (void) endUserInput
@@ -956,20 +1144,26 @@ static void MakeCursorFromData(NSCursor*& cursor, uint16* data, int hotspot_x, i
   [pWindow makeFirstResponder: self];
 
   mTextFieldView = nullptr;
-  mEdControl = nullptr;
 }
 
-//- (void) createWebView: (NSRect) areaRect : (const char*) url
-//{
-//  mWebView = [[WKWebView alloc] initWithFrame: areaRect ];
-//  [self addSubview: mWebView];
-//  [mWebView loadRequest: [NSURLRequest requestWithURL: [NSURL URLWithString:[NSString stringWithUTF8String:url]]]];
-//}
-//
-//-(void)userContentController:(WKUserContentController *)userContentController didReceiveScriptMessage:(WKScriptMessage *)message
-//{
-//  NSLog(@"%@",message.body);
-//}
+- (BOOL) promptForColor: (IColor&) color : (IColorPickerHandlerFunc) func;
+{
+  NSColorPanel* colorPanel = [NSColorPanel sharedColorPanel];
+  mColorPickerFunc = func;
+
+  [colorPanel setTarget:self];
+  [colorPanel setShowsAlpha: TRUE];
+  [colorPanel setAction:@selector(onColorPicked:)];
+  [colorPanel setColor:ToNSColor(color)];
+  [colorPanel orderFront:nil];
+
+  return colorPanel != nil;
+}
+
+- (void) onColorPicked: (NSColorPanel*) colorPanel
+{
+  mColorPickerFunc(FromNSColor(colorPanel.color));
+}
 
 - (NSString*) view: (NSView*) pView stringForToolTip: (NSToolTipTag) tag point: (NSPoint) point userData: (void*) pData
 {
@@ -977,7 +1171,7 @@ static void MakeCursorFromData(NSCursor*& cursor, uint16* data, int hotspot_x, i
   if (c < 0) return @"";
 
   const char* tooltip = mGraphics->GetControl(c)->GetTooltip();
-  return CStringHasContents(tooltip) ? ToNSString((const char*) tooltip) : @"";
+  return CStringHasContents(tooltip) ? [NSString stringWithCString:tooltip encoding:NSUTF8StringEncoding] : @"";
 }
 
 - (void) registerToolTip: (IRECT&) bounds
@@ -1014,6 +1208,16 @@ static void MakeCursorFromData(NSCursor*& cursor, uint16* data, int hotspot_x, i
   return YES;
 }
 
+#ifdef IGRAPHICS_METAL
+- (void)frameDidChange:(NSNotification*)notification
+{
+  CGFloat scale = [[self window] backingScaleFactor];
+
+  [(CAMetalLayer*)[self layer] setDrawableSize:CGSizeMake(self.frame.size.width * scale,
+                                                          self.frame.size.height * scale)];
+}
+#endif
+
 //- (void)windowResized:(NSNotification *)notification;
 //{
 //  if(!mGraphics)
@@ -1028,9 +1232,9 @@ static void MakeCursorFromData(NSCursor*& cursor, uint16* data, int hotspot_x, i
 //  float scaleX = width / mGraphics->Width();
 //  float scaleY = height / mGraphics->Height();
 //
-//  if(mGraphics->GetUIResizerMode() == EUIResizerMode::kUIResizerScale)
+//  if(mGraphics->GetUIResizerMode() == EUIResizerMode::Scale)
 //    mGraphics->Resize(width, height, mGraphics->GetDrawScale());
-//  else // EUIResizerMode::kUIResizerSize
+//  else // EUIResizerMode::Size
 //    mGraphics->Resize(mGraphics->Width(), mGraphics->Height(), Clip(std::min(scaleX, scaleY), 0.1f, 10.f));
 //}
 //
@@ -1045,12 +1249,59 @@ static void MakeCursorFromData(NSCursor*& cursor, uint16* data, int hotspot_x, i
 //  float scaleX = width / mGraphics->Width();
 //  float scaleY = height / mGraphics->Height();
 //
-//  if(mGraphics->GetUIResizerMode() == EUIResizerMode::kUIResizerScale)
+//  if(mGraphics->GetUIResizerMode() == EUIResizerMode::Scale)
 //    mGraphics->Resize(width, height, mGraphics->GetDrawScale());
-//  else // EUIResizerMode::kUIResizerSize
+//  else // EUIResizerMode::Size
 //    mGraphics->Resize(mGraphics->Width(), mGraphics->Height(), Clip(std::min(scaleX, scaleY), 0.1f, 10.f));
 //}
 
 @end
 
-#endif //NO_IGRAPHICS
+#ifdef IGRAPHICS_IMGUI
+
+@implementation IGRAPHICS_IMGUIVIEW
+{
+}
+
+- (id) initWithIGraphicsView: (IGRAPHICS_VIEW*) pView;
+{
+  mView = pView;
+  self = [super initWithFrame:[pView frame] device: MTLCreateSystemDefaultDevice()];
+  if(self) {
+    _commandQueue = [self.device newCommandQueue];
+    self.layer.opaque = NO;
+  }
+  
+  return self;
+}
+
+- (void)drawRect:(NSRect)dirtyRect
+{
+  id<MTLCommandBuffer> commandBuffer = [self.commandQueue commandBuffer];
+  
+  MTLRenderPassDescriptor *renderPassDescriptor = self.currentRenderPassDescriptor;
+  if (renderPassDescriptor != nil)
+  {
+    renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0,0,0,0);
+    
+    id <MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
+    [renderEncoder pushDebugGroup:@"ImGui IGraphics"];
+    
+    ImGui_ImplMetal_NewFrame(renderPassDescriptor);
+    
+    mView->mGraphics->mImGuiRenderer->DoFrame();
+
+    ImDrawData *drawData = ImGui::GetDrawData();
+    ImGui_ImplMetal_RenderDrawData(drawData, commandBuffer, renderEncoder);
+    
+    [renderEncoder popDebugGroup];
+    [renderEncoder endEncoding];
+    
+    [commandBuffer presentDrawable:self.currentDrawable];
+  }
+  [commandBuffer commit];
+}
+
+@end
+
+#endif

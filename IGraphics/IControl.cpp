@@ -9,38 +9,25 @@
 */
 
 #include <cmath>
+#include <cstring>
+#define WDL_NO_SUPPORT_UTF8
+#include "dirscan.h"
 
 #include "IControl.h"
 #include "IPlugParameter.h"
 
-// avoid some UNICODE issues with VST3 SDK and WDL dirscan
-#if defined VST3_API && defined OS_WIN
-  #ifdef FindFirstFile
-    #undef FindFirstFile
-    #undef FindNextFile
-    #undef WIN32_FIND_DATA
-    #undef PWIN32_FIND_DATA
-    #define FindFirstFile FindFirstFileA
-    #define FindNextFile FindNextFileA
-    #define WIN32_FIND_DATA WIN32_FIND_DATAA
-    #define LPWIN32_FIND_DATA LPWIN32_FIND_DATAA
-  #endif
-#endif
-
-#include "dirscan.h"
-
+BEGIN_IPLUG_NAMESPACE
+BEGIN_IGRAPHICS_NAMESPACE
 void DefaultAnimationFunc(IControl* pCaller)
 {
-  auto progress = pCaller->GetAnimationProgress();
-  
-  if(progress > 1.)
+  if(pCaller->GetAnimationProgress() > 1.)
   {
     pCaller->OnEndAnimation();
     return;
   }
 };
 
-void FlashCircleAnimationFunc(IControl* pCaller)
+void SplashAnimationFunc(IControl* pCaller)
 {
   auto progress = pCaller->GetAnimationProgress();
   
@@ -49,103 +36,200 @@ void FlashCircleAnimationFunc(IControl* pCaller)
     return;
   }
   
-  dynamic_cast<IVectorBase*>(pCaller)->SetFlashCircleRadius((float) progress);
+  dynamic_cast<IVectorBase*>(pCaller)->SetSplashRadius((float) progress);
   
   pCaller->SetDirty(false);
 };
 
+void EmptyClickActionFunc(IControl* pCaller) { };
+
 void DefaultClickActionFunc(IControl* pCaller) { pCaller->SetAnimation(DefaultAnimationFunc, DEFAULT_ANIMATION_DURATION); };
-void FlashCircleClickActionFunc(IControl* pCaller) { pCaller->SetAnimation(FlashCircleAnimationFunc, DEFAULT_ANIMATION_DURATION); }
 
-IControl::IControl(IRECT bounds, int paramIdx, IActionFunction actionFunc)
-: mRECT(bounds)
-, mTargetRECT(bounds)
-, mParamIdx(paramIdx)
-, mActionFunc(actionFunc)
+void SplashClickActionFunc(IControl* pCaller)
 {
+  float x, y;
+  pCaller->GetUI()->GetMouseDownPoint(x, y);
+  dynamic_cast<IVectorBase*>(pCaller)->SetSplashPoint(x, y);
+  pCaller->SetAnimation(SplashAnimationFunc, DEFAULT_ANIMATION_DURATION);
 }
 
-IControl::IControl(IRECT bounds, IActionFunction actionFunc)
-: mRECT(bounds)
-, mTargetRECT(bounds)
-, mParamIdx(kNoParameter)
-, mActionFunc(actionFunc)
+void ShowBubbleHorizontalActionFunc(IControl* pCaller)
 {
+  IGraphics* pGraphics = pCaller->GetUI();
+  const IParam* pParam = pCaller->GetParam();
+  IRECT bounds = pCaller->GetRECT();
+  WDL_String display;
+  pParam->GetDisplayForHostWithLabel(display);
+  pGraphics->ShowBubbleControl(pCaller, bounds.R, bounds.MH(), display.Get(), EDirection::Horizontal, IRECT(0,0,50,30));
 }
 
-void IControl::SetValueFromDelegate(double value)
+void ShowBubbleVerticalActionFunc(IControl* pCaller)
 {
-  if (mDefaultValue < 0.0)
-  {
-    mDefaultValue = mValue = value;
+  IGraphics* pGraphics = pCaller->GetUI();
+  const IParam* pParam = pCaller->GetParam();
+  IRECT bounds = pCaller->GetRECT();
+  WDL_String display;
+  pParam->GetDisplayForHostWithLabel(display);
+  pGraphics->ShowBubbleControl(pCaller, bounds.MW(), bounds.T, display.Get(), EDirection::Vertical, IRECT(0,0,50,30));
+}
+
+END_IGRAPHICS_NAMESPACE
+END_IPLUG_NAMESPACE
+
+using namespace iplug;
+using namespace igraphics;
+
+IControl::IControl(const IRECT& bounds, int paramIdx, IActionFunction aF)
+: mRECT(bounds)
+, mTargetRECT(bounds)
+, mActionFunc(aF)
+{
+  mVals[0].idx = paramIdx;
+}
+
+IControl::IControl(const IRECT& bounds, const std::initializer_list<int>& params, IActionFunction aF)
+: mRECT(bounds)
+, mTargetRECT(bounds)
+, mActionFunc(aF)
+{
+  mVals.clear();
+  for (auto& paramIdx : params) {
+    mVals.push_back({paramIdx, 0.});
   }
+}
 
-  //don't update this control from delegate, if this control is being captured (i.e. if host is automating the control, mouse is more important
-  IControl* capturedControl = GetUI()->GetCapturedControl();
+IControl::IControl(const IRECT& bounds, IActionFunction aF)
+: mRECT(bounds)
+, mTargetRECT(bounds)
+, mActionFunc(aF)
+{
+}
+
+int IControl::GetParamIdx(int valIdx) const
+{
+  assert(valIdx > kNoValIdx && valIdx < NVals());
+  return mVals[valIdx].idx;
+}
+
+void IControl::SetParamIdx(int paramIdx, int valIdx)
+{
+  assert(valIdx > kNoValIdx && valIdx < NVals());
+  mVals.at(valIdx).idx = paramIdx;
+}
+
+const IParam* IControl::GetParam(int valIdx) const
+{
+  int paramIdx = GetParamIdx(valIdx);
   
-  if (mValue != value && capturedControl != this)
+  if(paramIdx > kNoParameter)
+    return mDelegate->GetParam(paramIdx);
+  else
+    return nullptr;
+}
+
+int IControl::LinkedToParam(int paramIdx) const
+{
+  const int nVals = NVals();
+  
+  for (int v = 0; v < nVals; v++)
   {
-    mValue = value;
-    SetDirty(false);
+    if(mVals[v].idx == paramIdx)
+    {
+      return v;
+    }
+  }
+  
+  return kNoValIdx;
+}
+
+void IControl::SetValue(double value, int valIdx)
+{
+  assert(valIdx > kNoValIdx && valIdx < NVals());
+  mVals[valIdx].value = value;
+}
+
+double IControl::GetValue(int valIdx) const
+{
+  assert(valIdx > kNoValIdx && valIdx < NVals());
+  return mVals[valIdx].value;
+}
+
+void IControl::SetValueFromDelegate(double value, int valIdx)
+{
+  // Don't update the control from delegate if it is being captured
+  // (i.e. if host is automating the control then the mouse is more important)
+  
+  if (!GetUI()->ControlIsCaptured(this))
+  {
+    if(GetValue(valIdx) != value)
+    {
+      SetValue(value, valIdx);
+      SetDirty(false);
+    }
   }
 }
 
-void IControl::SetValueFromUserInput(double value)
+void IControl::SetValueFromUserInput(double value, int valIdx)
 {
-  if (mValue != value)
+  if (GetValue(valIdx) != value)
   {
-    mValue = value;
-    SetDirty();
+    SetValue(value, valIdx);
+    SetDirty(true, valIdx);
   }
 }
 
-void IControl::SetValueToDefault()
+void IControl::SetValueToDefault(int valIdx)
 {
-  if (mParamIdx || mDefaultValue >= 0.0)
+  valIdx = (NVals() == 1) ? 0 : valIdx;
+
+  auto paramDefault = [this](int v)
   {
-    mValue = mParamIdx > kNoParameter ? GetParam()->GetDefault(true) : mDefaultValue;
-    SetDirty(true);
-  }
+    const IParam* pParam = GetParam(v);
+    if (pParam)
+      SetValue(pParam->GetDefault(true), v);
+  };
+    
+  ForValIdx(valIdx, paramDefault);
+  SetDirty(true, valIdx);
 }
 
-void IControl::SetDirty(bool triggerAction)
+void IControl::SetDirty(bool triggerAction, int valIdx)
 {
-  mValue = Clip(mValue, mClampLo, mClampHi);
+  valIdx = (NVals() == 1) ? 0 : valIdx;
+
+  auto setValue = [this](int v) { SetValue(Clip(GetValue(v), 0.0, 1.0), v); };
+  ForValIdx(valIdx, setValue);
+  
   mDirty = true;
   
   if (triggerAction)
   {
-    if(mParamIdx > kNoParameter)
+    auto paramUpdate = [this](int v)
     {
-      GetDelegate()->SendParameterValueFromUI(mParamIdx, mValue);
-      GetUI()->UpdatePeers(this);
+      if (GetParamIdx(v) > kNoParameter)
+      {
+        GetDelegate()->SendParameterValueFromUI(GetParamIdx(v), GetValue(v)); //TODO: take tuple
+        GetUI()->UpdatePeers(this, v);
+      }
+    };
       
-      const IParam* pParam = GetParam();
-
-      if (mValDisplayControl)
-      {
-        WDL_String display;
-        pParam->GetDisplayForHost(display);
-        ((ITextControl*)mValDisplayControl)->SetStr(display.Get());
-      }
-
-      if (mNameDisplayControl)
-      {
-        ((ITextControl*)mNameDisplayControl)->SetStr(pParam->GetNameForHost());
-      }
-    }
+    ForValIdx(valIdx, paramUpdate);
     
-    if (mActionFunc != nullptr)
+    if (mActionFunc)
       mActionFunc(this);
   }
 }
 
+void IControl::Animate()
+{
+  if (GetAnimationFunction())
+    mAnimationFunc(this);
+}
+
 bool IControl::IsDirty()
 {
-  if(GetAnimationFunction()) {
-    mAnimationFunc(this);
+  if (GetAnimationFunction())
     return true;
-  }
   
   return mDirty;
 }
@@ -156,9 +240,10 @@ void IControl::Hide(bool hide)
   SetDirty(false);
 }
 
-void IControl::GrayOut(bool gray)
+void IControl::SetDisabled(bool disable)
 {
-  mGrayed = gray;
+  mBlend.mWeight = (disable ? GRAYED_ALPHA : 1.0f);
+  mDisabled = disable;
   SetDirty(false);
 }
 
@@ -167,62 +252,118 @@ void IControl::OnMouseDown(float x, float y, const IMouseMod& mod)
   #ifdef PROTOOLS
   if (mod.A)
   {
-    SetValueToDefault();
+    SetValueToDefault(GetValIdxForPos(x, y));
   }
   #endif
 
   if (mod.R)
-    PromptUserInput();
+    PromptUserInput(GetValIdxForPos(x, y));
 }
 
 void IControl::OnMouseDblClick(float x, float y, const IMouseMod& mod)
 {
   #ifdef PROTOOLS
-  PromptUserInput();
+  PromptUserInput(GetValIdxForPos(x, y));
   #else
-  if (mDefaultValue >= 0.0)
-  {
-    SetValueToDefault();
-  }
+  SetValueToDefault(GetValIdxForPos(x, y));
   #endif
 }
 
-void IControl::OnPopupMenuSelection(IPopupMenu* pSelectedMenu)
+void IControl::OnMouseOver(float x, float y, const IMouseMod& mod)
 {
-  if (pSelectedMenu != nullptr && mParamIdx >= 0 && !mDisablePrompt)
+  bool prev = mMouseIsOver;
+  mMouseIsOver = true;
+  if (prev == false)
+    SetDirty(false);
+}
+
+void IControl::OnMouseOut()
+{
+  bool prev = mMouseIsOver;
+  mMouseIsOver = false;
+  if (prev == true)
+    SetDirty(false);
+}
+
+void IControl::OnPopupMenuSelection(IPopupMenu* pSelectedMenu, int valIdx)
+{
+  if (pSelectedMenu && valIdx > kNoValIdx && GetParamIdx(valIdx) > kNoParameter && !mDisablePrompt)
   {
-    SetValueFromUserInput(GetParam()->ToNormalized( (double) pSelectedMenu->GetChosenItemIdx() ));
+    SetValueFromUserInput(GetParam()->ToNormalized( (double) pSelectedMenu->GetChosenItemIdx()), valIdx);
   }
 }
 
-void IControl::PromptUserInput()
+void IControl::SetPosition(float x, float y)
 {
-  if (mParamIdx >= 0 && !mDisablePrompt)
+  if (x < 0.f) x = 0.f;
+  if (y < 0.f) y = 0.f;
+ 
+  float tX = x + (mTargetRECT.L - mRECT.L);
+  float tY = y + (mTargetRECT.T - mRECT.T);
+    
+  SetRECT({x, y, x + mRECT.W(), y + mRECT.H()});
+  SetTargetRECT({tX, tY, tX + mTargetRECT.W(), tY + mTargetRECT.H()});
+}
+
+void IControl::SetSize(float w, float h)
+{
+  if (w < 0.f) w = 0.f;
+  if (h < 0.f) h = 0.f;
+
+  SetTargetAndDrawRECTs({mRECT.L, mRECT.T, mRECT.L + w, mRECT.T + h});
+}
+
+IControl* IControl::AttachGestureRecognizer(EGestureType type, IGestureFunc func)
+{
+  mGestureFuncs.insert(std::make_pair(type, func));
+  
+  GetUI()->AttachGestureRecognizer(type); // this will crash if called in constructor
+  
+  return this; //for chaining
+}
+
+bool IControl::OnGesture(const IGestureInfo& info)
+{
+  auto itr = mGestureFuncs.find(info.type);
+  
+  if(itr != mGestureFuncs.end())
   {
-    if (GetParam()->NDisplayTexts()) // popup menu
+    mLastGesture = info.type;
+    itr->second(this, info);
+    return true;
+  }
+  
+  return false;
+}
+
+void IControl::PromptUserInput(int valIdx)
+{
+  if (valIdx > kNoValIdx && GetParamIdx(valIdx) > kNoParameter && !mDisablePrompt)
+  {
+    if (GetParam(valIdx)->NDisplayTexts()) // popup menu
     {
-      GetUI()->PromptUserInput(*this, mRECT);
+      GetUI()->PromptUserInput(*this, mRECT, valIdx);
     }
     else // text entry
     {
       float cX = mRECT.MW();
       float cY = mRECT.MH();
-      float halfW = float(PARAM_EDIT_W)/2.f;
-      float halfH = float(PARAM_EDIT_H)/2.f;
+      float halfW = PARAM_EDIT_W/2.f;
+      float halfH = PARAM_EDIT_H/2.f;
 
       IRECT txtRECT = IRECT(cX - halfW, cY - halfH, cX + halfW,cY + halfH);
-      GetUI()->PromptUserInput(*this, txtRECT);
+      GetUI()->PromptUserInput(*this, txtRECT, valIdx);
     }
     
     SetDirty(false);
   }
 }
 
-void IControl::PromptUserInput(const IRECT& bounds)
+void IControl::PromptUserInput(const IRECT& bounds, int valIdx)
 {
-  if (mParamIdx >= 0 && !mDisablePrompt)
+  if (valIdx > kNoValIdx && GetParamIdx(valIdx) > kNoParameter && !mDisablePrompt)
   {
-    GetUI()->PromptUserInput(*this, bounds);
+    GetUI()->PromptUserInput(*this, bounds, valIdx);
   }
 }
 
@@ -258,48 +399,63 @@ void IControl::DrawPTHighlight(IGraphics& g)
   }
 }
 
-const IParam* IControl::GetParam()
-{
-  if(mParamIdx >= 0)
-    return GetDelegate()->GetParam(mParamIdx);
-  else
-    return nullptr;
-}
-
-void IControl::SnapToMouse(float x, float y, EDirection direction, IRECT& bounds, float scalar /* TODO: scalar! */)
+void IControl::SnapToMouse(float x, float y, EDirection direction, const IRECT& bounds, int valIdx, double minClip, double maxClip)
 {
   bounds.Constrain(x, y);
 
   float val;
-
-  //val = 1.f - (y - (mRECT.B - (mRECT.H()*lengthMult)) / 2) / ((mLen*lengthMult));
   
-  if(direction == kVertical)
+  if(direction == EDirection::Vertical)
     val = 1.f - (y-bounds.T) / bounds.H();
   else
-    //mValue = (double) (x - (mRECT.R - (mRECT.W()*lengthMult)) - mHandleHeadroom / 2) / (double) ((mLen*lengthMult) - mHandleHeadroom);
     val = (x-bounds.L) / bounds.W();
 
-  mValue = round( val / 0.001 ) * 0.001;
-
-  SetDirty(true); // will send parameter value to delegate
+  auto valFunc = [&](int valIdx) {
+    SetValue(Clip(std::round(val / 0.001 ) * 0.001, minClip, maxClip), valIdx);
+  };
+  
+  ForValIdx(valIdx, valFunc);
+  SetDirty(true, valIdx);
 }
 
-void IBitmapControl::Draw(IGraphics& g)
+void IControl::OnEndAnimation()
 {
-  int i = 1;
-  if (mBitmap.N() > 1)
-  {
-    i = 1 + int(0.5 + mValue * (double) (mBitmap.N() - 1));
-    i = Clip(i, 1, mBitmap.N());
-  }
-
-  g.DrawBitmap(mBitmap, mRECT, i, &mBlend);
+  mAnimationFunc = nullptr;
+  SetDirty(false);
+  
+  if(mAnimationEndActionFunc)
+    mAnimationEndActionFunc(this);
 }
 
-void IBitmapControl::OnRescale()
+void IControl::StartAnimation(int duration)
 {
-  mBitmap = GetUI()->GetScaledBitmap(mBitmap);
+  mAnimationStartTime = std::chrono::high_resolution_clock::now();
+  mAnimationDuration = Milliseconds(duration);
+}
+
+double IControl::GetAnimationProgress() const
+{
+  if(!mAnimationFunc)
+    return 0.;
+  
+  auto elapsed = Milliseconds(std::chrono::high_resolution_clock::now() - mAnimationStartTime);
+  return elapsed.count() / mAnimationDuration.count();
+}
+
+ITextControl::ITextControl(const IRECT& bounds, const char* str, const IText& text, const IColor& BGColor, bool setBoundsBasedOnStr)
+: IControl(bounds)
+, mStr(str)
+, mBGColor(BGColor)
+, mSetBoundsBasedOnStr(setBoundsBasedOnStr)
+{
+  mIgnoreMouse = true;
+  IControl::mText = text;
+}
+
+void ITextControl::OnInit()
+{
+  if(mSetBoundsBasedOnStr)
+    SetBoundsBasedOnStr();
 }
 
 void ITextControl::SetStr(const char* str)
@@ -307,6 +463,10 @@ void ITextControl::SetStr(const char* str)
   if (strcmp(mStr.Get(), str))
   {
     mStr.Set(str);
+    
+    if(mSetBoundsBasedOnStr)
+      SetBoundsBasedOnStr();
+    
     SetDirty(false);
   }
 }
@@ -322,17 +482,99 @@ void ITextControl::SetStrFmt(int maxlen, const char* fmt, ...)
 
 void ITextControl::Draw(IGraphics& g)
 {
-  g.FillRect(mBGColor, mRECT);
+  g.FillRect(mBGColor, mRECT, &mBlend);
   
   if (mStr.GetLength())
-    g.DrawText(mText, mStr.Get(), mRECT);
+    g.DrawText(mText, mStr.Get(), mRECT, &mBlend);
 }
 
-ICaptionControl::ICaptionControl(IRECT bounds, int paramIdx, const IText& text, bool showParamLabel)
-: ITextControl(bounds, "", text)
+void ITextControl::SetBoundsBasedOnStr()
+{
+  IRECT r;
+  GetUI()->MeasureText(mText, mStr.Get(), r);
+  SetTargetAndDrawRECTs({mRECT.MW()-(r.W()/2.f), mRECT.MH()-(r.H()/2.f), mRECT.MW()+(r.W()/2.f), mRECT.MH()+(r.H()/2.f)});
+}
+
+IURLControl::IURLControl(const IRECT& bounds, const char* str, const char* urlStr, const IText& text, const IColor& BGColor, const IColor& MOColor, const IColor& CLColor)
+: ITextControl(bounds, str, text, BGColor)
+, mURLStr(urlStr)
+, mMOColor(MOColor)
+, mCLColor(CLColor)
+, mOriginalColor(text.mFGColor)
+{
+  mIgnoreMouse = false;
+  IControl::mText = text;
+}
+
+void IURLControl::Draw(IGraphics& g)
+{
+  g.FillRect(mBGColor, mRECT, &mBlend);
+  
+  if(mMouseIsOver)
+    mText.mFGColor = mMOColor;
+  else
+    mText.mFGColor = mClicked ? mCLColor : mOriginalColor;
+  
+  g.DrawLine(mText.mFGColor, mRECT.L, mRECT.B, mRECT.R, mRECT.B, &mBlend);
+  
+  if (mStr.GetLength())
+    g.DrawText(mText, mStr.Get(), mRECT, &mBlend);
+}
+
+void IURLControl::OnMouseDown(float x, float y, const IMouseMod& mod)
+{
+  GetUI()->OpenURL(mURLStr.Get());
+  GetUI()->ReleaseMouseCapture();
+  mClicked = true;
+}
+
+ITextToggleControl::ITextToggleControl(const IRECT& bounds, int paramIdx, const char* offText, const char* onText, const IText& text, const IColor& bgColor)
+: ITextControl(bounds, offText, text, bgColor)
+, mOnText(onText)
+, mOffText(offText)
+{
+  SetParamIdx(paramIdx);
+  //TODO: assert boolean?
+  mIgnoreMouse = false;
+  mDblAsSingleClick = true;
+}
+
+ITextToggleControl::ITextToggleControl(const IRECT& bounds, IActionFunction aF, const char* offText, const char* onText, const IText& text, const IColor& bgColor)
+: ITextControl(bounds, offText, text, bgColor)
+, mOnText(onText)
+, mOffText(offText)
+{
+  SetActionFunction(aF);
+  mDblAsSingleClick = true;
+  mIgnoreMouse = false;
+}
+
+void ITextToggleControl::OnMouseDown(float x, float y, const IMouseMod& mod)
+{
+  if(GetValue() < 0.5)
+    SetValue(1.);
+  else
+    SetValue(0.);
+  
+  SetDirty(true);
+}
+
+void ITextToggleControl::SetDirty(bool push, int valIdx)
+{
+  IControl::SetDirty(push);
+  
+  if(GetValue() > 0.5)
+    SetStr(mOnText.Get());
+  else
+    SetStr(mOffText.Get());
+}
+
+
+ICaptionControl::ICaptionControl(const IRECT& bounds, int paramIdx, const IText& text, const IColor& bgColor, bool showParamLabel)
+: ITextControl(bounds, "", text, bgColor)
 , mShowParamLabel(showParamLabel)
 {
-  mParamIdx = paramIdx;
+  SetParamIdx(paramIdx);
   mDblAsSingleClick = true;
   mDisablePrompt = false;
   mIgnoreMouse = false;
@@ -363,7 +605,7 @@ void ICaptionControl::Draw(IGraphics& g)
 
   ITextControl::Draw(g);
   
-  if(mTri.W()) {
+  if(mTri.W() > 0.f) {
     g.FillTriangle(COLOR_DARK_GRAY, mTri.L, mTri.T, mTri.R, mTri.T, mTri.MW(), mTri.B, GetMouseIsOver() ? 0 : &BLEND_50);
   }
 }
@@ -376,34 +618,83 @@ void ICaptionControl::OnResize()
   }
 }
 
-IButtonControlBase::IButtonControlBase(IRECT bounds, IActionFunction actionFunc)
-: IControl(bounds, kNoParameter, actionFunc)
+PlaceHolder::PlaceHolder(const IRECT& bounds, const char* str)
+: ITextControl(bounds, str, IText(20))
 {
+  mBGColor = COLOR_WHITE;
+  mDisablePrompt = false;
+  mDblAsSingleClick = false;
+  mIgnoreMouse = false;
+}
+
+void PlaceHolder::Draw(IGraphics& g)
+{
+  g.FillRect(mBGColor, mRECT);
+  g.DrawLine(COLOR_RED, mRECT.L, mRECT.T, mRECT.R, mRECT.B, &BLEND_50, 2.f);
+  g.DrawLine(COLOR_RED, mRECT.L, mRECT.B, mRECT.R, mRECT.T, &BLEND_50, 2.f);
+  
+  IRECT r = {};
+  g.MeasureText(mHeightText, mHeightStr.Get(), r);
+  g.FillRect(mBGColor, r.GetTranslated(mRECT.L + mInset, mRECT.MH()), &BLEND_50);
+  g.DrawText(mHeightText, mHeightStr.Get(), mRECT.L + mInset, mRECT.MH());
+  
+  r = {};
+  g.MeasureText(mWidthText, mWidthStr.Get(), r);
+  g.FillRect(mBGColor, r.GetTranslated(mRECT.MW(), mRECT.T + mInset), &BLEND_75);
+  g.DrawText(mWidthText, mWidthStr.Get(), mRECT.MW(), mRECT.T + mInset);
+  
+  r = {};
+  g.MeasureText(mTLGCText, mTLHCStr.Get(), r);
+  g.FillRect(mBGColor, r.GetTranslated(mRECT.L + mInset, mRECT.T + mInset), &BLEND_50);
+  g.DrawText(mTLGCText, mTLHCStr.Get(), mRECT.L + mInset, mRECT.T + mInset);
+  
+  if (mStr.GetLength())
+  {
+    r = mRECT;
+    g.MeasureText(mText, mStr.Get(), r);
+    g.FillRect(mBGColor, r, &BLEND_75);
+    g.DrawText(mText, mStr.Get(), r);
+    
+    mCentreLabelBounds = r;
+  }
+}
+
+void PlaceHolder::OnResize()
+{
+  mTLHCStr.SetFormatted(32, "%0.1f, %0.1f", mRECT.L, mRECT.T);
+  mWidthStr.SetFormatted(32, "%0.1f", mRECT.W());
+  mHeightStr.SetFormatted(32, "%0.1f", mRECT.H());
+}
+
+IButtonControlBase::IButtonControlBase(const IRECT& bounds, IActionFunction aF)
+: IControl(bounds, kNoParameter, aF)
+{
+  mDblAsSingleClick = true;
 }
 
 void IButtonControlBase::OnMouseDown(float x, float y, const IMouseMod& mod)
 {
-  mValue = 1.;
+  SetValue(1.);
   SetDirty(true);
 }
 
 void IButtonControlBase::OnEndAnimation()
 {
-  mValue = 0.;
+  SetValue(0.);
   IControl::OnEndAnimation();
 }
 
-ISwitchControlBase::ISwitchControlBase(IRECT bounds, int paramIdx, IActionFunction actionFunc,
-  int numStates)
-  : IControl(bounds, paramIdx, actionFunc)
-  , mNumStates(numStates)
+ISwitchControlBase::ISwitchControlBase(const IRECT& bounds, int paramIdx, IActionFunction aF, int numStates)
+: IControl(bounds, paramIdx, aF)
+, mNumStates(numStates)
 {
   assert(mNumStates > 1);
+  mDblAsSingleClick = true;
 }
 
 void ISwitchControlBase::OnInit()
 {
-  if (mParamIdx > kNoParameter)
+  if (GetParamIdx() > kNoParameter)
     mNumStates = (int) GetParam()->GetRange() + 1;
  
   assert(mNumStates > 1);
@@ -412,13 +703,15 @@ void ISwitchControlBase::OnInit()
 void ISwitchControlBase::OnMouseDown(float x, float y, const IMouseMod& mod)
 {  
   if (mNumStates == 2)
-    mValue = !mValue;
+    SetValue(!GetValue());
   else
   {
     const double step = 1. / (double(mNumStates) - 1.);
-    mValue += step;
-    if(mValue > 1.)
-      mValue = 0.;
+    double val = GetValue();
+    val += step;
+    if(val > 1.)
+      val = 0.;
+    SetValue(val);
   }
   
   mMouseDown = true;
@@ -431,50 +724,38 @@ void ISwitchControlBase::OnMouseUp(float x, float y, const IMouseMod& mod)
   SetDirty(false);
 }
 
-void IKnobControlBase::OnMouseDrag(float x, float y, float dX, float dY, const IMouseMod& mod)
+bool IKnobControlBase::IsFineControl(const IMouseMod& mod, bool wheel) const
 {
-  double gearing = mGearing;
-
 #ifdef PROTOOLS
 #ifdef OS_WIN
-  if (mod.C) gearing *= 10.0;
+  return mod.C;
 #else
-  if (mod.R) gearing *= 10.0;
+  return wheel ? mod.C : mod.R;
 #endif
 #else
-  if (mod.C || mod.S) gearing *= 10.0;
+  return (mod.C || mod.S);
 #endif
+}
 
-  if (mDirection == kVertical)
-  {
-    mValue += (double)dY / (double)(mRECT.T - mRECT.B) / gearing;
-  }
+void IKnobControlBase::OnMouseDrag(float x, float y, float dX, float dY, const IMouseMod& mod)
+{
+  double gearing = IsFineControl(mod, false) ? mGearing * 10.0 : mGearing;
+  
+  IRECT dragBounds = GetKnobDragBounds();
+
+  if (mDirection == EDirection::Vertical)
+    SetValue(GetValue() + (double) dY / (double)(dragBounds.T - dragBounds.B) / gearing);
   else
-  {
-    mValue += (double)dX / (double)(mRECT.R - mRECT.L) / gearing;
-  }
+    SetValue(GetValue() + (double) dX / (double)(dragBounds.R - dragBounds.L) / gearing);
 
   SetDirty();
 }
 
 void IKnobControlBase::OnMouseWheel(float x, float y, const IMouseMod& mod, float d)
 {
-#ifdef PROTOOLS
-  if (mod.C)
-  {
-    mValue += 0.001 * d;
-  }
-#else
-  if (mod.C || mod.S)
-  {
-    mValue += 0.001 * d;
-  }
-#endif
-  else
-  {
-    mValue += 0.01 * d;
-  }
+  double gearing = IsFineControl(mod, true) ? 0.001 : 0.01;
 
+  SetValue(GetValue() + gearing * d);
   SetDirty();
 }
 
@@ -514,7 +795,7 @@ void IDirBrowseControlBase::CollectSortedItems(IPopupMenu* pMenu)
   }
 }
 
-void IDirBrowseControlBase::SetUpMenu()
+void IDirBrowseControlBase::SetupMenu()
 {
   mFiles.Empty(true);
   mItems.Empty(false);
@@ -566,9 +847,7 @@ void IDirBrowseControlBase::SetUpMenu()
 
 void IDirBrowseControlBase::ScanDirectory(const char* path, IPopupMenu& menuToAddTo)
 {
-#if !defined OS_IOS
   WDL_DirScan d;
-  IPopupMenu& parentDirMenu = menuToAddTo;
 
   if (!d.First(path))
   {
@@ -582,7 +861,7 @@ void IDirBrowseControlBase::ScanDirectory(const char* path, IPopupMenu& menuToAd
           WDL_String subdir;
           d.GetCurrentFullFN(&subdir);
           IPopupMenu* pNewMenu = new IPopupMenu();
-          parentDirMenu.AddItem(d.GetCurrentFN(), pNewMenu, -2);
+          menuToAddTo.AddItem(d.GetCurrentFN(), pNewMenu, -2);
           ScanDirectory(subdir.Get(), *pNewMenu);
         }
         else
@@ -596,7 +875,7 @@ void IDirBrowseControlBase::ScanDirectory(const char* path, IPopupMenu& menuToAd
               menuEntry.Set(f, (int) (a - f));
             
             IPopupMenu::Item* pItem = new IPopupMenu::Item(menuEntry.Get(), IPopupMenu::Item::kNoFlags, mFiles.GetSize());
-            parentDirMenu.AddItem(pItem, -2 /* sort alphabetically */);
+            menuToAddTo.AddItem(pItem, -2 /* sort alphabetically */);
             WDL_String* pFullPath = new WDL_String("");
             d.GetCurrentFullFN(pFullPath);
             mFiles.Add(pFullPath);
@@ -604,12 +883,83 @@ void IDirBrowseControlBase::ScanDirectory(const char* path, IPopupMenu& menuToAd
         }
       }
     } while (!d.Next());
-    
-    menuToAddTo = parentDirMenu;
   }
   
   if(!mShowEmptySubmenus)
-    parentDirMenu.RemoveEmptySubmenus();
+    menuToAddTo.RemoveEmptySubmenus();
+}
 
+ISliderControlBase::ISliderControlBase(const IRECT& bounds, int paramIdx, EDirection dir, float gearing, float handleSize)
+: IControl(bounds, paramIdx)
+, mDirection(dir)
+, mHandleSize(handleSize)
+, mGearing(gearing)
+{
+}
+
+ ISliderControlBase::ISliderControlBase(const IRECT& bounds, IActionFunction aF, EDirection dir, float gearing, float handleSize)
+: IControl(bounds, aF)
+, mDirection(dir)
+, mHandleSize(handleSize)
+, mGearing(gearing)
+{
+}
+
+void ISliderControlBase::OnMouseDown(float x, float y, const IMouseMod& mod)
+{
+  mMouseDown = true;
+  SnapToMouse(x, y, mDirection, mTrackBounds);
+
+  if (mHideCursorOnDrag)
+    GetUI()->HideMouseCursor(true, true);
+
+  IControl::OnMouseDown(x, y, mod);
+}
+
+void ISliderControlBase::OnMouseUp(float x, float y, const IMouseMod& mod)
+{
+  mMouseDown = false;
+
+  if (mHideCursorOnDrag)
+    GetUI()->HideMouseCursor(false);
+}
+
+void ISliderControlBase::OnMouseDrag(float x, float y, float dX, float dY, const IMouseMod& mod)
+{
+  if(mod.touchID)
+  {
+    SnapToMouse(x, y, mDirection, mTrackBounds);
+  }
+  else
+  {
+  double gearing = IsFineControl(mod, false) ? mGearing * 10.0 : mGearing;
+  
+  if (mDirection == EDirection::Vertical)
+    SetValue(GetValue() + (static_cast<double>(dY) / static_cast<double>(mTrackBounds.T - mTrackBounds.B) / gearing));
+  else
+    SetValue(GetValue() + (static_cast<double>(dX) / static_cast<double>(mTrackBounds.R - mTrackBounds.L) / gearing));
+  }
+  
+  SetDirty(true);
+}
+
+void ISliderControlBase::OnMouseWheel(float x, float y, const IMouseMod& mod, float d)
+{
+  double gearing = IsFineControl(mod, true) ? 0.001 : 0.01;
+
+  SetValue(GetValue() + gearing * d);
+  SetDirty();
+}
+
+bool ISliderControlBase::IsFineControl(const IMouseMod& mod, bool wheel) const
+{
+#ifdef PROTOOLS
+#ifdef OS_WIN
+  return mod.C;
+#else
+  return wheel ? mod.C : mod.R;
+#endif
+#else
+  return (mod.C || mod.S);
 #endif
 }
