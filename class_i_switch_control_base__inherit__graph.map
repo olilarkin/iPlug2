@@ -1,0 +1,10 @@
+<map id="ISwitchControlBase" name="ISwitchControlBase">
+<area shape="rect" id="node3" href="$class_i_b_switch_control.html" title="A bitmap switch control. " alt="" coords="5,155,127,181"/>
+<area shape="rect" id="node4" href="$class_i_s_v_g_switch_control.html" title="A vector switch control which shows one of multiple SVG states. " alt="" coords="151,155,291,181"/>
+<area shape="rect" id="node5" href="$class_i_v_switch_control.html" title="A vector switch control. " alt="" coords="315,155,436,181"/>
+<area shape="rect" id="node8" href="$class_i_v_tab_switch_control.html" title="A vector &quot;tab&quot; multi switch control. " alt="" coords="464,155,607,181"/>
+<area shape="rect" id="node2" href="$class_i_control.html" title="The lowest level base class of an IGraphics control. " alt="" coords="263,5,333,32"/>
+<area shape="rect" id="node6" href="$class_i_v_slide_switch_control.html" title="/todo. " alt="" coords="139,229,291,256"/>
+<area shape="rect" id="node7" href="$class_i_v_toggle_control.html" title="A vector toggle control. " alt="" coords="315,229,435,256"/>
+<area shape="rect" id="node9" href="$class_i_v_radio_button_control.html" title="IVRadioButtonControl" alt="" coords="460,229,619,256"/>
+</map>

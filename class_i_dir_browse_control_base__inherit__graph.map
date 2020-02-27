@@ -1,0 +1,5 @@
+<map id="IDirBrowseControlBase" name="IDirBrowseControlBase">
+<area shape="rect" id="node3" href="$class_i_v_preset_manager_control.html" title="A &quot;meta control&quot; for a &quot;preset manager&quot; for disk&#45;based preset files It adds several child buttons..." alt="" coords="5,155,183,181"/>
+<area shape="rect" id="node4" href="$class_test_dir_browse_control.html" title="Control to test IDirBrowseControlBase. " alt="" coords="207,155,365,181"/>
+<area shape="rect" id="node2" href="$class_i_control.html" title="The lowest level base class of an IGraphics control. " alt="" coords="155,5,225,32"/>
+</map>
