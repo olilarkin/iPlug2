@@ -21,8 +21,10 @@
 
 #include "IGraphics_select.h"
 
-
 using namespace emscripten;
+
+BEGIN_IPLUG_NAMESPACE
+BEGIN_IGRAPHICS_NAMESPACE
 
 static val GetCanvas()
 {
@@ -38,6 +40,8 @@ static val GetPreloadedImages()
 * @ingroup PlatformClasses */
 class IGraphicsWeb final : public IGRAPHICS_DRAW_CLASS
 {
+  class Font;
+  class FileFont;
 public:
   IGraphicsWeb(IGEditorDelegate& dlg, int w, int h, int fps, float scale);
   ~IGraphicsWeb();
@@ -64,6 +68,8 @@ public:
   void PromptForDirectory(WDL_String& path) override;
   bool PromptForColor(IColor& color, const char* str, IColorPickerHandlerFunc func) override;
   bool OpenURL(const char* url, const char* msgWindowTitle, const char* confirmMsg, const char* errMsgOnFailure) override;
+
+  bool PlatformSupportsMultiTouch() const override { return true; }
   
   //IGraphicsWeb
   static void OnMainLoopTimer();
@@ -71,7 +77,7 @@ public:
   double mPrevY = 0.;
   
 protected:
-  IPopupMenu* CreatePlatformPopupMenu(IPopupMenu& menu, const IRECT& bounds) override;
+  IPopupMenu* CreatePlatformPopupMenu(IPopupMenu& menu, const IRECT& bounds, bool& isAsync) override;
   void CreatePlatformTextEntry(int paramIdx, const IText& text, const IRECT& bounds, int length, const char* str) override;
     
 private:
@@ -79,3 +85,7 @@ private:
   PlatformFontPtr LoadPlatformFont(const char* fontID, const char* fontName, ETextStyle style) override;
   void CachePlatformFont(const char* fontID, const PlatformFontPtr& font) override {}
 };
+
+END_IGRAPHICS_NAMESPACE
+END_IPLUG_NAMESPACE
+

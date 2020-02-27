@@ -18,6 +18,9 @@
 #include "IPlugPlatform.h"
 #include "wdlutf8.h"
 
+using namespace iplug;
+using namespace igraphics;
+
 #define VIRTUAL_KEY_BIT 0x80000000
 #define STB_TEXTEDIT_K_SHIFT 0x40000000
 #define STB_TEXTEDIT_K_CONTROL 0x20000000
@@ -54,6 +57,7 @@
 
 #define STB_TEXTEDIT_IMPLEMENTATION
 #include "stb_textedit.h"
+
 
 ITextEntryControl::ITextEntryControl()
 : IControl(IRECT())
@@ -104,7 +108,7 @@ void ITextEntryControl::Draw(IGraphics& g)
     }
     IRECT selectionRect(selectionStart, mRECT.T + row.ymin, selectionEnd, mRECT.T + row.ymax);
     selectionRect = selectionRect.GetVPadded(-mText.mSize*0.1f);
-    IBlend blend(EBlend::Default, 0.2);
+    IBlend blend(EBlend::Default, 0.2f);
     g.FillRect(mText.mTextEntryFGColor, selectionRect, &blend);
   }
 
@@ -129,7 +133,7 @@ bool ITextEntryControl::CallSTB(Proc proc)
   auto oldState = mEditState;
   proc();
   
-  if(memcmp (&oldState, &mEditState, sizeof (STB_TexteditState)) != 0)
+  if(memcmp(&oldState, &mEditState, sizeof (STB_TexteditState)) != 0)
   {
     OnStateChanged(); //TODO:
     return true;
@@ -149,16 +153,14 @@ void ITextEntryControl::OnMouseDown(float x, float y, const IMouseMod& mod)
   if(mod.L)
   {
     CallSTB ([&]() {
-      stb_textedit_click(this, &mEditState, x - mRECT.L, y - mRECT.T);
+      stb_textedit_click(this, &mEditState, x, y);
     });
-    
-    SetDirty(true);
   }
   
   if(mod.R)
   {
-    static IPopupMenu menu {{"Cut", "Copy", "Paste"}, [&](int indexInMenu, IPopupMenu::Item* itemChosen) {
-      switch (indexInMenu) {
+    static IPopupMenu menu {"", {"Cut", "Copy", "Paste"}, [&](IPopupMenu* pMenu) {
+      switch (pMenu->GetChosenItemIdx()) {
         case 0: Cut(); break;
         case 1: CopySelection(); break;
         case 2: Paste(); break;
@@ -176,11 +178,9 @@ void ITextEntryControl::OnMouseDrag(float x, float y, float dX, float dY, const 
 {
   if (mod.L)
   {
-    CallSTB ([&]() {
-      stb_textedit_drag(this, &mEditState, x - mRECT.L, y - mRECT.T);
+    CallSTB([&]() {
+      stb_textedit_drag(this, &mEditState, x, y);
     });
-
-    SetDirty(true);
   }
 }
 
@@ -197,7 +197,7 @@ void ITextEntryControl::OnMouseUp(float x, float y, const IMouseMod& mod)
   if (mod.L)
   {
     CallSTB([&]() {
-      stb_textedit_drag(this, &mEditState, x - mRECT.L, y - mRECT.T);
+      stb_textedit_drag(this, &mEditState, x, y);
     });
 
     SetDirty(true);
@@ -262,7 +262,7 @@ bool ITextEntryControl::OnKeyDown(float x, float y, const IKeyPress& key)
     default:
     {
       // validate input based on param type
-      const IParam* pParam = GetUI()->mInTextEntry->GetParam();
+      const IParam* pParam = GetUI()->GetControlInTextEntry()->GetParam();
 
       if(pParam)
       {
@@ -400,13 +400,13 @@ void ITextEntryControl::Layout(StbTexteditRow* row, ITextEntryControl* _this, in
   {
     case EAlign::Near:
     {
-      row->x0 = _this->GetRECT().L + 1; 
+      row->x0 = _this->GetRECT().L;
       row->x1 = row->x0 + textWidth;
       break;
     }
     case EAlign::Center:
     {
-      row->x0 = roundf(_this->GetRECT().MW() - (textWidth * 0.5f));
+      row->x0 = _this->GetRECT().MW() - (textWidth * 0.5f);
       row->x1 = row->x0 + textWidth;
       break;
     }

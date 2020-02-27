@@ -18,6 +18,9 @@
 
 #include "IControl.h"
 
+BEGIN_IPLUG_NAMESPACE
+BEGIN_IGRAPHICS_NAMESPACE
+
 /** A base control for a pop-up menu/drop-down list that stays within the bounds of the IGraphics context.
  * This is mainly used as a special control that lives outside the main IGraphics control stack.
  * For replacing generic menus this can be added with IGraphics::AttachPopupMenu().
@@ -94,10 +97,9 @@ public:
   virtual void DrawSeparator(IGraphics& g, const IRECT& bounds, IBlend* pBlend);
 
   /** Call this to create a pop-up menu
-   @param menu Reference to a menu from which to populate this user interface control. NOTE: this object should not be a temporary, otherwise when the menu returns asynchronously, it may not exist.
-   @param bounds \todo
-   @param pCaller The IControl that called this method, and will receive the call back after menu selection */
-  void CreatePopupMenu(IPopupMenu& menu, const IRECT& bounds);
+   * @param menu Reference to a menu from which to populate this user interface control. NOTE: this object should not be a temporary, otherwise when the menu returns asynchronously, it may not exist.
+   * @param anchorArea The pop-up menu opens adjacent to this area, but won't occupy it. At the moment, the menu is always below or right of that region. */
+  void CreatePopupMenu(IPopupMenu& menu, const IRECT& anchorArea);
 
   /** @return \true if the pop-up is fully expanded */
   bool GetExpanded() const { return mState == kExpanded; }
@@ -132,11 +134,14 @@ private:
   public:
     MenuPanel(IPopupMenuControl& owner, IPopupMenu& menu, float x, float y, int parentIdx);
     ~MenuPanel();
-
-    /** Get's the width of a cell */
+      
+    MenuPanel(const MenuPanel&) = delete;
+    MenuPanel& operator=(const MenuPanel&) = delete;
+      
+    /** Gets the width of a cell */
     float CellWidth() const { return mSingleCellBounds.W(); }
 
-    /** Get's the height of a cell */
+    /** Gets the height of a cell */
     float CellHeight() const { return mSingleCellBounds.H(); }
 
     void ScrollUp() { mScrollItemOffset--; mScrollItemOffset = Clip(mScrollItemOffset, 0, mCellBounds.GetSize()-1); }
@@ -194,7 +199,7 @@ private:
   const float ARROW_SIZE = 8; // The width of the area on the right of the cell where an arrow appears for new submenus
   const float PAD = 5.; // How much white space between the background and the cells
   const float CALLOUT_SPACE = 8; // The space between start bounds and callout
-  IRECT mOriginalBounds; // The rectangular area where the menu was triggered
+  IRECT mAnchorArea; // The area where the menu was triggered; menu will be adjacent, but won't occupy it.
   EArrowDir mCalloutArrowDir = kEast;
   IRECT mCalloutArrowBounds;
 
@@ -204,3 +209,6 @@ protected:
   IRECT mSpecifiedCollapsedBounds;
   IRECT mSpecifiedExpandedBounds;
 };
+
+END_IGRAPHICS_NAMESPACE
+END_IPLUG_NAMESPACE

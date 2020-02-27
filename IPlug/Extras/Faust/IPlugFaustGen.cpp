@@ -20,6 +20,8 @@
 #include "faust/dsp/poly-dsp.h"
 #include "fileread.h"
 
+using namespace iplug;
+
 int FaustGen::sFaustGenCounter = 0;
 int FaustGen::Factory::sFactoryCounter = 0;
 bool FaustGen::sAutoRecompile = false;
@@ -112,6 +114,11 @@ llvm_dsp_factory *FaustGen::Factory::CreateFactoryFromSourceCode()
   argv[N] = 0; // NULL terminated argv
 
   llvm_dsp_factory* pFactory = createDSPFactoryFromString(name.Get(), mSourceCodeStr.Get(), N, argv, GetLLVMArchStr(), error, mOptimizationLevel);
+
+  if(error.length())
+    DBGMSG("%s\n", error.c_str());
+  
+  assert(pFactory);
 
   if (pFactory)
   {
@@ -381,7 +388,7 @@ bool FaustGen::Factory::LoadFile(const char* file)
     return true;
   }
   
-  assert(0); // The FAUST_BLOCK file was not found // TODO: warning about codesign
+  assert(0 && "If you hit this assert it means the faust DSP file specificed in FAUST_BLOCK file was not found. This may be due to the app's sandbox.");
   
   return false;
 }

@@ -5,8 +5,11 @@
 enum EControlTags
 {
   kCtrlTagText = 0,
-  kNumControlTags
+  kNumCtrlTags
 };
+
+using namespace iplug;
+using namespace igraphics;
 
 class IPlugReaperExtension : public ReaperExtBase
 {

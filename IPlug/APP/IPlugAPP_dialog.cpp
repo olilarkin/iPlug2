@@ -19,8 +19,11 @@
 #define GET_MENU() SWELL_GetCurrentMenu()
 #endif
 
+using namespace iplug;
+
 #if defined _DEBUG && !defined NO_IGRAPHICS
 #include "IGraphics.h"
+using namespace igraphics;
 #endif
 
 // check the input and output devices, find matching srs
@@ -48,6 +51,7 @@ void IPlugAPPHost::PopulateSampleRateList(HWND hwndDlg, RtAudio::DeviceInfo* inp
   {
     buf.SetFormatted(20, "%i", matchedSRs[k]);
     SendDlgItemMessage(hwndDlg,IDC_COMBO_AUDIO_SR,CB_ADDSTRING,0,(LPARAM)buf.Get());
+    SendDlgItemMessage(hwndDlg,IDC_COMBO_AUDIO_SR,CB_SETITEMDATA,k,(LPARAM)matchedSRs[k]);
   }
   
   WDL_String str;
@@ -296,6 +300,14 @@ WDL_DLGRET IPlugAPPHost::PreferencesDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wPar
   AppState& mTempState = _this->mTempState;
   AppState& mActiveState = _this->mActiveState;
 
+  auto getComboString = [&](WDL_String& str, int item, WPARAM idx) {
+    std::string tempString;
+    long len = (long) SendDlgItemMessage(hwndDlg, item, CB_GETLBTEXTLEN, idx, 0) + 1;
+    tempString.reserve(len);
+    SendDlgItemMessage(hwndDlg, item, CB_GETLBTEXT, idx, (LPARAM) tempString.data());
+    str.Set(tempString.c_str());
+  };
+  
   int v = 0;
   switch(uMsg)
   {
@@ -364,7 +376,7 @@ WDL_DLGRET IPlugAPPHost::PreferencesDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wPar
           if (HIWORD(wParam) == CBN_SELCHANGE)
           {
             int idx = (int) SendDlgItemMessage(hwndDlg, IDC_COMBO_AUDIO_IN_DEV, CB_GETCURSEL, 0, 0);
-            SendDlgItemMessage(hwndDlg, IDC_COMBO_AUDIO_IN_DEV, CB_GETLBTEXT, idx, (LPARAM) mState.mAudioInDev.Get());
+            getComboString(mState.mAudioInDev, IDC_COMBO_AUDIO_IN_DEV, idx);
 
             // Reset IO
             mState.mAudioInChanL = 1;
@@ -378,7 +390,7 @@ WDL_DLGRET IPlugAPPHost::PreferencesDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wPar
           if (HIWORD(wParam) == CBN_SELCHANGE)
           {
             int idx = (int) SendDlgItemMessage(hwndDlg, IDC_COMBO_AUDIO_OUT_DEV, CB_GETCURSEL, 0, 0);
-            SendDlgItemMessage(hwndDlg, IDC_COMBO_AUDIO_OUT_DEV, CB_GETLBTEXT, idx, (LPARAM) mState.mAudioOutDev.Get());
+            getComboString(mState.mAudioOutDev, IDC_COMBO_AUDIO_OUT_DEV, idx);
 
             // Reset IO
             mState.mAudioOutChanL = 1;
@@ -436,14 +448,13 @@ WDL_DLGRET IPlugAPPHost::PreferencesDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wPar
           {
             int iovsidx = (int) SendDlgItemMessage(hwndDlg, IDC_COMBO_AUDIO_BUF_SIZE, CB_GETCURSEL, 0, 0);
             mState.mBufferSize = atoi(kBufferSizeOptions[iovsidx].c_str());
-            SendDlgItemMessage(hwndDlg, IDC_COMBO_AUDIO_BUF_SIZE, CB_GETLBTEXT, iovsidx, (LPARAM) kBufferSizeOptions[iovsidx].c_str());
           }
           break;
         case IDC_COMBO_AUDIO_SR:
           if (HIWORD(wParam) == CBN_SELCHANGE)
           {
             int idx = (int) SendDlgItemMessage(hwndDlg, IDC_COMBO_AUDIO_SR, CB_GETCURSEL, 0, 0);
-            SendDlgItemMessage(hwndDlg, IDC_COMBO_AUDIO_SR, CB_GETLBTEXT, idx, (LPARAM) mState.mAudioSR);
+            mState.mAudioSR = (uint32_t) SendDlgItemMessage(hwndDlg, IDC_COMBO_AUDIO_SR, CB_GETITEMDATA, idx, 0);
           }
           break;
 
@@ -463,7 +474,7 @@ WDL_DLGRET IPlugAPPHost::PreferencesDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wPar
           if (HIWORD(wParam) == CBN_SELCHANGE)
           {
             int idx = (int) SendDlgItemMessage(hwndDlg, IDC_COMBO_MIDI_IN_DEV, CB_GETCURSEL, 0, 0);
-            SendDlgItemMessage(hwndDlg, IDC_COMBO_MIDI_IN_DEV, CB_GETLBTEXT, idx, (LPARAM) mState.mMidiInDev.Get());
+            getComboString(mState.mMidiInDev, IDC_COMBO_MIDI_IN_DEV, idx);
             _this->SelectMIDIDevice(ERoute::kInput, mState.mMidiInDev.Get());
           }
           break;
@@ -472,7 +483,7 @@ WDL_DLGRET IPlugAPPHost::PreferencesDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wPar
           if (HIWORD(wParam) == CBN_SELCHANGE)
           {
             int idx = (int) SendDlgItemMessage(hwndDlg, IDC_COMBO_MIDI_OUT_DEV, CB_GETCURSEL, 0, 0);
-            SendDlgItemMessage(hwndDlg, IDC_COMBO_MIDI_OUT_DEV, CB_GETLBTEXT, idx, (LPARAM) mState.mMidiOutDev.Get());
+            getComboString(mState.mMidiOutDev, IDC_COMBO_MIDI_OUT_DEV, idx);
             _this->SelectMIDIDevice(ERoute::kOutput, mState.mMidiOutDev.Get());
           }
           break;
@@ -497,7 +508,7 @@ WDL_DLGRET IPlugAPPHost::PreferencesDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wPar
   return TRUE;
 }
 
-void ClientResize(HWND hWnd, int nWidth, int nHeight)
+static void ClientResize(HWND hWnd, int nWidth, int nHeight)
 {
   RECT rcClient, rcWindow;
   POINT ptDiff;
@@ -523,6 +534,9 @@ WDL_DLGRET IPlugAPPHost::MainDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
 {
   IPlugAPPHost* pAppHost = IPlugAPPHost::sInstance.get();
 
+  int width = 0;
+  int height = 0;
+
   switch (uMsg)
   {
     case WM_INITDIALOG:
@@ -531,7 +545,9 @@ WDL_DLGRET IPlugAPPHost::MainDlgProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPA
       if(!pAppHost->OpenWindow(gHWND))
         DBGMSG("couldn't attach gui\n");
 
-      ClientResize(hwndDlg, PLUG_WIDTH, PLUG_HEIGHT);
+      width = pAppHost->GetPlug()->GetEditorWidth();
+      height = pAppHost->GetPlug()->GetEditorHeight();
+      ClientResize(hwndDlg, width, height);
 
       ShowWindow(hwndDlg,SW_SHOW);
       return 1;

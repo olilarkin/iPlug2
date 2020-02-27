@@ -15,19 +15,68 @@
 #include "IGraphicsCairo.h"
 #include "ITextEntryControl.h"
 
-struct CairoFont
-{
-  CairoFont(cairo_font_face_t* font, double EMRatio) : mFont(font), mEMRatio(EMRatio) {}
-  virtual ~CairoFont() { if (mFont) cairo_font_face_destroy(mFont); }
+using namespace iplug;
+using namespace igraphics;
 
+#pragma mark - Private Classes and Structs
+
+class IGraphicsCairo::Bitmap : public APIBitmap
+{
+public:
+  Bitmap(cairo_surface_t* pSurface, int scale, float drawScale);
+  Bitmap(cairo_surface_t* pSurfaceType, int width, int height, int scale, float drawScale);
+  virtual ~Bitmap();
+};
+
+IGraphicsCairo::Bitmap::Bitmap(cairo_surface_t* pSurface, int scale, float drawScale)
+{
+  cairo_surface_set_device_scale(pSurface, scale * drawScale, scale * drawScale);
+  int width = cairo_image_surface_get_width(pSurface);
+  int height = cairo_image_surface_get_height(pSurface);
+  
+  SetBitmap(pSurface, width, height, scale, drawScale);
+}
+
+IGraphicsCairo::Bitmap::Bitmap(cairo_surface_t* pSurfaceType, int width, int height, int scale, float drawScale)
+{
+  cairo_surface_t* pSurface;
+  
+  if (pSurfaceType)
+    pSurface = cairo_surface_create_similar_image(pSurfaceType, CAIRO_FORMAT_ARGB32, width, height);
+  else
+    pSurface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
+  
+  cairo_surface_set_device_scale(pSurface, scale * drawScale, scale * drawScale);
+  
+  SetBitmap(pSurface, width, height, scale, drawScale);
+}
+
+IGraphicsCairo::Bitmap::~Bitmap()
+{
+  cairo_surface_destroy(GetBitmap());
+}
+
+class IGraphicsCairo::Font
+{
+public:
+  Font(cairo_font_face_t* font, double EMRatio) : mFont(font), mEMRatio(EMRatio) {}
+  virtual ~Font() { if (mFont) cairo_font_face_destroy(mFont); }
+
+  Font(const Font&) = delete;
+  Font& operator=(const Font&) = delete;
+    
+  cairo_font_face_t* GetFont() const { return mFont; }
+  double GetEMRatio() const { return mEMRatio; }
+    
+protected:
   cairo_font_face_t* mFont;
   double mEMRatio;
 };
 
 #ifdef OS_MAC
-struct CairoPlatformFont : CairoFont
+struct IGraphicsCairo::OSFont : Font
 {
-  CairoPlatformFont(const FontDescriptor fontRef, double EMRatio) : CairoFont(nullptr, EMRatio)
+  OSFont(const FontDescriptor fontRef, double EMRatio) : Font(nullptr, EMRatio)
   {
     CTFontRef ctFont = CTFontCreateWithFontDescriptor(fontRef, 0.f, NULL);
     CGFontRef cgFont = CTFontCopyGraphicsFont(ctFont, NULL);
@@ -37,19 +86,22 @@ struct CairoPlatformFont : CairoFont
   }
 };
 #elif defined OS_WIN
-struct CairoPlatformFont : CairoFont
+struct IGraphicsCairo::OSFont : Font
 {
-  CairoPlatformFont(const FontDescriptor fontRef, double EMRatio)
-  : CairoFont(cairo_win32_font_face_create_for_hfont(fontRef), EMRatio)
+  OSFont(const FontDescriptor fontRef, double EMRatio)
+  : Font(cairo_win32_font_face_create_for_hfont(fontRef), EMRatio)
   {}
 };
 
-class PNGStream
+class IGraphicsCairo::PNGStream
 {
 public:
   PNGStream(const uint8_t* pData, int size) : mData(pData), mSize(size)
   {}
 
+  PNGStream(const PNGStream&) = delete;
+  PNGStream& operator=(const PNGStream&) = delete;
+    
   static cairo_status_t Read(void *object, uint8_t* data, uint32_t length)
   {
     PNGStream* reader = reinterpret_cast<PNGStream*>(object);
@@ -69,39 +121,14 @@ private:
 };
 #endif
 
-static StaticStorage<CairoFont> sFontCache;
+// Fonts
+StaticStorage<IGraphicsCairo::Font> IGraphicsCairo::sFontCache;
 
-CairoBitmap::CairoBitmap(cairo_surface_t* pSurface, int scale, float drawScale)
-{
-  cairo_surface_set_device_scale(pSurface, scale * drawScale, scale * drawScale);
-  int width = cairo_image_surface_get_width(pSurface);
-  int height = cairo_image_surface_get_height(pSurface);
-  
-  SetBitmap(pSurface, width, height, scale, drawScale);
-}
+#pragma mark - Utilites
 
-CairoBitmap::CairoBitmap(cairo_surface_t* pSurfaceType, int width, int height, int scale, float drawScale)
-{
-  cairo_surface_t* pSurface;
-    
-  if (pSurfaceType)
-    pSurface = cairo_surface_create_similar_image(pSurfaceType, CAIRO_FORMAT_ARGB32, width, height);
-  else
-    pSurface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
-    
-  cairo_surface_set_device_scale(pSurface, scale * drawScale, scale * drawScale);
-  
-  SetBitmap(pSurface, width, height, scale, drawScale);
-}
-  
-CairoBitmap::~CairoBitmap()
-{
-  cairo_surface_destroy(GetBitmap());
-}
-
-#pragma mark -
-
-inline cairo_operator_t CairoBlendMode(const IBlend* pBlend)
+BEGIN_IPLUG_NAMESPACE
+BEGIN_IGRAPHICS_NAMESPACE
+cairo_operator_t CairoBlendMode(const IBlend* pBlend)
 {
   if (!pBlend)
   {
@@ -109,20 +136,73 @@ inline cairo_operator_t CairoBlendMode(const IBlend* pBlend)
   }
   switch (pBlend->mMethod)
   {
-    case EBlend::Default:         // fall through
-    case EBlend::Clobber:         // fall through
-    case EBlend::SourceOver:      return CAIRO_OPERATOR_OVER;
-    case EBlend::SourceIn:        return CAIRO_OPERATOR_IN;
-    case EBlend::SourceOut:       return CAIRO_OPERATOR_OUT;
-    case EBlend::SourceAtop:      return CAIRO_OPERATOR_ATOP;
-    case EBlend::DestOver:        return CAIRO_OPERATOR_DEST_OVER;
-    case EBlend::DestIn:          return CAIRO_OPERATOR_DEST_IN;
-    case EBlend::DestOut:         return CAIRO_OPERATOR_DEST_OUT;
-    case EBlend::DestAtop:        return CAIRO_OPERATOR_DEST_ATOP;
-    case EBlend::Add:             return CAIRO_OPERATOR_ADD;
-    case EBlend::XOR:             return CAIRO_OPERATOR_XOR;
+    case EBlend::SrcOver:      return CAIRO_OPERATOR_OVER;
+    case EBlend::SrcIn:        return CAIRO_OPERATOR_IN;
+    case EBlend::SrcOut:       return CAIRO_OPERATOR_OUT;
+    case EBlend::SrcAtop:      return CAIRO_OPERATOR_ATOP;
+    case EBlend::DstOver:      return CAIRO_OPERATOR_DEST_OVER;
+    case EBlend::DstIn:        return CAIRO_OPERATOR_DEST_IN;
+    case EBlend::DstOut:       return CAIRO_OPERATOR_DEST_OUT;
+    case EBlend::DstAtop:      return CAIRO_OPERATOR_DEST_ATOP;
+    case EBlend::Add:          return CAIRO_OPERATOR_ADD;
+    case EBlend::XOR:          return CAIRO_OPERATOR_XOR;
   }
 }
+
+void CairoSetSourceColor(cairo_t* pContext, const IColor& color, const IBlend* pBlend)
+{
+  cairo_set_source_rgba(pContext, color.R / 255.0, color.G / 255.0, color.B / 255.0, (BlendWeight(pBlend) * color.A) / 255.0);
+}
+
+void CairoSetSourcePattern(cairo_t* pContext, const IPattern& pattern, const IBlend* pBlend)
+{
+  cairo_set_operator(pContext, CairoBlendMode(pBlend));
+
+  switch (pattern.mType)
+  {
+    case EPatternType::Solid:
+    {
+      CairoSetSourceColor(pContext, pattern.GetStop(0).mColor);
+    }
+    break;
+
+    case EPatternType::Linear:
+    case EPatternType::Radial:
+    {
+      cairo_pattern_t* cairoPattern;
+      cairo_matrix_t matrix;
+      const IMatrix& m = pattern.mTransform;
+
+      if (pattern.mType == EPatternType::Linear)
+        cairoPattern = cairo_pattern_create_linear(0.0, 0.0, 0.0, 1.0);
+      else
+        cairoPattern = cairo_pattern_create_radial(0.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+
+      switch (pattern.mExtend)
+      {
+      case EPatternExtend::None:      cairo_pattern_set_extend(cairoPattern, CAIRO_EXTEND_NONE);      break;
+      case EPatternExtend::Pad:       cairo_pattern_set_extend(cairoPattern, CAIRO_EXTEND_PAD);       break;
+      case EPatternExtend::Reflect:   cairo_pattern_set_extend(cairoPattern, CAIRO_EXTEND_REFLECT);   break;
+      case EPatternExtend::Repeat:    cairo_pattern_set_extend(cairoPattern, CAIRO_EXTEND_REPEAT);    break;
+      }
+
+      for (int i = 0; i < pattern.NStops(); i++)
+      {
+        const IColorStop& stop = pattern.GetStop(i);
+        cairo_pattern_add_color_stop_rgba(cairoPattern, stop.mOffset, stop.mColor.R / 255.0, stop.mColor.G / 255.0, stop.mColor.B / 255.0, (BlendWeight(pBlend) * stop.mColor.A) / 255.0);
+      }
+
+      cairo_matrix_init(&matrix, m.mXX, m.mYX, m.mXY, m.mYY, m.mTX, m.mTY);
+      cairo_pattern_set_matrix(cairoPattern, &matrix);
+      cairo_set_source(pContext, cairoPattern);
+      cairo_pattern_destroy(cairoPattern);
+    }
+    break;
+  }
+}
+
+END_IGRAPHICS_NAMESPACE
+END_IPLUG_NAMESPACE
 
 #pragma mark -
 
@@ -133,13 +213,13 @@ IGraphicsCairo::IGraphicsCairo(IGEditorDelegate& dlg, int w, int h, int fps, flo
 {
   DBGMSG("IGraphics Cairo @ %i FPS\n", fps);
   
-  StaticStorage<CairoFont>::Accessor storage(sFontCache);
+  StaticStorage<Font>::Accessor storage(sFontCache);
   storage.Retain();
 }
 
 IGraphicsCairo::~IGraphicsCairo() 
 {
-  StaticStorage<CairoFont>::Accessor storage(sFontCache);
+  StaticStorage<Font>::Accessor storage(sFontCache);
   storage.Release();
   
   // N.B. calls through to destroy context and surface
@@ -179,12 +259,12 @@ APIBitmap* IGraphicsCairo::LoadAPIBitmap(const char* fileNameOrResID, int scale,
 
   assert(!pSurface || cairo_surface_status(pSurface) == CAIRO_STATUS_SUCCESS);
 
-  return new CairoBitmap(pSurface, scale, 1.f);
+  return new Bitmap(pSurface, scale, 1.f);
 }
 
 APIBitmap* IGraphicsCairo::CreateAPIBitmap(int width, int height, int scale, double drawScale)
 {
-  return new CairoBitmap(mSurface, width, height, scale, drawScale);
+  return new Bitmap(mSurface, width, height, scale, drawScale);
 }
 
 bool IGraphicsCairo::BitmapExtSupported(const char* ext)
@@ -254,7 +334,7 @@ void IGraphicsCairo::ApplyShadowMask(ILayerPtr& layer, RawBitmapData& mask, cons
     
     IBlend blend(EBlend::Default, shadow.mOpacity);
     cairo_translate(pContext, -layer->Bounds().L, -layer->Bounds().T);
-    SetCairoSourcePattern(pContext, shadow.mPattern, &blend);
+    CairoSetSourcePattern(pContext, shadow.mPattern, &blend);
     cairo_identity_matrix(pContext);
     cairo_set_operator(pContext, shadow.mDrawForeground ? CAIRO_OPERATOR_DEST_OVER : CAIRO_OPERATOR_SOURCE);
     cairo_translate(pContext, shadow.mXOffset, shadow.mYOffset);
@@ -347,7 +427,7 @@ void IGraphicsCairo::PathStroke(const IPattern& pattern, float thickness, const 
   cairo_set_dash(mContext, dashArray, options.mDash.GetCount(), options.mDash.GetOffset());
   cairo_set_line_width(mContext, thickness);
 
-  SetCairoSourcePattern(mContext, pattern, pBlend);
+  CairoSetSourcePattern(mContext, pattern, pBlend);
   if (options.mPreserve)
     cairo_stroke_preserve(mContext);
   else
@@ -357,59 +437,11 @@ void IGraphicsCairo::PathStroke(const IPattern& pattern, float thickness, const 
 void IGraphicsCairo::PathFill(const IPattern& pattern, const IFillOptions& options, const IBlend* pBlend) 
 {
   cairo_set_fill_rule(mContext, options.mFillRule == EFillRule::EvenOdd ? CAIRO_FILL_RULE_EVEN_ODD : CAIRO_FILL_RULE_WINDING);
-  SetCairoSourcePattern(mContext, pattern, pBlend);
+  CairoSetSourcePattern(mContext, pattern, pBlend);
   if (options.mPreserve)
     cairo_fill_preserve(mContext);
   else
     cairo_fill(mContext);
-}
-
-void IGraphicsCairo::SetCairoSourcePattern(cairo_t* context, const IPattern& pattern, const IBlend* pBlend)
-{
-  cairo_set_operator(context, CairoBlendMode(pBlend));
-  
-  switch (pattern.mType)
-  {
-    case EPatternType::Solid:
-    {
-      const IColor &color = pattern.GetStop(0).mColor;
-      cairo_set_source_rgba(context, color.R / 255.0, color.G / 255.0, color.B / 255.0, (BlendWeight(pBlend) * color.A) / 255.0);
-    }
-    break;
-      
-    case EPatternType::Linear:
-    case EPatternType::Radial:
-    {
-      cairo_pattern_t* cairoPattern;
-      cairo_matrix_t matrix;
-      const IMatrix& m = pattern.mTransform;
-      
-      if (pattern.mType == EPatternType::Linear)
-        cairoPattern = cairo_pattern_create_linear(0.0, 0.0, 0.0, 1.0);
-      else
-        cairoPattern = cairo_pattern_create_radial(0.0, 0.0, 0.0, 0.0, 0.0, 1.0);
-      
-      switch (pattern.mExtend)
-      {
-        case EPatternExtend::None:      cairo_pattern_set_extend(cairoPattern, CAIRO_EXTEND_NONE);      break;
-        case EPatternExtend::Pad:       cairo_pattern_set_extend(cairoPattern, CAIRO_EXTEND_PAD);       break;
-        case EPatternExtend::Reflect:   cairo_pattern_set_extend(cairoPattern, CAIRO_EXTEND_REFLECT);   break;
-        case EPatternExtend::Repeat:    cairo_pattern_set_extend(cairoPattern, CAIRO_EXTEND_REPEAT);    break;
-      }
-      
-      for (int i = 0; i < pattern.NStops(); i++)
-      {
-        const IColorStop& stop = pattern.GetStop(i);
-        cairo_pattern_add_color_stop_rgba(cairoPattern, stop.mOffset, stop.mColor.R / 255.0, stop.mColor.G / 255.0, stop.mColor.B / 255.0, (BlendWeight(pBlend) * stop.mColor.A) / 255.0);
-      }
-      
-      cairo_matrix_init(&matrix, m.mXX, m.mYX, m.mXY, m.mYY, m.mTX, m.mTY);
-      cairo_pattern_set_matrix(cairoPattern, &matrix);
-      cairo_set_source(context, cairoPattern);
-      cairo_pattern_destroy(cairoPattern);
-    }
-    break;
-  }
 }
 
 IColor IGraphicsCairo::GetPoint(int x, int y)
@@ -452,15 +484,15 @@ void IGraphicsCairo::PrepareAndMeasureText(const IText& text, const char* str, I
   else
     context = mContext;
   
-  StaticStorage<CairoFont>::Accessor storage(sFontCache);
-  CairoFont* pCachedFont = storage.Find(text.mFont);
+  StaticStorage<Font>::Accessor storage(sFontCache);
+  Font* pCachedFont = storage.Find(text.mFont);
     
   assert(pCachedFont && "No font found - did you forget to load it?");
     
   // Get the correct font face
   
-  cairo_set_font_face(context, pCachedFont->mFont);
-  cairo_set_font_size(context, text.mSize * pCachedFont->mEMRatio);
+  cairo_set_font_face(context, pCachedFont->GetFont());
+  cairo_set_font_size(context, text.mSize * pCachedFont->GetEMRatio());
   cairo_font_extents(context, &fontExtents);
 
   // Draw / measure
@@ -529,7 +561,7 @@ void IGraphicsCairo::DoDrawText(const IText& text, const char* str, const IRECT&
   if (useNativeTransforms)
   {
     DoTextRotation(text, bounds, measured);
-    cairo_set_source_rgba(mContext, c.R / 255.0, c.G / 255.0, c.B / 255.0, (BlendWeight(pBlend) * c.A) / 255.0);
+    CairoSetSourceColor(mContext, c, pBlend);
     cairo_translate(mContext, x, y);
     cairo_show_glyphs(mContext, pGlyphs, numGlyphs);
   }
@@ -537,8 +569,8 @@ void IGraphicsCairo::DoDrawText(const IText& text, const char* str, const IRECT&
   {
     PathTransformSave();
     PathTransformReset();
-    StartLayer(measured);
-    cairo_set_source_rgba(mContext, c.R / 255.0, c.G / 255.0, c.B / 255.0, (BlendWeight(pBlend) * c.A) / 255.0);
+    StartLayer(nullptr, measured);
+    CairoSetSourceColor(mContext, c, pBlend);
     cairo_translate(mContext, x, y);
     cairo_show_glyphs(mContext, pGlyphs, numGlyphs);
     ILayerPtr layer = EndLayer();
@@ -621,7 +653,7 @@ void IGraphicsCairo::EndFrame()
   HWND hWnd = (HWND) GetWindow();
   HDC dc = BeginPaint(hWnd, &ps);
   HDC cdc = cairo_win32_surface_get_dc(mSurface);
-  BitBlt(dc, 0, 0, WindowWidth(), WindowHeight(), cdc, 0, 0, SRCCOPY);
+  BitBlt(dc, 0, 0, WindowWidth() * GetScreenScale(), WindowHeight() * GetScreenScale(), cdc, 0, 0, SRCCOPY);
   EndPaint(hWnd, &ps);
 #else
 #error NOT IMPLEMENTED
@@ -630,7 +662,7 @@ void IGraphicsCairo::EndFrame()
 
 bool IGraphicsCairo::LoadAPIFont(const char* fontID, const PlatformFontPtr& font)
 {
-  StaticStorage<CairoFont>::Accessor storage(sFontCache);
+  StaticStorage<Font>::Accessor storage(sFontCache);
   
   if (storage.Find(fontID))
     return true;
@@ -640,9 +672,9 @@ bool IGraphicsCairo::LoadAPIFont(const char* fontID, const PlatformFontPtr& font
   if (!data->IsValid())
     return false;
     
-  std::unique_ptr<CairoPlatformFont> cairoFont(new CairoPlatformFont(font->GetDescriptor(), data->GetHeightEMRatio()));
+  std::unique_ptr<OSFont> cairoFont(new OSFont(font->GetDescriptor(), data->GetHeightEMRatio()));
 
-  if (cairo_font_face_status(cairoFont->mFont) == CAIRO_STATUS_SUCCESS)
+  if (cairo_font_face_status(cairoFont->GetFont()) == CAIRO_STATUS_SUCCESS)
   {
     storage.Add(cairoFont.release(), fontID);
     return true;
@@ -681,10 +713,7 @@ void IGraphicsCairo::SetClipRegion(const IRECT& r)
     return;
     
   cairo_reset_clip(mContext);
-  if (!r.Empty())
-  {
-    cairo_new_path(mContext);
-    cairo_rectangle(mContext, r.L, r.T, r.W(), r.H());
-    cairo_clip(mContext);
-  }
+  cairo_new_path(mContext);
+  cairo_rectangle(mContext, r.L, r.T, r.W(), r.H());
+  cairo_clip(mContext);
 }

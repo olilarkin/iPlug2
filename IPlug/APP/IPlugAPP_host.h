@@ -34,9 +34,6 @@
 #include <limits>
 #include <memory>
 
-#include "RtAudio.h"
-#include "RtMidi.h"
-
 #include "wdltypes.h"
 #include "wdlstring.h"
 
@@ -54,22 +51,28 @@
   #define DEFAULT_INPUT_DEV "Default Device"
   #define DEFAULT_OUTPUT_DEV "Default Device"
 #elif defined(OS_MAC)
-  #include <IPlugSWELL.h>
+  #include "IPlugSWELL.h"
   #define SLEEP( milliseconds ) usleep( (unsigned long) (milliseconds * 1000.0) )
   #define DEFAULT_INPUT_DEV "Built-in Input"
   #define DEFAULT_OUTPUT_DEV "Built-in Output"
 #elif defined(OS_LINUX)
-  #include <IPlugSWELL.h>
+  #include "IPlugSWELL.h"
 #endif
 
+#include "RtAudio.h"
+#include "RtMidi.h"
+
 #define OFF_TEXT "off"
+
+extern HWND gHWND;
+extern HINSTANCE gHINSTANCE;
+
+BEGIN_IPLUG_NAMESPACE
 
 const int kNumBufferSizeOptions = 11;
 const std::string kBufferSizeOptions[kNumBufferSizeOptions] = {"32", "64", "96", "128", "192", "256", "512", "1024", "2048", "4096", "8192" };
 const int kDeviceDS = 0; const int kDeviceCoreAudio = 0; const int kDeviceAlsa = 0;
 const int kDeviceASIO = 1; const int kDeviceJack = 1;
-extern HWND gHWND;
-extern HINSTANCE gHINSTANCE;
 extern UINT gSCROLLMSG;
 
 class IPlugAPP;
@@ -194,6 +197,7 @@ public:
   void ProbeAudioIO();
   void ProbeMidiIO();
   bool InitMidi();
+  void CloseAudio();
   bool InitAudio(uint32_t inId, uint32_t outId, uint32_t sr, uint32_t iovs);
   bool AudioSettingsInStateAreEqual(AppState& os, AppState& ns);
   bool MIDISettingsInStateAreEqual(AppState& os, AppState& ns);
@@ -225,13 +229,15 @@ private:
   /** When the audio driver is started the current state is copied here so that if OK is pressed after APPLY nothing is changed */
   AppState mActiveState;
   
-  double mFadeMult = 0.; // Fade multiplier
   double mSampleRate = 44100.;
   uint32_t mSamplesElapsed = 0;
-  uint32_t mVecElapsed = 0;
+  uint32_t mVecWait = 0;
   uint32_t mBufferSize = 512;
   uint32_t mBufIndex; // index for signal vector, loops from 0 to mSigVS
-  
+  bool mExiting = false;
+  bool mAudioEnding = false;
+  bool mAudioDone = false;
+
   /** The index of the operating systems default input device, -1 if not detected */
   int32_t mDefaultInputDev = -1;
   /** The index of the operating systems default output device, -1 if not detected */
@@ -245,5 +251,10 @@ private:
   std::vector<std::string> mMidiInputDevNames;
   std::vector<std::string> mMidiOutputDevNames;
   
+  WDL_PtrList<double> mInputBufPtrs;
+  WDL_PtrList<double> mOutputBufPtrs;
+
   friend class IPlugAPP;
 };
+
+END_IPLUG_NAMESPACE

@@ -61,39 +61,30 @@
   using NVGframebuffer = MNVGframebuffer;
 #endif
 
-void nvgReadPixels(NVGcontext* pContext, int image, int x, int y, int width, int height, void* pData);
+BEGIN_IPLUG_NAMESPACE
+BEGIN_IGRAPHICS_NAMESPACE
 
-// Forward declaration
+/** Converts IColor to a NVGcolor */
+NVGcolor NanoVGColor(const IColor& color, const IBlend* pBlend = 0);
 
-class IGraphicsNanoVG;
+/** Set the NanoVG context blend based on IBlend */
+void NanoVGSetBlendMode(NVGcontext* pContext, const IBlend* pBlend);
 
-/** An NanoVG API bitmap
- * @ingroup APIBitmaps */
-class NanoVGBitmap : public APIBitmap
-{
-public:
-  NanoVGBitmap(NVGcontext* pContext, const char* path, double sourceScale, int nvgImageID, bool shared = false);
-  NanoVGBitmap(IGraphicsNanoVG* pGraphics, NVGcontext* pContext, int width, int height, int scale, float drawScale);
-  NanoVGBitmap(NVGcontext* pContext, int width, int height, const uint8_t* pData, int scale, float drawScale);
-  virtual ~NanoVGBitmap();
-  NVGframebuffer* GetFBO() const { return mFBO; }
-private:
-  IGraphicsNanoVG *mGraphics = nullptr;
-  NVGcontext* mVG;
-  NVGframebuffer* mFBO = nullptr;
-  bool mSharedTexture = false;
-};
+/** Converts IPattern to NVGpaint */
+NVGpaint NanoVGPaint(NVGcontext* pContext, const IPattern& pattern, const IBlend* pBlend = 0);
 
 /** IGraphics draw class using NanoVG  
 *   @ingroup DrawClasses */
 class IGraphicsNanoVG : public IGraphicsPathBase
 {
-public:
+private:
+  class Bitmap;
   
-  const char* GetDrawingAPIStr() override;
-
+public:
   IGraphicsNanoVG(IGEditorDelegate& dlg, int w, int h, int fps, float scale);
   ~IGraphicsNanoVG();
+
+  const char* GetDrawingAPIStr() override;
 
   void BeginFrame() override;
   void EndFrame() override;
@@ -113,6 +104,7 @@ public:
   void PathLineTo(float x, float y) override;
   void PathCubicBezierTo(float c1x, float c1y, float c2x, float c2y, float x2, float y2) override;
   void PathQuadraticBezierTo(float cx, float cy, float x2, float y2) override;
+  void PathSetWinding(bool clockwise) override;
   void PathStroke(const IPattern& pattern, float thickness, const IStrokeOptions& options, const IBlend* pBlend) override;
   void PathFill(const IPattern& pattern, const IFillOptions& options, const IBlend* pBlend) override;
   
@@ -155,7 +147,6 @@ private:
   void SetClipRegion(const IRECT& r) override;
   void UpdateLayer() override;
   void ClearFBOStack();
-    
   
   bool mInDraw = false;
   WDL_Mutex mFBOMutex;
@@ -165,3 +156,6 @@ private:
   NVGframebuffer* mMainFrameBuffer = nullptr;
   int mInitialFBO = 0;
 };
+
+END_IGRAPHICS_NAMESPACE
+END_IPLUG_NAMESPACE

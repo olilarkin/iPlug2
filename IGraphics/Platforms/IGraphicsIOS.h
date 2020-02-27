@@ -12,6 +12,11 @@
 
 #include "IGraphics_select.h"
 
+BEGIN_IPLUG_NAMESPACE
+BEGIN_IGRAPHICS_NAMESPACE
+
+extern void GetScreenDimensions(int& width, int& height);
+
 /** IGraphics platform class for IOS
 *   @ingroup PlatformClasses */
 class IGraphicsIOS final : public IGRAPHICS_DRAW_CLASS
@@ -53,12 +58,18 @@ public:
 
   void CreatePlatformImGui() override;
 
+  void LaunchBluetoothMidiDialog(float x, float y);
+  
+  void AttachGestureRecognizer(EGestureType type) override;
+  
+  bool PlatformSupportsMultiTouch() const override { return true; }
+  
 protected:
   PlatformFontPtr LoadPlatformFont(const char* fontID, const char* fileNameOrResID) override;
   PlatformFontPtr LoadPlatformFont(const char* fontID, const char* fontName, ETextStyle style) override;
   void CachePlatformFont(const char* fontID, const PlatformFontPtr& font) override;
   
-  IPopupMenu* CreatePlatformPopupMenu(IPopupMenu& menu, const IRECT& bounds) override;
+  IPopupMenu* CreatePlatformPopupMenu(IPopupMenu& menu, const IRECT& bounds, bool& isAsync) override;
   void CreatePlatformTextEntry(int paramIdx, const IText& text, const IRECT& bounds, int length, const char* str) override;
 
 private:
@@ -67,3 +78,6 @@ private:
 
   WDL_String mBundleID;
 };
+
+END_IGRAPHICS_NAMESPACE
+END_IPLUG_NAMESPACE

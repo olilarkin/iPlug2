@@ -10,6 +10,10 @@
 
 #import <QuartzCore/QuartzCore.h>
 
+#if defined IGRAPHICS_METAL
+#import <Metal/Metal.h>
+#endif
+
 #ifdef IGRAPHICS_IMGUI
 #import <Metal/Metal.h>
 #include "imgui.h"
@@ -22,6 +26,9 @@
 #include "IControl.h"
 #include "IPlugParameter.h"
 #include "IPlugLogger.h"
+
+using namespace iplug;
+using namespace igraphics;
 
 static int MacKeyCodeToVK(int code)
 {
@@ -237,11 +244,6 @@ static int MacKeyEventToVK(NSEvent* pEvent, int& flag)
 
 @end
 
-inline int GetMouseOver(IGraphicsMac* pGraphics)
-{
-  return pGraphics->GetMouseOver();
-}
-
 // IGRAPHICS_TEXTFIELDCELL based on...
 
 // https://red-sweater.com/blog/148/what-a-difference-a-cell-makes
@@ -271,15 +273,13 @@ inline int GetMouseOver(IGraphicsMac* pGraphics)
   if (mIsEditingOrSelecting == NO)
   {
     // Get our ideal size for current text
-    NSSize textSize = [self cellSizeForBounds:theRect];
+    NSSize textSize = [self cellSize];
     
     // Center that in the proposed rect
     float heightDelta = newRect.size.height - textSize.height;
-    if (heightDelta > 0)
-    {
-      newRect.size.height -= heightDelta;
-      newRect.origin.y += (heightDelta / 2);
-    }
+    
+    newRect.size.height -= heightDelta;
+    newRect.origin.y += (heightDelta / 2);
   }
   
   return newRect;
@@ -449,17 +449,20 @@ extern StaticStorage<CoreTextFontDescriptor> sFontDescriptorCache;
 
 - (id) initWithIGraphics: (IGraphicsMac*) pGraphics
 {
-  TRACE;
+  TRACE
 
   mGraphics = pGraphics;
   NSRect r = NSMakeRect(0.f, 0.f, (float) pGraphics->WindowWidth(), (float) pGraphics->WindowHeight());
   self = [super initWithFrame:r];
   
+  mMouseOutDuringDrag = false;
+    
 #if defined IGRAPHICS_NANOVG || defined IGRAPHICS_SKIA
   if (!self.wantsLayer) {
     #if defined IGRAPHICS_METAL
     self.layer = [CAMetalLayer new];
     [(CAMetalLayer*)[self layer] setPixelFormat:MTLPixelFormatBGRA8Unorm];
+    ((CAMetalLayer*) self.layer).device = MTLCreateSystemDefaultDevice();
     #elif defined IGRAPHICS_GL
     self.layer = [[IGRAPHICS_GLLAYER alloc] initWithIGraphicsView:self];
     self.wantsBestResolutionOpenGLSurface = YES;
@@ -479,7 +482,11 @@ extern StaticStorage<CoreTextFontDescriptor> sFontDescriptorCache;
 }
 
 - (void)dealloc
-{  
+{
+  if([NSColorPanel sharedColorPanelExists])
+    [[NSColorPanel sharedColorPanel] close];
+  
+  mColorPickerFunc = nullptr;
   [mMoveCursor release];
   [mTrackingArea release];
   [[NSNotificationCenter defaultCenter] removeObserver:self];
@@ -550,7 +557,9 @@ extern StaticStorage<CoreTextFontDescriptor> sFontDescriptorCache;
   
   CGFloat newScale = [pWindow backingScaleFactor];
   
-  if (mGraphics->GetDrawContext() && newScale != mGraphics->GetScreenScale())
+  mGraphics->SetPlatformContext(nullptr);
+  
+  if (newScale != mGraphics->GetScreenScale())
     mGraphics->SetScreenScale(newScale);
 
 #if defined IGRAPHICS_GL
@@ -563,10 +572,8 @@ extern StaticStorage<CoreTextFontDescriptor> sFontDescriptorCache;
 
 - (CGContextRef) getCGContextRef
 {
-  CGContextRef pCGC = (CGContextRef) [[NSGraphicsContext currentContext] graphicsPort];
-  NSGraphicsContext* gc = [NSGraphicsContext graphicsContextWithGraphicsPort: pCGC flipped: YES];
-  pCGC = (CGContextRef) [gc graphicsPort];
-  return pCGC;
+  CGContextRef pCGC = [NSGraphicsContext currentContext].CGContext;
+  return [NSGraphicsContext graphicsContextWithCGContext: pCGC flipped: YES].CGContext;
 }
 
 // not called for layer backed views
@@ -609,14 +616,14 @@ extern StaticStorage<CoreTextFontDescriptor> sFontDescriptorCache;
   
   if (mGraphics->IsDirty(mDirtyRects))
   {
+    mGraphics->SetAllControlsClean();
+      
 #ifdef IGRAPHICS_GL
     [self.layer setNeedsDisplay];
 #else
     [self render];
 #endif
   }
-  
-  mGraphics->SetAllControlsClean();
 }
 
 - (void) getMouseXY: (NSEvent*) pEvent x: (float&) pX y: (float&) pY
@@ -668,12 +675,26 @@ extern StaticStorage<CoreTextFontDescriptor> sFontDescriptorCache;
 
 - (void) mouseEntered: (NSEvent *)event
 {
-  mGraphics->OnSetCursor();
+  mMouseOutDuringDrag = false;
+  if (mGraphics)
+  {
+    mGraphics->OnSetCursor();
+  }
 }
 
 - (void) mouseExited: (NSEvent *)event
 {
-  mGraphics->OnMouseOut();
+  if (mGraphics)
+  {
+    if (!mGraphics->ControlIsCaptured())
+    {
+      mGraphics->OnMouseOut();
+    }
+    else
+    {
+      mMouseOutDuringDrag = true;
+    }
+  }
 }
 
 - (void) mouseDown: (NSEvent*) pEvent
@@ -681,13 +702,14 @@ extern StaticStorage<CoreTextFontDescriptor> sFontDescriptorCache;
   IMouseInfo info = [self getMouseLeft:pEvent];
   if (mGraphics)
   {
-    if ([pEvent clickCount] > 1)
+    if (([pEvent clickCount] - 1) % 2)
     {
       mGraphics->OnMouseDblClick(info.x, info.y, info.ms);
     }
     else
     {
-      mGraphics->OnMouseDown(info.x, info.y, info.ms);
+      std::vector<IMouseInfo> list {info};
+      mGraphics->OnMouseDown(list);
     }
   }
 }
@@ -696,7 +718,16 @@ extern StaticStorage<CoreTextFontDescriptor> sFontDescriptorCache;
 {
   IMouseInfo info = [self getMouseLeft:pEvent];
   if (mGraphics)
-    mGraphics->OnMouseUp(info.x, info.y, info.ms);
+  {
+    std::vector<IMouseInfo> list {info};
+    mGraphics->OnMouseUp(list);
+
+    if (mMouseOutDuringDrag)
+    {
+      mGraphics->OnMouseOut();
+      mMouseOutDuringDrag = false;
+    }
+  }
 }
 
 - (void) mouseDragged: (NSEvent*) pEvent
@@ -705,22 +736,33 @@ extern StaticStorage<CoreTextFontDescriptor> sFontDescriptorCache;
   float prevX = mPrevX;
   float prevY = mPrevY;
   IMouseInfo info = [self getMouseLeft:pEvent];
-  if (mGraphics && !mGraphics->IsInTextEntry())
-    mGraphics->OnMouseDrag(info.x, info.y, info.x - prevX, info.y - prevY, info.ms);
+  if (mGraphics && !mGraphics->IsInPlatformTextEntry())
+  {
+    info.dX = info.x - prevX;
+    info.dY = info.y - prevY;
+    std::vector<IMouseInfo> list {info};
+    mGraphics->OnMouseDrag(list);
+  }
 }
 
 - (void) rightMouseDown: (NSEvent*) pEvent
 {
   IMouseInfo info = [self getMouseRight:pEvent];
   if (mGraphics)
-    mGraphics->OnMouseDown(info.x, info.y, info.ms);
+  {
+    std::vector<IMouseInfo> list {info};
+    mGraphics->OnMouseDown(list);
+  }
 }
 
 - (void) rightMouseUp: (NSEvent*) pEvent
 {
   IMouseInfo info = [self getMouseRight:pEvent];
   if (mGraphics)
-    mGraphics->OnMouseUp(info.x, info.y, info.ms);
+  {
+    std::vector<IMouseInfo> list {info};
+    mGraphics->OnMouseUp(list);
+  }
 }
 
 - (void) rightMouseDragged: (NSEvent*) pEvent
@@ -731,7 +773,12 @@ extern StaticStorage<CoreTextFontDescriptor> sFontDescriptorCache;
   IMouseInfo info = [self getMouseRight:pEvent];
 
   if (mGraphics && !mTextFieldView)
-    mGraphics->OnMouseDrag(info.x, info.y, info.x - prevX, info.y - prevY, info.ms);
+  {
+    info.dX = info.x - prevX;
+    info.dY = info.y - prevY;
+    std::vector<IMouseInfo> list {info};
+    mGraphics->OnMouseDrag(list);
+  }
 }
 
 - (void) mouseMoved: (NSEvent*) pEvent
@@ -986,7 +1033,7 @@ static void MakeCursorFromName(NSCursor*& cursor, const char *name)
 {
   IGRAPHICS_MENU_RCVR* pDummyView = [[[IGRAPHICS_MENU_RCVR alloc] initWithFrame:bounds] autorelease];
   NSMenu* pNSMenu = [[[IGRAPHICS_MENU alloc] initWithIPopupMenuAndReciever:&menu : pDummyView] autorelease];
-  NSPoint wp = {bounds.origin.x, bounds.origin.y - 4};
+  NSPoint wp = {bounds.origin.x, bounds.origin.y + 4};
 
   [pNSMenu popUpMenuPositioningItem:nil atLocation:wp inView:self];
   
@@ -1001,7 +1048,8 @@ static void MakeCursorFromName(NSCursor*& cursor, const char *name)
     pIPopupMenu->SetChosenItemIdx((int) chosenItemIdx);
     return pIPopupMenu;
   }
-  else return nullptr;
+  else
+    return nullptr;
 }
 
 - (void) createTextEntry: (int) paramIdx : (const IText&) text : (const char*) str : (int) length : (NSRect) areaRect;
@@ -1020,8 +1068,9 @@ static void MakeCursorFromName(NSCursor*& cursor, const char *name)
   }
 
   CoreTextFontDescriptor* CTFontDescriptor = CoreTextHelpers::GetCTFontDescriptor(text, sFontDescriptorCache);
-  NSFontDescriptor* fontDescriptor = (NSFontDescriptor*) CTFontDescriptor->mDescriptor;
-  NSFont* font = [NSFont fontWithDescriptor: fontDescriptor size: text.mSize * 0.75];
+  double ratio = CTFontDescriptor->GetEMRatio() * mGraphics->GetDrawScale();
+  NSFontDescriptor* fontDescriptor = (NSFontDescriptor*) CTFontDescriptor->GetDescriptor();
+  NSFont* font = [NSFont fontWithDescriptor: fontDescriptor size: text.mSize * ratio];
   [mTextFieldView setFont: font];
   
   switch (text.mAlign)
@@ -1099,16 +1148,16 @@ static void MakeCursorFromName(NSCursor*& cursor, const char *name)
 
 - (BOOL) promptForColor: (IColor&) color : (IColorPickerHandlerFunc) func;
 {
-  NSColorPanel* colorPicker = [NSColorPanel sharedColorPanel];
+  NSColorPanel* colorPanel = [NSColorPanel sharedColorPanel];
   mColorPickerFunc = func;
 
-  [colorPicker setShowsAlpha:TRUE];
-  [colorPicker setColor:ToNSColor(color)];
-  [colorPicker setTarget:self];
-  [colorPicker setAction:@selector(onColorPicked:)];
-  [colorPicker orderFront:nil];
-  
-  return colorPicker != nil;
+  [colorPanel setTarget:self];
+  [colorPanel setShowsAlpha: TRUE];
+  [colorPanel setAction:@selector(onColorPicked:)];
+  [colorPanel setColor:ToNSColor(color)];
+  [colorPanel orderFront:nil];
+
+  return colorPanel != nil;
 }
 
 - (void) onColorPicked: (NSColorPanel*) colorPanel

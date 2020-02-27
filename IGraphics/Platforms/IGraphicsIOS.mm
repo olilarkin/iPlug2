@@ -21,41 +21,64 @@
 
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
+BEGIN_IPLUG_NAMESPACE
+BEGIN_IGRAPHICS_NAMESPACE
+
+void GetScreenDimensions(int& width, int& height)
+{
+  CGRect bounds = [[UIScreen mainScreen] bounds];
+  width = bounds.size.width;
+  height = bounds.size.height;
+}
+
+END_IGRAPHICS_NAMESPACE
+END_IPLUG_NAMESPACE
+
+using namespace iplug;
+using namespace igraphics;
+
 StaticStorage<CoreTextFontDescriptor> sFontDescriptorCache;
 
 #pragma mark -
 
-std::map<std::string, void*> gTextureMap;
+std::map<std::string, MTLTexturePtr> gTextureMap;
+NSArray<id<MTLTexture>>* gTextures;
 
 IGraphicsIOS::IGraphicsIOS(IGEditorDelegate& dlg, int w, int h, int fps, float scale)
-: IGraphicsNanoVG(dlg, w, h, fps, scale)
+: IGRAPHICS_DRAW_CLASS(dlg, w, h, fps, scale)
 {
  
+#ifdef IGRAPHICS_METAL
   if(!gTextureMap.size())
   {
-    MTKTextureLoader* textureLoader = [[MTKTextureLoader alloc] initWithDevice:MTLCreateSystemDefaultDevice()];
-
     NSBundle* pBundle = [NSBundle mainBundle];
-   
-    if([[pBundle bundleIdentifier] containsString:@"AUv3"])
-    {
+
+    if(IsAuv3AppExtension())
       pBundle = [NSBundle bundleWithPath: [[[pBundle bundlePath] stringByDeletingLastPathComponent] stringByDeletingLastPathComponent]];
-    }
     
-    NSArray<NSURL*>* textureFiles = [pBundle URLsForResourcesWithExtension:@"ktx" subdirectory:@""];
-
-    NSError* pError = nil;
-    NSDictionary* textureOptions = @{ MTKTextureLoaderOptionSRGB: [[NSNumber alloc] initWithBool:NO] };
-
-    NSArray<id<MTLTexture>>* textures = [textureLoader newTexturesWithContentsOfURLs:textureFiles options:textureOptions error:&pError];
-
-    for(int i=0; i < textures.count; i++)
+    NSArray<NSURL*>* pTextureFiles = [pBundle URLsForResourcesWithExtension:@"ktx" subdirectory:@""];
+    
+    if ([pTextureFiles count])
     {
-      gTextureMap.insert(std::make_pair([[[textureFiles[i] lastPathComponent] stringByDeletingPathExtension] cStringUsingEncoding:NSUTF8StringEncoding], textures[i]));
-    }
+      MTKTextureLoader* textureLoader = [[MTKTextureLoader alloc] initWithDevice:MTLCreateSystemDefaultDevice()];
+      
+      NSError* pError = nil;
+      NSDictionary* textureOptions = @{ MTKTextureLoaderOptionSRGB: [NSNumber numberWithBool:NO] };
+
+      gTextures = [textureLoader newTexturesWithContentsOfURLs:pTextureFiles options:textureOptions error:&pError];
     
-    DBGMSG("Loaded %i textures\n", (int) textures.count);
+      for(int i=0; i < gTextures.count; i++)
+      {
+        gTextureMap.insert(std::make_pair([[[pTextureFiles[i] lastPathComponent] stringByDeletingPathExtension] cStringUsingEncoding:NSUTF8StringEncoding], (MTLTexturePtr) gTextures[i]));
+      }
+    
+      DBGMSG("Preloaded %i textures", (int) [pTextureFiles count]);
+    
+      [textureLoader release];
+      textureLoader = nil;
+    }
   }
+#endif
 }
 
 IGraphicsIOS::~IGraphicsIOS()
@@ -65,17 +88,19 @@ IGraphicsIOS::~IGraphicsIOS()
 
 void* IGraphicsIOS::OpenWindow(void* pParent)
 {
-  TRACE;
+  TRACE
   CloseWindow();
-  IGraphicsIOS_View* view = (IGraphicsIOS_View*) [[IGraphicsIOS_View alloc] initWithIGraphics: this];
-  mView = view;
+  IGRAPHICS_VIEW* view = [[IGRAPHICS_VIEW alloc] initWithIGraphics: this];
+  mView = (void*) view;
   
-  OnViewInitialized([view layer]);
+  OnViewInitialized((void*) [view metalLayer]);
   
   SetScreenScale([UIScreen mainScreen].scale);
   
   GetDelegate()->LayoutUI(this);
   GetDelegate()->OnUIOpen();
+  
+  [view setMultipleTouchEnabled:MultiTouchEnabled()];
 
   if (pParent)
   {
@@ -99,9 +124,10 @@ void IGraphicsIOS::CloseWindow()
     }
 #endif
     
-    IGraphicsIOS_View* view = (IGraphicsIOS_View*) mView;
-    [view removeFromSuperview];
-    [view release];
+    IGRAPHICS_VIEW* pView = (IGRAPHICS_VIEW*) mView;
+    [pView removeFromSuperview];
+    [pView release];
+    mView = nullptr;
 
     OnViewDestroyed();
   }
@@ -123,15 +149,21 @@ void IGraphicsIOS::PlatformResize(bool parentHasResized)
 EMsgBoxResult IGraphicsIOS::ShowMessageBox(const char* str, const char* caption, EMsgBoxType type, IMsgBoxCompletionHanderFunc completionHandler)
 {
   ReleaseMouseCapture();
-  [(IGraphicsIOS_View*) mView showMessageBox:str :caption :type :completionHandler];
+  [(IGRAPHICS_VIEW*) mView showMessageBox:str :caption :type :completionHandler];
   return EMsgBoxResult::kNoResult; // we need to rely on completionHandler
+}
+
+void IGraphicsIOS::AttachGestureRecognizer(EGestureType type)
+{
+  IGraphics::AttachGestureRecognizer(type);
+  [(IGRAPHICS_VIEW*) mView attachGestureRecognizer:type];
 }
 
 void IGraphicsIOS::ForceEndUserEdit()
 {
   if (mView)
   {
-    [(IGraphicsIOS_View*) mView endUserInput];
+    [(IGRAPHICS_VIEW*) mView endUserInput];
   }
 }
 
@@ -153,14 +185,14 @@ bool IGraphicsIOS::PromptForColor(IColor& color, const char* str, IColorPickerHa
   return false;
 }
 
-IPopupMenu* IGraphicsIOS::CreatePlatformPopupMenu(IPopupMenu& menu, const IRECT& bounds)
+IPopupMenu* IGraphicsIOS::CreatePlatformPopupMenu(IPopupMenu& menu, const IRECT& bounds, bool& isAsync)
 {
   IPopupMenu* pReturnMenu = nullptr;
-  
+  isAsync = true;
   if (mView)
   {
     CGRect areaRect = ToCGRect(this, bounds);
-    pReturnMenu = [(IGraphicsIOS_View*) mView createPopupMenu: menu: areaRect];
+    pReturnMenu = [(IGRAPHICS_VIEW*) mView createPopupMenu: menu: areaRect];
   }
   
   //synchronous
@@ -174,11 +206,28 @@ void IGraphicsIOS::CreatePlatformTextEntry(int paramIdx, const IText& text, cons
 {
   ReleaseMouseCapture();
   CGRect areaRect = ToCGRect(this, bounds);
-  [(IGraphicsIOS_View*) mView createTextEntry: paramIdx : text: str: length: areaRect];
+  [(IGRAPHICS_VIEW*) mView createTextEntry: paramIdx : text: str: length: areaRect];
 }
 
 bool IGraphicsIOS::OpenURL(const char* url, const char* msgWindowTitle, const char* confirmMsg, const char* errMsgOnFailure)
 {
+  NSURL* pNSURL = nullptr;
+  if (strstr(url, "http"))
+    pNSURL = [NSURL URLWithString:[NSString stringWithCString:url encoding:NSUTF8StringEncoding]];
+  else
+    pNSURL = [NSURL fileURLWithPath:[NSString stringWithCString:url encoding:NSUTF8StringEncoding]];
+
+  if (pNSURL)
+  {
+    UIResponder* pResponder = (UIResponder*) mView;
+    while(pResponder) {
+      if ([pResponder respondsToSelector: @selector(openURL:)])
+        [pResponder performSelector: @selector(openURL:) withObject: pNSURL];
+
+      pResponder = [pResponder nextResponder];
+    }
+    return true;
+  }
   return false;
 }
 
@@ -234,3 +283,18 @@ void IGraphicsIOS::CachePlatformFont(const char* fontID, const PlatformFontPtr& 
 {
   CoreTextHelpers::CachePlatformFont(fontID, font, sFontDescriptorCache);
 }
+
+void IGraphicsIOS::LaunchBluetoothMidiDialog(float x, float y)
+{
+  ReleaseMouseCapture();
+  NSDictionary* dic = @{@"x": @(x), @"y": @(y)};
+  [[NSNotificationCenter defaultCenter] postNotificationName:@"LaunchBTMidiDialog" object:nil userInfo:dic];
+}
+
+#if defined IGRAPHICS_NANOVG
+  #include "IGraphicsNanoVG.cpp"
+#elif defined IGRAPHICS_SKIA
+  #include "IGraphicsSkia.cpp"
+#else
+  #error Either NO_IGRAPHICS or one and only one choice of graphics library must be defined!
+#endif

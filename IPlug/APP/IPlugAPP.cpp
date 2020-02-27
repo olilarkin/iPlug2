@@ -15,15 +15,17 @@
 #include <IPlugSWELL.h>
 #endif
 
+using namespace iplug;
+
 extern HWND gHWND;
 
-IPlugAPP::IPlugAPP(IPlugInstanceInfo instanceInfo, IPlugConfig c)
-: IPlugAPIBase(c, kAPIAPP)
-, IPlugProcessor<PLUG_SAMPLE_DST>(c, kAPIAPP)
+IPlugAPP::IPlugAPP(const InstanceInfo& info, const Config& config)
+: IPlugAPIBase(config, kAPIAPP)
+, IPlugProcessor(config, kAPIAPP)
 {
-  mAppHost = (IPlugAPPHost*) instanceInfo.pAppHost;
+  mAppHost = (IPlugAPPHost*) info.pAppHost;
   
-  Trace(TRACELOC, "%s%s", c.pluginName, c.channelIOStr);
+  Trace(TRACELOC, "%s%s", config.pluginName, config.channelIOStr);
 
   SetChannelConnections(ERoute::kInput, 0, MaxNChannels(ERoute::kInput), true);
   SetChannelConnections(ERoute::kOutput, 0, MaxNChannels(ERoute::kOutput), true);
@@ -33,7 +35,7 @@ IPlugAPP::IPlugAPP(IPlugInstanceInfo instanceInfo, IPlugConfig c)
   CreateTimer();
 }
 
-bool IPlugAPP::EditorResizeFromDelegate(int viewWidth, int viewHeight)
+bool IPlugAPP::EditorResize(int viewWidth, int viewHeight)
 {
   bool parentResized = false;
     
@@ -46,7 +48,7 @@ bool IPlugAPP::EditorResizeFromDelegate(int viewWidth, int viewHeight)
     SetWindowPos(gHWND, 0, r.left, r.bottom - viewHeight - TITLEBAR_BODGE, viewWidth, viewHeight + TITLEBAR_BODGE, 0);
     parentResized = true;
     #endif
-    IPlugAPIBase::EditorResizeFromDelegate(viewWidth, viewHeight);
+    SetEditorSize(viewWidth, viewHeight);
   }
   
   return parentResized;
@@ -142,5 +144,7 @@ void IPlugAPP::AppProcess(double** inputs, double** outputs, int nFrames)
 
   //Do not handle Sysex messages here - SendSysexMsgFromUI overridden
 
+  ENTER_PARAMS_MUTEX
   ProcessBuffers(0.0, GetBlockSize());
+  LEAVE_PARAMS_MUTEX
 }

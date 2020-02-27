@@ -34,25 +34,34 @@
 
 #include "IGraphicsPathBase.h"
 
-/** A Cairo API bitmap
- * @ingroup APIBitmaps */
-class CairoBitmap : public APIBitmap
-{
-public:
-  CairoBitmap(cairo_surface_t* pSurface, int scale, float drawScale);
-  CairoBitmap(cairo_surface_t* pSurfaceType, int width, int height, int scale, float drawScale);
-  virtual ~CairoBitmap();
-};
+BEGIN_IPLUG_NAMESPACE
+BEGIN_IGRAPHICS_NAMESPACE
+
+/** Converts IBlend to a cairo_operator_t */
+cairo_operator_t CairoBlendMode(const IBlend* pBlend);
+
+/** Set the source color on a cairo context based on IColor */
+void CairoSetSourceColor(cairo_t* pContext, const IColor& color, const IBlend* pBlend = 0);
+
+/** Set the source pattern on a cairo context based on IPattern */
+void CairoSetSourcePattern(cairo_t* pContext, const IPattern& pattern, const IBlend* pBlend = 0);
 
 /** IGraphics draw class using Cairo
 *   @ingroup DrawClasses */
 class IGraphicsCairo : public IGraphicsPathBase
 {
+private:
+  class Bitmap;
+  class Font;
+  struct OSFont;
+#ifdef OS_WIN
+  class PNGStream;
+#endif
 public:
-  const char* GetDrawingAPIStr() override { return "CAIRO"; }
-
   IGraphicsCairo(IGEditorDelegate& dlg, int w, int h, int fps, float scale);
   ~IGraphicsCairo();
+
+  const char* GetDrawingAPIStr() override { return "CAIRO"; }
 
   void DrawBitmap(const IBitmap& bitmap, const IRECT& dest, int srcX, int srcY, const IBlend* pBlend) override;
       
@@ -89,8 +98,6 @@ protected:
     
   void DoMeasureText(const IText& text, const char* str, IRECT& bounds) const override;
   void DoDrawText(const IText& text, const char* str, const IRECT& bounds, const IBlend* pBlend) override;
-
-  void SetCairoSourcePattern(cairo_t* context, const IPattern& pattern, const IBlend* pBlend);
   
 private:
     
@@ -108,4 +115,10 @@ private:
     
   cairo_t* mContext;
   cairo_surface_t* mSurface;
+
+  static StaticStorage<Font> sFontCache;
 };
+
+END_IGRAPHICS_NAMESPACE
+END_IPLUG_NAMESPACE
+

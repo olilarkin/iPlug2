@@ -14,6 +14,7 @@
 #define BUNDLE_DOMAIN "com"
 
 #define PLUG_CHANNEL_IO "0-2"
+#define SHARED_RESOURCES_SUBPATH "IGraphicsTest"
 
 #define PLUG_LATENCY 0
 #define PLUG_TYPE 1
@@ -22,8 +23,8 @@
 #define PLUG_DOES_MPE 0
 #define PLUG_DOES_STATE_CHUNKS 0
 #define PLUG_HAS_UI 1
-#define PLUG_WIDTH 950
-#define PLUG_HEIGHT 650
+#define PLUG_WIDTH 1024
+#define PLUG_HEIGHT 768
 #define PLUG_FPS 60
 #define PLUG_SHARED_RESOURCES 0
 
@@ -55,3 +56,5 @@
 #define ORBS_FN "orbs.svg"
 #define SMILEY_FN "smiley.png"
 #define IPLUG_FN "iplug.png"
+#define SRC_FN "src.png"
+#define DST_FN "dst.png"

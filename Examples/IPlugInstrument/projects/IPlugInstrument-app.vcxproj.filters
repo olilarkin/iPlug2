@@ -128,6 +128,9 @@
     <ClInclude Include="..\..\..\IGraphics\IGraphicsStructs.h">
       <Filter>IGraphics</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\IGraphics\IGraphicsPrivate.h">
+      <Filter>IGraphics</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\IGraphics\IGraphicsUtilities.h">
       <Filter>IGraphics</Filter>
     </ClInclude>
@@ -299,6 +302,9 @@
     </ClInclude>
     <ClInclude Include="..\..\..\IGraphics\Drawing\IGraphicsSkia.h">
       <Filter>IGraphics\Drawing</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\IPlug\IPlugPluginBase.h">
+      <Filter>IPlug</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

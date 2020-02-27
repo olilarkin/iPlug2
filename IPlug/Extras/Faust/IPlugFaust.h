@@ -25,13 +25,15 @@
 
 #include "Oversampler.h"
 
-#ifndef DEFAULT_FAUST_LIBRARY_PATH
+#ifndef FAUST_LIBRARY_PATH
   #if defined OS_MAC || defined OS_LINUX
-    #define DEFAULT_FAUST_LIBRARY_PATH "/usr/local/share/faust/"
+    #define FAUST_LIBRARY_PATH "/usr/local/share/faust/"
   #else
-   #define DEFAULT_FAUST_LIBRARY_PATH "C:\\Program Files\\Faust\\share\\faust"
+   #define FAUST_LIBRARY_PATH "C:\\Program Files\\Faust\\share\\faust"
   #endif
 #endif
+
+BEGIN_IPLUG_NAMESPACE
 
 /** This abstract interface is used by the IPlug FAUST architecture file and the IPlug libfaust JIT compiling class FaustGen
  * In order to provide a consistent interface to FAUST DSP whether using the JIT compiler or a compiled C++ class */
@@ -53,6 +55,9 @@ public:
     mParams.Empty(true);
   }
 
+  IPlugFaust(const IPlugFaust&) = delete;
+  IPlugFaust& operator=(const IPlugFaust&) = delete;
+    
   virtual void Init() = 0;
 
   // NO-OP in the base class
@@ -285,7 +290,7 @@ protected:
       mMap.Insert(mParams.Get(p)->GetNameForHost(), mZones.Get(p)); // insert will overwrite keys with the same name
     }
     
-    if(mIPlugParamStartIdx > -1 && mPlug != nullptr) // if we've allready linked parameters
+    if(mIPlugParamStartIdx > -1 && mPlug != nullptr) // if we've already linked parameters
     {
       CreateIPlugParameters(mPlug, mIPlugParamStartIdx);
     }
@@ -322,3 +327,4 @@ protected:
   bool mInitialized = false;
 };
 
+END_IPLUG_NAMESPACE

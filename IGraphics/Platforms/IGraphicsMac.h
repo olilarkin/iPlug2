@@ -15,6 +15,9 @@
 #include "IGraphics_select.h"
 #include "IGraphicsCoreText.h"
 
+BEGIN_IPLUG_NAMESPACE
+BEGIN_IGRAPHICS_NAMESPACE
+
 /** IGraphics platform class for macOS
 *   @ingroup PlatformClasses */
 class IGraphicsMac final : public IGRAPHICS_DRAW_CLASS
@@ -24,8 +27,6 @@ public:
   virtual ~IGraphicsMac();
 
   void SetBundleID(const char* bundleID) { mBundleID.Set(bundleID); }
-
-  bool IsSandboxed();
 
   void* OpenWindow(void* pWindow) override;
   void CloseWindow() override;
@@ -70,7 +71,7 @@ public:
 protected:
   void CreatePlatformImGui() override;
 
-  IPopupMenu* CreatePlatformPopupMenu(IPopupMenu& menu, const IRECT& bounds) override;
+  IPopupMenu* CreatePlatformPopupMenu(IPopupMenu& menu, const IRECT& bounds, bool& isAsync) override;
   void CreatePlatformTextEntry(int paramIdx, const IText& text, const IRECT& bounds, int length, const char* str) override;
 private:
   PlatformFontPtr LoadPlatformFont(const char* fontID, const char* fileNameOrResID) override;
@@ -86,3 +87,6 @@ private:
   WDL_String mBundleID;
   friend int GetMouseOver(IGraphicsMac* pGraphics);
 };
+
+END_IGRAPHICS_NAMESPACE
+END_IPLUG_NAMESPACE

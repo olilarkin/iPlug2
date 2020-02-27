@@ -2,8 +2,8 @@
 #include "IPlug_include_in_plug_src.h"
 #include "IControls.h"
 
-IPlugMidiEffect::IPlugMidiEffect(IPlugInstanceInfo instanceInfo)
-: IPLUG_CTOR(kNumParams, kNumPrograms, instanceInfo)
+IPlugMidiEffect::IPlugMidiEffect(const InstanceInfo& info)
+: Plugin(info, MakeConfig(kNumParams, kNumPrograms))
 {
   GetParam(kParamGain)->InitDouble("Gain", 100., 0., 100.0, 0.01, "%");
   
@@ -11,7 +11,7 @@ IPlugMidiEffect::IPlugMidiEffect(IPlugInstanceInfo instanceInfo)
   SetTailSize(4410000);
 #endif
   
-#if IPLUG_EDITOR // All UI methods and member variables should be within an IPLUG_EDITOR guard, should you want distributed UI
+#if IPLUG_EDITOR // http://bit.ly/2S64BDd
   mMakeGraphicsFunc = [&]() {
     return MakeGraphics(*this, PLUG_WIDTH, PLUG_HEIGHT, PLUG_FPS, 1.);
   };

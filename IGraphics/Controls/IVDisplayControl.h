@@ -16,6 +16,9 @@
 
 #include "IControl.h"
 
+BEGIN_IPLUG_NAMESPACE
+BEGIN_IGRAPHICS_NAMESPACE
+
 /**  */
 class IVDisplayControl : public IControl
                        , public IVectorBase
@@ -47,10 +50,10 @@ public:
   {
     SetTargetRECT(MakeRects(mRECT));
     
-    mPlotBounds = mWidgetBounds.GetPadded(mDirection == EDirection::Horizontal ? 0. : -mStrokeThickness,
-                                mDirection == EDirection::Horizontal ? -mStrokeThickness : 0.,
-                                mDirection == EDirection::Horizontal ? 0. : -mStrokeThickness,
-                                mDirection == EDirection::Horizontal ? -mStrokeThickness : 0.);
+    mPlotBounds = mWidgetBounds.GetPadded(mDirection == EDirection::Horizontal ? 0.f : -mStrokeThickness,
+                                mDirection == EDirection::Horizontal ? -mStrokeThickness : 0.f,
+                                mDirection == EDirection::Horizontal ? 0.f : -mStrokeThickness,
+                                mDirection == EDirection::Horizontal ? -mStrokeThickness : 0.f);
     
     SetDirty(false);
   }
@@ -62,7 +65,7 @@ public:
     DrawLabel(g);
     
     if(mStyle.drawFrame)
-      g.DrawRect(GetColor(kFR), mWidgetBounds, nullptr, mStyle.frameThickness);
+      g.DrawRect(GetColor(kFR), mWidgetBounds, &mBlend, mStyle.frameThickness);
   }
 
   void DrawWidget(IGraphics& g) override
@@ -105,7 +108,7 @@ public:
     
     g.PathClipRegion();
     
-    g.PathStroke(IPattern::CreateLinearGradient(mPlotBounds, mDirection, {{COLOR_TRANSPARENT, 0.f}, {GetColor(kX1), 1.f}}), mStrokeThickness);
+    g.PathStroke(IPattern::CreateLinearGradient(mPlotBounds, mDirection, {{COLOR_TRANSPARENT, 0.f}, {GetColor(kX1), 1.f}}), mStrokeThickness, IStrokeOptions(), &mBlend);
   }
 private:
   std::vector<float> mBuffer;
@@ -117,3 +120,5 @@ private:
   IRECT mPlotBounds;
 };
 
+END_IGRAPHICS_NAMESPACE
+END_IPLUG_NAMESPACE

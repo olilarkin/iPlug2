@@ -12,6 +12,10 @@
 
 #include <cstring>
 #include <cstdint>
+#include <ctime>
+#include <cmath>
+#include <cstdio>
+#include <cassert>
 #include <memory>
 
 #include "ptrlist.h"
@@ -27,21 +31,23 @@
  * @copydoc IPlugProcessor
 */
 
-struct IPlugConfig;
+BEGIN_IPLUG_NAMESPACE
 
-//TODO: can we replace this templated class with typdefs in order to avoid #including .cpp nastiness
+struct Config;
 
 /** The base class for IPlug Audio Processing. It knows nothing about presets or parameters or user interface.  */
-template<typename T>
 class IPlugProcessor
 {
 public:
   /** IPlugProcessor constructor
    * @param config /todo
    * @param plugAPI /todo */
-  IPlugProcessor(IPlugConfig config, EAPI plugAPI);
+  IPlugProcessor(const Config& config, EAPI plugAPI);
   virtual ~IPlugProcessor();
 
+  IPlugProcessor(const IPlugProcessor&) = delete;
+  IPlugProcessor& operator=(const IPlugProcessor&) = delete;
+  
 #pragma mark - Methods you implement in your plug-in class - you do not call these methods
 
   /** Override in your plug-in class to process audio
@@ -52,7 +58,7 @@ public:
    * @param inputs Two-dimensional array containing the non-interleaved input buffers of audio samples for all channels
    * @param outputs Two-dimensional array for audio output (non-interleaved).
    * @param nFrames The block size for this block: number of samples per channel.*/
-  virtual void ProcessBlock(T** inputs, T** outputs, int nFrames);
+  virtual void ProcessBlock(sample** inputs, sample** outputs, int nFrames);
 
   /** Override this method to handle incoming MIDI messages. The method is called prior to ProcessBlock().
    * You can use IMidiQueue in combination with this method in order to queue the message and process at the appropriate time in ProcessBlock()
@@ -65,13 +71,13 @@ public:
   virtual void ProcessSysEx(ISysEx& msg) {}
 
   /** Override this method in your plug-in class to do something prior to playback etc. (e.g.clear buffers, update internal DSP with the latest sample rate) */
-  virtual void OnReset() { TRACE; }
+  virtual void OnReset() { TRACE }
 
   /** Override OnActivate() which should be called by the API class when a plug-in is "switched on" by the host on a track when the channel count is known.
    * This may not work reliably because different hosts have different interpretations of "activate".
    * Unlike OnReset() which called when the transport is reset or the sample rate changes OnActivate() is a good place to handle change of I/O connections.
    * @param active \c true if the host has activated the plug-in */
-  virtual void OnActivate(bool active) { TRACE; }
+  virtual void OnActivate(bool active) { TRACE }
 
 #pragma mark - Methods you can call - some of which have custom implementations in the API classes, some implemented in IPlugProcessor.cpp
 
@@ -110,7 +116,7 @@ public:
 
 #pragma mark -
   /** @return The number of samples elapsed since start of project timeline. */
-  int GetSamplePos() const { return mTimeInfo.mSamplePos; }
+  double GetSamplePos() const { return mTimeInfo.mSamplePos; }
 
   /** @return The Tempo in beats per minute */
   double GetTempo() const { return mTimeInfo.mTempo; }
@@ -126,8 +132,8 @@ public:
   /** @return The number of channel I/O configs derived from the channel io string*/
   int NIOConfigs() const { return mIOConfigs.GetSize(); }
 
-  /** @return Pointer to an IOConfig at idx. Can return nullptr if idx is invalid */
-  IOConfig* GetIOConfig(int idx) const { return mIOConfigs.Get(idx); }
+  /** @return const Pointer to an IOConfig at idx. Can return nullptr if idx is invalid */
+  const IOConfig* GetIOConfig(int idx) const { return mIOConfigs.Get(idx); }
 
   /** Used to determine the maximum number of input or output buses based on what was specified in the channel I/O config string
    * @param direction Return input or output bus count
@@ -296,14 +302,14 @@ private:
   /** A list of IOConfig structures populated by ParseChannelIOStr in the IPlugProcessor constructor */
   WDL_PtrList<IOConfig> mIOConfigs;
   /* Manages pointers to the actual data for each channel */
-  WDL_TypedBuf<T*> mScratchData[2];
+  WDL_TypedBuf<sample*> mScratchData[2];
   /* A list of IChannelData structures corresponding to every input/output channel */
   WDL_PtrList<IChannelData<>> mChannelData[2];
 protected: // these members are protected because they need to be access by the API classes, and don't want a setter/getter
   /** A multichannel delay line used to delay the bypassed signal when a plug-in with latency is bypassed. */
-  std::unique_ptr<NChanDelayLine<T>> mLatencyDelay = nullptr;
+  std::unique_ptr<NChanDelayLine<sample>> mLatencyDelay = nullptr;
   /** Contains detailed information about the transport state */
   ITimeInfo mTimeInfo;
 };
 
-#include "IPlugProcessor.cpp"
+END_IPLUG_NAMESPACE

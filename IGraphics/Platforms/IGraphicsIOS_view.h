@@ -11,27 +11,79 @@
 #import <UIKit/UIKit.h>
 #include "IGraphicsIOS.h"
 
+BEGIN_IPLUG_NAMESPACE
+BEGIN_IGRAPHICS_NAMESPACE
+
 inline CGRect ToCGRect(IGraphics* pGraphics, const IRECT& bounds)
 {
-  float B = (pGraphics->Height() - bounds.B);
-  return CGRectMake(bounds.L, B, bounds.W(), bounds.H());
+  float scale = pGraphics->GetDrawScale();
+  float x = floor(bounds.L * scale);
+  float y = floor(bounds.T * scale);
+  float x2 = ceil(bounds.R * scale);
+  float y2 = ceil(bounds.B * scale);
+  
+  return CGRectMake(x, y, x2 - x, y2 - y);
 }
 
-@interface IGraphicsIOS_View : UIView
-{  
+inline UIColor* ToUIColor(const IColor& c)
+{
+  return [UIColor colorWithRed:(double) c.R / 255.0 green:(double) c.G / 255.0 blue:(double) c.B / 255.0 alpha:(double) c.A / 255.0];
+}
+
+inline IColor FromUIColor(const UIColor* c)
+{
+  CGFloat r,g,b,a;
+  [c getRed:&r green:&g blue:&b alpha:&a];
+  return IColor(a * 255., r * 255., g * 255., b * 255.);
+}
+
+END_IGRAPHICS_NAMESPACE
+END_IPLUG_NAMESPACE
+
+using namespace iplug;
+using namespace igraphics;
+
+@interface IGRAPHICS_UITABLEVC : UIViewController<UITableViewDataSource, UITableViewDelegate> // UITableViewController
+{
+  IPopupMenu* mMenu;
+  IGraphicsIOS* mGraphics;
+}
+@property (strong, nonatomic) UITableView* tableView;
+@property (strong, nonatomic) NSMutableArray* items;
+- (id) initWithIPopupMenuAndIGraphics: (IPopupMenu*) pMenu : (IGraphicsIOS*) pGraphics;
+
+@end
+
+@interface IGRAPHICS_VIEW : UIScrollView <UITextFieldDelegate, UIScrollViewDelegate, UIPopoverPresentationControllerDelegate, UIGestureRecognizerDelegate>
+{
 @public
   IGraphicsIOS* mGraphics;
+  IGRAPHICS_UITABLEVC* mMenuTableController;
+  UINavigationController* mMenuNavigationController;
+  UITextField* mTextField;
+  CAMetalLayer* mMTLLayer;
+  int mTextFieldLength;
 }
 - (id) initWithIGraphics: (IGraphicsIOS*) pGraphics;
 - (BOOL) isOpaque;
 - (BOOL) acceptsFirstResponder;
+- (BOOL) delaysContentTouches;
 - (void) removeFromSuperview;
-- (void) controlTextDidEndEditing: (NSNotification*) aNotification;
-- (IPopupMenu*) createPopupMenu: (const IPopupMenu&) menu : (CGRect) bounds;
+- (IPopupMenu*) createPopupMenu: (IPopupMenu&) menu : (CGRect) bounds;
 - (void) createTextEntry: (int) paramIdx : (const IText&) text : (const char*) str : (int) length : (CGRect) areaRect;
 - (void) endUserInput;
 - (void) showMessageBox: (const char*) str : (const char*) caption : (EMsgBoxType) type : (IMsgBoxCompletionHanderFunc) completionHandler;
-- (void) getTouchXY: (CGPoint) pt x: (float*) pX y: (float*) pY;
+
+- (void)presentationControllerDidDismiss: (UIPresentationController *) presentationController;
+
+//gestures
+- (void) attachGestureRecognizer: (EGestureType) type;
+-(BOOL) gestureRecognizer:(UIGestureRecognizer*) gestureRecognizer shouldReceiveTouch:(UITouch*)touch;
+- (void) onTapGesture: (UITapGestureRecognizer*) recognizer;
+- (void) onLongPressGesture: (UILongPressGestureRecognizer*) recognizer;
+- (void) onSwipeGesture: (UISwipeGestureRecognizer*) recognizer;
+- (void) onPinchGesture: (UIPinchGestureRecognizer*) recognizer;
+- (void) onRotateGesture: (UIRotationGestureRecognizer*) recognizer;
 @property (readonly) CAMetalLayer* metalLayer;
 @property (nonatomic, strong) CADisplayLink *displayLink;
 

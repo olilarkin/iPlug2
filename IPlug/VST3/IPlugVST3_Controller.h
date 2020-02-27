@@ -26,70 +26,74 @@
 #include "IPlugVST3_ControllerBase.h"
 #include "IPlugVST3_Common.h"
 
-using namespace Steinberg;
-using namespace Vst;
+BEGIN_IPLUG_NAMESPACE
 
 /**  VST3 Controller API-base class for a distributed IPlug VST3 plug-in
  *   @ingroup APIClasses */
-class IPlugVST3Controller : public EditControllerEx1
-                          , public IMidiMapping
+class IPlugVST3Controller : public Steinberg::Vst::EditControllerEx1
+                          , public Steinberg::Vst::IMidiMapping
                           , public IPlugAPIBase
                           , public IPlugVST3ControllerBase
 {
 public:
   using ViewType = IPlugVST3View<IPlugVST3Controller>;
   
-  struct IPlugInstanceInfo
+  struct InstanceInfo
   {
     Steinberg::FUID mOtherGUID;
   };
   
-  IPlugVST3Controller(IPlugInstanceInfo instanceInfo, IPlugConfig c);
+  IPlugVST3Controller(const InstanceInfo& info, const Config& config);
   virtual ~IPlugVST3Controller();
 
   // IEditController
-  tresult PLUGIN_API initialize(FUnknown* context) override;
-  IPlugView* PLUGIN_API createView(FIDString name) override;
-  tresult PLUGIN_API setComponentState(IBStream* pState) override; // receives the processor's state
-  tresult PLUGIN_API setState(IBStream* pState) override;
-  tresult PLUGIN_API getState(IBStream* pState) override;
+  Steinberg::tresult PLUGIN_API initialize(Steinberg::FUnknown* context) override;
+  Steinberg::IPlugView* PLUGIN_API createView(Steinberg::FIDString name) override;
+  Steinberg::tresult PLUGIN_API setComponentState(Steinberg::IBStream* pState) override; // receives the processor's state
+  Steinberg::tresult PLUGIN_API setState(Steinberg::IBStream* pState) override;
+  Steinberg::tresult PLUGIN_API getState(Steinberg::IBStream* pState) override;
   
-  ParamValue PLUGIN_API getParamNormalized (ParamID tag) override;
-  tresult PLUGIN_API setParamNormalized(ParamID tag, ParamValue value) override;
+  Steinberg::Vst::ParamValue PLUGIN_API getParamNormalized (Steinberg::Vst::ParamID tag) override;
+  Steinberg::tresult PLUGIN_API setParamNormalized(Steinberg::Vst::ParamID tag, Steinberg::Vst::ParamValue value) override;
   // ComponentBase
-  tresult PLUGIN_API notify(IMessage* message) override;
+  Steinberg::tresult PLUGIN_API notify(Steinberg::Vst::IMessage* message) override;
 
   // IMidiMapping
-  tresult PLUGIN_API getMidiControllerAssignment(int32 busIndex, int16 channel, CtrlNumber midiControllerNumber, ParamID& tag) override;
+  Steinberg::tresult PLUGIN_API getMidiControllerAssignment(Steinberg::int32 busIndex, Steinberg::int16 channel, Steinberg::Vst::CtrlNumber midiCCNumber, Steinberg::Vst::ParamID& tag) override;
 
   // IEditControllerEx
-  tresult PLUGIN_API getProgramName(ProgramListID listId, int32 programIndex, String128 name /*out*/) override;
+  Steinberg::tresult PLUGIN_API getProgramName(Steinberg::Vst::ProgramListID listId, Steinberg::int32 programIndex, Steinberg::Vst::String128 name /*out*/) override;
   
-  DELEGATE_REFCOUNT(EditControllerEx1)
-  tresult PLUGIN_API queryInterface(const char* iid, void** obj) override;
+  // Interface
+  OBJ_METHODS(IPlugVST3Controller, EditControllerEx1)
+  DEFINE_INTERFACES
+  DEF_INTERFACE(IMidiMapping)
+  END_DEFINE_INTERFACES(EditControllerEx1)
+  REFCOUNT_METHODS(EditControllerEx1)
   
   // IPlugAPIBase
   void BeginInformHostOfParamChange(int idx) override { beginEdit(idx); }
   void InformHostOfParamChange(int idx, double normalizedValue) override  { performEdit(idx, normalizedValue); }
   void EndInformHostOfParamChange(int idx) override  { endEdit(idx); }
   void InformHostOfProgramChange() override  { /* TODO: */}
-  bool EditorResizeFromDelegate(int viewWidth, int viewHeight) override;
+  bool EditorResize(int viewWidth, int viewHeight) override;
   void DirtyParametersFromUI() override;
   
   // IEditorDelegate
   void SendMidiMsgFromUI(const IMidiMsg& msg) override;
   void SendSysexMsgFromUI(const ISysEx& msg) override;
-  void SendArbitraryMsgFromUI(int messageTag, int controlTag = kNoTag, int dataSize = 0, const void* pData = nullptr) override;
+  void SendArbitraryMsgFromUI(int msgTag, int ctrlTag = kNoTag, int dataSize = 0, const void* pData = nullptr) override;
 
-  Vst::IComponentHandler* GetComponentHandler() const { return componentHandler; }
+  Steinberg::Vst::IComponentHandler* GetComponentHandler() const { return componentHandler; }
   ViewType* GetView() const { return mView; }
 
 private:
   ViewType* mView = nullptr;
   bool mPlugIsInstrument;
+  bool mDoesMidiIn;
   Steinberg::FUID mProcessorGUID;
 };
 
-IPlugVST3Controller* MakeController();
+END_IPLUG_NAMESPACE
 
 #endif // _IPLUGAPI_

@@ -1,10 +1,13 @@
-include ./../../common-web.mk
+# IPLUG2_ROOT should point to the top level IPLUG2 folder from the project folder
+# By default, that is three directories up from /Examples/IPlugInstrument/config
+IPLUG2_ROOT = ../../..
+include ../../../common-web.mk
 
-SRC += IPlugInstrument.cpp
+SRC += $(PROJECT_ROOT)/IPlugInstrument.cpp
 
 WAM_SRC += $(IPLUG_EXTRAS_PATH)/Synth/*.cpp
 
-# WAM_CFLAGS +=
+WAM_CFLAGS +=  -I$(IPLUG_SYNTH_PATH)
 
 WEB_CFLAGS += -DIGRAPHICS_NANOVG -DIGRAPHICS_GLES2
 

@@ -16,7 +16,10 @@
 
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
-int GetSystemVersion()
+using namespace iplug;
+using namespace igraphics;
+
+static int GetSystemVersion()
 {
   static int32_t v;
   if (!v)
@@ -39,6 +42,7 @@ int GetSystemVersion()
 }
 
 StaticStorage<CoreTextFontDescriptor> sFontDescriptorCache;
+
 #pragma mark -
 
 IGraphicsMac::IGraphicsMac(IGEditorDelegate& dlg, int w, int h, int fps, float scale)
@@ -57,20 +61,9 @@ IGraphicsMac::~IGraphicsMac()
   CloseWindow();
 }
 
-bool IGraphicsMac::IsSandboxed()
-{
-  NSString* pHomeDir = NSHomeDirectory();
-
-  if ([pHomeDir containsString:@"Library/Containers/"])
-  {
-    return true;
-  }
-  return false;
-}
-
 PlatformFontPtr IGraphicsMac::LoadPlatformFont(const char* fontID, const char* fileNameOrResID)
 {
-  return CoreTextHelpers::LoadPlatformFont(fontID, fileNameOrResID, GetBundleID());
+  return CoreTextHelpers::LoadPlatformFont(fontID, fileNameOrResID, GetBundleID(), GetSharedResourcesSubPath());
 }
 
 PlatformFontPtr IGraphicsMac::LoadPlatformFont(const char* fontID, const char* fontName, ETextStyle style)
@@ -106,7 +99,7 @@ void IGraphicsMac::ContextReady(void* pLayer)
 
 void* IGraphicsMac::OpenWindow(void* pParent)
 {
-  TRACE;
+  TRACE
   CloseWindow();
   mView = (IGRAPHICS_VIEW*) [[IGRAPHICS_VIEW alloc] initWithIGraphics: this];
   
@@ -115,7 +108,7 @@ void* IGraphicsMac::OpenWindow(void* pParent)
   ContextReady([pView layer]);
 #endif
   
-  if (pParent) // Cocoa VST host.
+  if (pParent)
   {
     [(NSView*) pParent addSubview: (IGRAPHICS_VIEW*) mView];
   }
@@ -138,6 +131,11 @@ void IGraphicsMac::CloseWindow()
 #endif
     
     IGRAPHICS_VIEW* pView = (IGRAPHICS_VIEW*) mView;
+      
+#ifdef IGRAPHICS_GL
+    [((IGRAPHICS_GLLAYER *)pView.layer).openGLContext makeCurrentContext];
+#endif
+      
     [pView removeAllToolTips];
     [pView killTimer];
     [pView removeFromSuperview];
@@ -158,8 +156,6 @@ void IGraphicsMac::PlatformResize(bool parentHasResized)
   if (mView)
   {
     NSSize size = { static_cast<CGFloat>(WindowWidth()), static_cast<CGFloat>(WindowHeight()) };
-
-    DBGMSG("%f, %f\n", size.width, size.height);
 
     [NSAnimationContext beginGrouping]; // Prevent animated resizing
     [[NSAnimationContext currentContext] setDuration:0.0];
@@ -518,7 +514,7 @@ bool IGraphicsMac::PromptForColor(IColor& color, const char* str, IColorPickerHa
   return false;
 }
 
-IPopupMenu* IGraphicsMac::CreatePlatformPopupMenu(IPopupMenu& menu, const IRECT& bounds)
+IPopupMenu* IGraphicsMac::CreatePlatformPopupMenu(IPopupMenu& menu, const IRECT& bounds, bool& isAsync)
 {
   IPopupMenu* pReturnMenu = nullptr;
 

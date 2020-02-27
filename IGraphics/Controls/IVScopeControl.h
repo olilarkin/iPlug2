@@ -20,6 +20,9 @@
 #include "IPlugStructs.h"
 #include "IPlugQueue.h"
 
+BEGIN_IPLUG_NAMESPACE
+BEGIN_IGRAPHICS_NAMESPACE
+
 /** Vectorial multichannel capable oscilloscope control
  * @ingroup IControls */
 template <int MAXNC = 1, int MAXBUF = 128, int QUEUE_SIZE = 1024>
@@ -57,11 +60,13 @@ public:
   class Sender
   {
   public:
-    Sender(int controlTag)
-    : mControlTag(controlTag)
+    Sender(int ctrlTag)
+    : mCtrlTag(ctrlTag)
     {
     }
-    
+      
+  /** add an array of multichannel sample data, one for each channel to the queue. Will crash if size of inputs < MAXNC
+   * @param inputs data to visualize **/
     void Process(sample* inputs)
     {
       if(mBufCount == MAXBUF)
@@ -82,6 +87,9 @@ public:
       mBufCount++;
     }
 
+  /** add a block of multichannel sample data to the queue. Will crash if size of inputs < MAXNC
+   * @param inputs data to visualize, typically multichannel non interleaved audio samples
+   * @param nFrames number of frames to process **/
     void ProcessBlock(sample** inputs, int nFrames)
     {
       for (auto s = 0; s < nFrames; s++)
@@ -105,7 +113,7 @@ public:
       }
     }
 
-    // this must be called on the main thread - typically in MyPlugin::OnIdle()
+    /** Sends data in the queue via IEditorDelegate. This must be called on the main thread - typically in MyPlugin::OnIdle() */
     void TransmitData(IEditorDelegate& dlg)
     {
       Data d;
@@ -113,19 +121,23 @@ public:
       while(mQueue.ElementsAvailable())
       {
         mQueue.Pop(d);
-        dlg.SendControlMsgFromDelegate(mControlTag, kUpdateMessage, sizeof(Data), (void*) &d);
+        dlg.SendControlMsgFromDelegate(mCtrlTag, kUpdateMessage, sizeof(Data), (void*) &d);
       }
     }
 
   private:
     Data mBuf;
-    int mControlTag;
+    int mCtrlTag;
     int mBufCount = 0;
     IPlugQueue<Data> mQueue {QUEUE_SIZE};
     bool mPrevAboveThreshold = true;
   };
 
-  IVScopeControl(const IRECT& bounds, const char* label = "", const IVStyle& style = DEFAULT_STYLE, const char* trackNames = 0, ...)
+  /** Constructs an IVScopeControl 
+   * @param bounds The rectangular area that the control occupies
+   * @param label A CString to label the control
+   * @param style, /see IVStyle */
+  IVScopeControl(const IRECT& bounds, const char* label = "", const IVStyle& style = DEFAULT_STYLE)
   : IControl(bounds)
   , IVectorBase(style)
   {
@@ -139,12 +151,12 @@ public:
     DrawLabel(g);
     
     if(mStyle.drawFrame)
-      g.DrawRect(GetColor(kFR), mWidgetBounds, nullptr, mStyle.frameThickness);
+      g.DrawRect(GetColor(kFR), mWidgetBounds, &mBlend, mStyle.frameThickness);
   }
 
   void DrawWidget(IGraphics& g) override
   {
-    g.DrawHorizontalLine(GetColor(kSH), mWidgetBounds, 0.5, nullptr, mStyle.frameThickness);
+    g.DrawHorizontalLine(GetColor(kSH), mWidgetBounds, 0.5, &mBlend, mStyle.frameThickness);
     
     IRECT r = mWidgetBounds.GetPadded(-mPadding);
 
@@ -167,7 +179,7 @@ public:
         g.PathLineTo(r.L + xHi, r.MH() - yHi);
       }
       
-      g.PathStroke(GetColor(kFG), 1.0);
+      g.PathStroke(GetColor(kFG), mTrackSize, IStrokeOptions(), &mBlend);
     }
   }
   
@@ -177,26 +189,32 @@ public:
     SetDirty(false);
   }
 
-  void OnMsgFromDelegate(int messageTag, int dataSize, const void* pData) override
+  void OnMsgFromDelegate(int msgTag, int dataSize, const void* pData) override
   {
-    IByteStream stream(pData, dataSize);
-
-    int pos = stream.Get(&mBuf.nchans, 0);
-
-    while(pos < stream.Size())
+    if (!IsDisabled())
     {
-      for (auto ch = 0; ch < mBuf.nchans; ch++) {
-        for (auto s = 0; s < MAXBUF; s++) {
-          pos = stream.Get(&mBuf.vals[ch][s], pos);
+      IByteStream stream(pData, dataSize);
+
+      int pos = stream.Get(&mBuf.nchans, 0);
+
+      while (pos < stream.Size())
+      {
+        for (auto ch = 0; ch < mBuf.nchans; ch++) {
+          for (auto s = 0; s < MAXBUF; s++) {
+            pos = stream.Get(&mBuf.vals[ch][s], pos);
+          }
         }
       }
-    }
 
-    SetDirty(false);
+      SetDirty(false);
+    }
   }
 
 private:
   Data mBuf;
   float mPadding = 2.f;
 };
+
+END_IGRAPHICS_NAMESPACE
+END_IPLUG_NAMESPACE
 
