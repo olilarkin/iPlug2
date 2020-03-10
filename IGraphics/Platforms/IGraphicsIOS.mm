@@ -72,6 +72,8 @@ IGraphicsIOS::IGraphicsIOS(IGEditorDelegate& dlg, int w, int h, int fps, float s
         gTextureMap.insert(std::make_pair([[[pTextureFiles[i] lastPathComponent] stringByDeletingPathExtension] cStringUsingEncoding:NSUTF8StringEncoding], (MTLTexturePtr) gTextures[i]));
       }
     
+      DBGMSG("Preloaded %i textures", (int) [pTextureFiles count]);
+    
       [textureLoader release];
       textureLoader = nil;
     }
@@ -91,7 +93,7 @@ void* IGraphicsIOS::OpenWindow(void* pParent)
   IGRAPHICS_VIEW* view = [[IGRAPHICS_VIEW alloc] initWithIGraphics: this];
   mView = (void*) view;
   
-  OnViewInitialized((void*) [view layer]);
+  OnViewInitialized((void*) [view metalLayer]);
   
   SetScreenScale([UIScreen mainScreen].scale);
   
