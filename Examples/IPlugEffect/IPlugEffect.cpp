@@ -1,51 +1,26 @@
 #include "IPlugEffect.h"
 #include "IPlug_include_in_plug_src.h"
 #include "IControls.h"
-#include <variant>
-#include <unordered_map>
-#include <optional>
-#include <string>
 
 class PropControl : public IControl
 {
 public:
-  using PropVar = std::variant<bool, int, float, const char*, IColor, IRECT, IText, IPattern>;
-  using PropPair = std::pair<const std::string, PropVar>;
-  using PropMap = std::unordered_map<std::string, PropVar>;
-  
-  PropControl(const IRECT& bounds, PropMap properties)
+  PropControl(const IRECT& bounds, const IPropMap& properties)
   : IControl(bounds)
-  , mProperties(properties)
   {
+    SetProperties(properties);
   }
-  
-  void SetProperty(const std::string& name, PropVar prop)
-  {
-    mProperties.insert_or_assign(name, prop);
-  }
-  
-  template<typename T>
-  std::optional<T> GetProperty(const std::string& name) const
-  {
-    auto result = mProperties.find(name);
-    
-    assert(result != mProperties.end());
-    
-    // can replace std::get_if with std::get on macOS > 10.14 https://stackoverflow.com/questions/52521388/stdvariantget-does-not-compile-with-apple-llvm-10-0/53887048#53887048
-    return result == mProperties.end() ? std::nullopt : std::optional<T>(*std::get_if<T>(&result->second));
-  }
-  
+
   void Draw(IGraphics& g) override
   {
-    g.FillRect(*GetProperty<IColor>("bgcolor"), mRECT);
+    g.FillRect(*GetProp<IColor>("bgcolor"), mRECT);
     g.PathRect(mRECT);
-    g.PathFill(*GetProperty<IPattern>("pattern"));
-    g.FillRect(*GetProperty<IColor>("fgcolor"), mRECT.GetCentredInside(*GetProperty<IRECT>("rect")));
-    g.DrawText(*GetProperty<IText>("text"), *GetProperty<const char*>("str"), mRECT);
+    g.PathFill(*GetProp<IPattern>("pattern"));
+    g.FillRect(*GetProp<IColor>("fgcolor"), mRECT.GetCentredInside(*GetProp<IRECT>("rect")));
+    g.DrawText(*GetProp<IText>("text"), *GetProp<const char*>("str"), mRECT);
   }
   
 private:
-  PropMap mProperties;
 };
 
 IPlugEffect::IPlugEffect(const InstanceInfo& info)
@@ -63,7 +38,8 @@ IPlugEffect::IPlugEffect(const InstanceInfo& info)
     pGraphics->AttachPanelBackground(COLOR_GRAY);
     pGraphics->LoadFont("Roboto-Regular", ROBOTO_FN);
     const IRECT b = pGraphics->GetBounds();
-    pGraphics->AttachControl(new PropControl(b.GetCentredInside(100),
+    
+    const IPropMap props =
     {
       {"bgcolor", COLOR_RED},
       {"fgcolor", COLOR_BLUE},
@@ -75,7 +51,9 @@ IPlugEffect::IPlugEffect(const InstanceInfo& info)
           {COLOR_WHITE, 0.f},
           {COLOR_TRANSPARENT, 1.f}
         })}
-    }));
+    };
+    
+    pGraphics->AttachControl(new PropControl(b.GetCentredInside(100), props));
     
 //    pGraphics->AttachControl(new IVKnobControl(b.GetCentredInside(100).GetVShifted(-100), kGain));
 //    pGraphics->AttachControl(new IPanelControl(b, COLOR_RED));

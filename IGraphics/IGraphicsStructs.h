@@ -19,6 +19,10 @@
 #include <functional>
 #include <chrono>
 #include <numeric>
+#include <variant>
+#include <unordered_map>
+#include <optional>
+#include <string>
 
 #include "IPlugUtilities.h"
 #include "IPlugLogger.h"
@@ -40,6 +44,8 @@ struct IVec2;
 struct IMouseInfo;
 struct IColor;
 struct IGestureInfo;
+struct IText;
+struct IPattern;
 
 using IActionFunction = std::function<void(IControl*)>;
 using IAnimationFunction = std::function<void(IControl*)>;
@@ -51,6 +57,9 @@ using IGestureFunc = std::function<void(IControl*, const IGestureInfo&)>;
 using IPopupFunction = std::function<void(IPopupMenu* pMenu)>;
 using IDisplayTickFunc = std::function<void()>;
 using ITouchID = uintptr_t;
+using IPropVar = std::variant<bool, int, float, const char*, IColor, IRECT, IText, IPattern>;
+using IPropPair = std::pair<const std::string, IPropVar>;
+using IPropMap = std::unordered_map<std::string, IPropVar>;
 
 /** A click action function that does nothing */
 void EmptyClickActionFunc(IControl* pCaller);
