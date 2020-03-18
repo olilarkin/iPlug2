@@ -503,6 +503,12 @@ public:
   }
   
   /** /todo */
+  IPropMap GetProperties() const
+  {
+    return mProperties;
+  }
+  
+  /** /todo */
   template<typename T>
   std::optional<T> GetProp(const std::string& name) const
   {
