@@ -9,7 +9,7 @@
 class PropControl : public IControl
 {
 public:
-  using PropVar = std::variant<bool, int, float, const char*, IColor, IRECT>;
+  using PropVar = std::variant<bool, int, float, const char*, IColor, IRECT, IText, IPattern>;
   using PropPair = std::pair<const std::string, PropVar>;
   using PropMap = std::unordered_map<std::string, PropVar>;
   
@@ -28,6 +28,9 @@ public:
   std::optional<T> GetProperty(const std::string& name) const
   {
     auto result = mProperties.find(name);
+    
+    assert(result != mProperties.end());
+    
     // can replace std::get_if with std::get on macOS > 10.14 https://stackoverflow.com/questions/52521388/stdvariantget-does-not-compile-with-apple-llvm-10-0/53887048#53887048
     return result == mProperties.end() ? std::nullopt : std::optional<T>(*std::get_if<T>(&result->second));
   }
@@ -35,7 +38,10 @@ public:
   void Draw(IGraphics& g) override
   {
     g.FillRect(*GetProperty<IColor>("bgcolor"), mRECT);
-    g.FillRect(*GetProperty<IColor>("fgcolor"), mRECT.GetCentredInside(10.f));
+    g.PathRect(mRECT);
+    g.PathFill(*GetProperty<IPattern>("pattern"));
+    g.FillRect(*GetProperty<IColor>("fgcolor"), mRECT.GetCentredInside(*GetProperty<IRECT>("rect")));
+    g.DrawText(*GetProperty<IText>("text"), *GetProperty<const char*>("str"), mRECT);
   }
   
 private:
@@ -57,7 +63,20 @@ IPlugEffect::IPlugEffect(const InstanceInfo& info)
     pGraphics->AttachPanelBackground(COLOR_GRAY);
     pGraphics->LoadFont("Roboto-Regular", ROBOTO_FN);
     const IRECT b = pGraphics->GetBounds();
-    pGraphics->AttachControl(new PropControl(b.GetCentredInside(100), {{"bgcolor", COLOR_GREEN}, {"fgcolor", COLOR_BLUE}}));
+    pGraphics->AttachControl(new PropControl(b.GetCentredInside(100),
+    {
+      {"bgcolor", COLOR_RED},
+      {"fgcolor", COLOR_BLUE},
+      {"text", DEFAULT_TEXT.WithSize(10.f).WithVAlign(EVAlign::Top)},
+      {"str", "Hello World"},
+      {"rect", IRECT::MakeXYWH(0, 0, 10, 10)},
+      {"pattern", IPattern::CreateRadialGradient(b.GetCentredInside(100).MW(), b.GetCentredInside(100).MH(), 100.,
+        {
+          {COLOR_WHITE, 0.f},
+          {COLOR_TRANSPARENT, 1.f}
+        })}
+    }));
+    
 //    pGraphics->AttachControl(new IVKnobControl(b.GetCentredInside(100).GetVShifted(-100), kGain));
 //    pGraphics->AttachControl(new IPanelControl(b, COLOR_RED));
 
