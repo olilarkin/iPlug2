@@ -9,13 +9,6 @@
 class PropControl : public IControl
 {
 public:
-  static constexpr size_t kBool = 0;
-  static constexpr size_t kInt = 1;
-  static constexpr size_t kFloat = 2;
-  static constexpr size_t kString = 3;
-  static constexpr size_t kColor = 4;
-  static constexpr size_t kRECT = 5;
-
   using PropVar = std::variant<bool, int, float, const char*, IColor, IRECT>;
   using PropPair = std::pair<const std::string, PropVar>;
   using PropMap = std::unordered_map<std::string, PropVar>;
@@ -24,7 +17,6 @@ public:
   : IControl(bounds)
   , mProperties(properties)
   {
-    
   }
   
   void SetProperty(const std::string& name, PropVar prop)
@@ -36,7 +28,8 @@ public:
   std::optional<T> GetProperty(const std::string& name) const
   {
     auto result = mProperties.find(name);
-    return result == mProperties.end() ? std::nullopt : std::optional<T>(std::get<T>(result->second));
+    // can replace std::get_if with std::get on macOS > 10.14 https://stackoverflow.com/questions/52521388/stdvariantget-does-not-compile-with-apple-llvm-10-0/53887048#53887048
+    return result == mProperties.end() ? std::nullopt : std::optional<T>(*std::get_if<T>(&result->second));
   }
   
   void Draw(IGraphics& g) override
