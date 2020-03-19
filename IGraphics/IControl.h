@@ -490,6 +490,20 @@ public:
   /** /todo */
   Milliseconds GetAnimationDuration() const { return mAnimationDuration; }
   
+  void SetPropertiesAndDefaults(const IPropMap& props, const IPropMap& defaults)
+  {
+    for(auto& propPair : props)
+    {
+      SetProp(propPair.first, propPair.second);
+    }
+    
+    for(auto& propPair : defaults)
+    {
+      if(!HasProp(propPair.first))
+        SetProp(propPair.first, propPair.second);
+    }
+  }
+  
   /** /todo */
   void SetProperties(const IPropMap& properties)
   {
@@ -497,15 +511,24 @@ public:
   }
   
   /** /todo */
-  void SetProp(const std::string& name, const IPropVar& prop)
+  void SetProp(const std::string& name, const IPropVar& prop, bool dirtyControl = false)
   {
     mProperties.insert_or_assign(name, prop);
+    
+    if(dirtyControl)
+      SetDirty(false);
   }
   
   /** /todo */
-  IPropMap GetProperties() const
+  const IPropMap GetProperties() const
   {
     return mProperties;
+  }
+  
+  bool HasProp(const std::string& name) const
+  {
+    auto result = mProperties.find(name);
+    return result != mProperties.end();
   }
   
   /** /todo */
@@ -514,7 +537,7 @@ public:
   {
     auto result = mProperties.find(name);
     
-    assert(result != mProperties.end());
+    assert(result != mProperties.end()); // property not found
     
     // can replace std::get_if with std::get on macOS > 10.14 https://stackoverflow.com/questions/52521388/stdvariantget-does-not-compile-with-apple-llvm-10-0/53887048#53887048
     return result == mProperties.end() ? std::nullopt : std::optional<T>(*std::get_if<T>(&result->second));
@@ -1442,47 +1465,19 @@ protected:
 class IPanelControl : public IControl
 {
 public:
-  IPanelControl(const IRECT& bounds, const IColor& color, bool drawFrame = false)
-  : IControl(bounds, kNoParameter)
-  , mPattern(color)
-  , mDrawFrame(drawFrame)
-  {
-    mIgnoreMouse = true;
-  }
+  static const IPropMap DEFAULTS;
   
-  IPanelControl(const IRECT& bounds, const IPattern& pattern, bool drawFrame = false)
+  IPanelControl(const IRECT& bounds, const IPropMap& props = DEFAULTS)
   : IControl(bounds, kNoParameter)
-  , mPattern(pattern)
-  , mDrawFrame(drawFrame)
   {
     mIgnoreMouse = true;
+    SetPropertiesAndDefaults(props, DEFAULTS);
   }
 
   void Draw(IGraphics& g) override
   {
-    if(g.HasPathSupport())
-    {
-      g.PathRect(mRECT);
-      g.PathFill(mPattern);
-    }
-    else
-      g.FillRect(mPattern.GetStop(0).mColor, mRECT);
-    
-    if(mDrawFrame)
-      g.DrawRect(COLOR_LIGHT_GRAY, mRECT);
+    g.FillRect(*GetProp<IColor>("color"), mRECT);
   }
-  
-  void SetPattern(const IPattern& pattern)
-  {
-    mPattern = pattern;
-    SetDirty(false);
-  }
-  
-  IPattern GetPattern() const { return mPattern; }
-  
-private:
-  IPattern mPattern;
-  bool mDrawFrame;
 };
 
 /** A control that can be specialised with a lambda function, for quick experiments without making a custom IControl */

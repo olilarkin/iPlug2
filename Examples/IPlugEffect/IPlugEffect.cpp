@@ -17,10 +17,25 @@ public:
     g.PathRect(mRECT);
     g.PathFill(*GetProp<IPattern>("pattern"));
     g.FillRect(*GetProp<IColor>("fgcolor"), mRECT.GetCentredInside(*GetProp<IRECT>("rect")));
-    g.DrawText(*GetProp<IText>("text"), *GetProp<const char*>("str"), mRECT);
+//    g.DrawText(*GetProp<IText>("text"), *GetProp<const char*>("str"), mRECT);
+    g.DrawBitmap(*GetProp<IBitmap>("bmp"), mRECT, 0, 0);
   }
   
 private:
+};
+
+class MyRoundPanelControl : public IPanelControl
+{
+public:
+  MyRoundPanelControl(const IRECT& bounds, const IPropMap& props)
+  : IPanelControl(bounds, props)
+  {
+  }
+  
+  void Draw(IGraphics& g) override
+  {
+    g.FillRoundRect(*GetProp<IColor>("color"), mRECT, *GetProp<float>("roundness"), nullptr);
+  }
 };
 
 IPlugEffect::IPlugEffect(const InstanceInfo& info)
@@ -50,10 +65,17 @@ IPlugEffect::IPlugEffect(const InstanceInfo& info)
         {
           {COLOR_WHITE, 0.f},
           {COLOR_TRANSPARENT, 1.f}
-        })}
+        })},
+      {"bmp", pGraphics->LoadBitmap("/Users/oli/Dev/iPlug2/Examples/IPlugControls/resources/img/button@2x.png")}
     };
     
+    MyRoundPanelControl* pPanel;
+    pGraphics->AttachControl(pPanel = new MyRoundPanelControl(b.GetCentredInside(300), {{"roundness", 30.f}}));
     pGraphics->AttachControl(new PropControl(b.GetCentredInside(100), props));
+    
+    pGraphics->AttachControl(new IVSliderControl(b.GetFromBottom(100.f), [pPanel](IControl* pSlider){
+      pPanel->SetProp("roundness", (float) (pSlider->GetValue() * 100.f), true);
+    }, "", DEFAULT_STYLE, false, EDirection::Horizontal));
     
 //    pGraphics->AttachControl(new IVKnobControl(b.GetCentredInside(100).GetVShifted(-100), kGain));
 //    pGraphics->AttachControl(new IPanelControl(b, COLOR_RED));

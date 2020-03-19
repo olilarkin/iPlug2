@@ -73,10 +73,36 @@ public:
         {
           mMouseClickedOnResizeHandle = true;
         }
+//        else
+//        {
+//          mRightClickMenu.Clear();
+//          
+//          mRightClickMenu.AddItem("Replace with control...");
+//          mRightClickMenu.AddSeparator();
+//          
+//          for(auto& prop : pControl->GetProperties())
+//          {
+//            mRightClickMenu.AddItem(prop.first.c_str());
+//          }
+//          
+//          GetUI()->CreatePopupMenu(*this, mRightClickMenu, x, y);
+//        }
       }
     }
     else if(mod.R)
     {
+      mClickedOnControl = 0;
+      
+      mRightClickMenu.Clear();
+            
+      for(auto& prop : GetUI()->GetBackgroundControl()->GetProperties())
+      {
+        mRightClickMenu.AddItem(prop.first.c_str());
+      }
+      
+      mRightClickMenu.AddItem("Add control...");
+      mRightClickMenu.AddSeparator();
+      
       GetUI()->CreatePopupMenu(*this, mRightClickMenu, x, y);
     }
   }
@@ -161,19 +187,52 @@ public:
   {
     if(pSelectedMenu)
     {
-      auto idx = pSelectedMenu->GetChosenItemIdx();
-      float x, y;
-      GetUI()->GetMouseDownPoint(x, y);
-      IRECT b = IRECT(x, y, x + 100.f, y + 100.f);
-      
-      switch(idx)
+      IControl* pControl = GetUI()->GetControl(mClickedOnControl);
+
+      if(pControl)
       {
-        case 0 : GetUI()->AttachControl(new PlaceHolder(b)); break;
-        case 1 : GetUI()->AttachControl(new IVKnobControl(b, nullptr)); break;
-        case 2 : GetUI()->AttachControl(new IVSliderControl(b, nullptr)); break;
-        default: break;
+        auto& props = pControl->GetProperties();
+        
+        if(pSelectedMenu->GetChosenItemIdx() < props.size())
+        {
+          auto prop = *(props.find(pSelectedMenu->GetChosenItem()->GetText()));
+          auto& propName = prop.first;
+          auto& propVal = prop.second;
+          
+          switch (prop.second.index()) {
+            case kColor:
+            {
+              IColor startColor = *(pControl->GetProp<IColor>(propName));
+              GetUI()->PromptForColor(startColor,
+                                      propName.c_str(),
+                                      [pControl, propName](const IColor& color) {
+                                        pControl->SetProp(propName, color, true);
+                                      });
+              break;
+            }
+            default:
+              break;
+          }
+        }
+        else
+        {
+          //      auto idx = pSelectedMenu->GetChosenItemIdx();
+          //      float x, y;
+          //      GetUI()->GetMouseDownPoint(x, y);
+          //      IRECT b = IRECT(x, y, x + 100.f, y + 100.f);
+          //
+          //      switch(idx)
+          //      {
+          //        case 0 : GetUI()->AttachControl(new PlaceHolder(b)); break;
+          //        case 1 : GetUI()->AttachControl(new IVKnobControl(b, nullptr)); break;
+          //        case 2 : GetUI()->AttachControl(new IVSliderControl(b, nullptr)); break;
+          //        default: break;
+          //      }
+        }
       }
     }
+    
+    mClickedOnControl = -1;
   }
   
   void Draw(IGraphics& g) override
@@ -221,7 +280,7 @@ public:
   }
 
 private:
-  IPopupMenu mRightClickMenu {"Add an item", {"Add Place Holder", "Add IVKnobControl", "Add IVButtonControl"}};
+  IPopupMenu mRightClickMenu {"Add an item", {}};
   bool mMouseOversEnabled;
 //  bool mEditModeActive = false;
 //  bool mLiveEditingEnabled = false;

@@ -39,6 +39,8 @@ class IGraphics;
 class IControl;
 class ILambdaControl;
 class IPopupMenu;
+class IBitmap;
+class ISVG;
 struct IRECT;
 struct IVec2;
 struct IMouseInfo;
@@ -57,7 +59,8 @@ using IGestureFunc = std::function<void(IControl*, const IGestureInfo&)>;
 using IPopupFunction = std::function<void(IPopupMenu* pMenu)>;
 using IDisplayTickFunc = std::function<void()>;
 using ITouchID = uintptr_t;
-using IPropVar = std::variant<bool, int, float, const char*, IColor, IRECT, IText, IPattern>;
+enum EPropIdxs { kBool = 0, kInt, kFloat, kStr, kColor, kRect, kText, kPattern, kBitmap, kSVG };
+using IPropVar = std::variant<bool, int, float, const char*, IColor, IRECT, IText, IPattern, IBitmap, ISVG>;
 using IPropPair = std::pair<const std::string, IPropVar>;
 using IPropMap = std::unordered_map<std::string, IPropVar>;
 
