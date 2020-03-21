@@ -61,7 +61,7 @@ public:
       
       if(mod.A)
       {
-        GetUI()->AttachControl(new PlaceHolder(mMouseDownRECT));
+        GetUI()->AttachControl(new IPlaceHolderControl(mMouseDownRECT));
         mClickedOnControl = GetUI()->NControls() - 1;
         mMouseClickedOnResizeHandle = false;
       }
