@@ -100,7 +100,45 @@ public:
         mRightClickMenu.AddItem(prop.first.c_str());
       }
       
-      mRightClickMenu.AddItem("Add control...");
+      mRightClickMenu.AddItem("Add control ...", new IPopupMenu("Add control",
+      {
+        "IVLabelControl",
+        "IVButtonControl",
+        "IVSwitchControl",
+        "IVToggleControl",
+        "IVSlideSwitchControl",
+        "IVTabSwitchControl",
+        "IVRadioButtonControl",
+        "IVKnobControl",
+        "IVSliderControl",
+        "IVRangeSliderControl",
+        "IVXYPadControl",
+        "IVPlotControl",
+        "IVGroupControl",
+        "IVPanelControl",
+        "IVColorSwatchControl",
+        "ISVGKnobControl",
+        "ISVGButtonControl",
+        "ISVGSwitchControl",
+        "ISVGSliderControl",
+        "IBButtonControl",
+        "IBSwitchControl",
+        "IBKnobControl",
+        "IBKnobRotaterControl",
+        "IBSliderControl",
+        "IBTextControl",
+        "IPanelControl",
+        "ILambdaControl",
+        "IBitmapControl",
+        "ISVGControl",
+        "ITextControl",
+        "IURLControl",
+        "ITextToggleControl",
+        "ICaptionControl",
+        "IPlaceHolderControl"
+      } ));
+      
+      
       mRightClickMenu.AddSeparator();
       
       GetUI()->CreatePopupMenu(*this, mRightClickMenu, x, y);
@@ -185,49 +223,92 @@ public:
   
   void OnPopupMenuSelection(IPopupMenu* pSelectedMenu, int valIdx) override
   {
+    IGraphics* pGraphics = GetUI();
+    
     if(pSelectedMenu)
     {
-      IControl* pControl = GetUI()->GetControl(mClickedOnControl);
+      IControl* pControl = pGraphics->GetControl(mClickedOnControl);
 
       if(pControl)
       {
         auto& props = pControl->GetProperties();
         
-        if(pSelectedMenu->GetChosenItemIdx() < props.size())
+        if(strcmp(pSelectedMenu->GetRootTitle(), "Add control") == 0)
         {
-          auto prop = *(props.find(pSelectedMenu->GetChosenItem()->GetText()));
-          auto& propName = prop.first;
-          auto& propVal = prop.second;
+          auto idx = pSelectedMenu->GetChosenItemIdx();
+          float x, y;
+          pGraphics->GetMouseDownPoint(x, y);
+          IRECT b = IRECT(x, y, x + 100.f, y + 100.f);
+    
+          IControl* pNewControl = nullptr;
           
-          switch (prop.second.index()) {
-            case kColor:
-            {
-              IColor startColor = *(pControl->GetProp<IColor>(propName));
-              GetUI()->PromptForColor(startColor,
-                                      propName.c_str(),
-                                      [pControl, propName](const IColor& color) {
-                                        pControl->SetProp(propName, color, true);
-                                      });
-              break;
-            }
-            default:
-              break;
+          switch(idx)
+          {
+            case 0 : pNewControl = new IVLabelControl(b, "New IVLabelControl"); break;
+//            case 1 : pNewControl = new IVButtonControl(b); break;
+//            case 2 : pNewControl = new IVSwitchControl(b); break;
+//            case 3 : pNewControl = new IVToggleControl(b); break;
+//            case 4 : pNewControl = new IVSlideSwitchControl(b); break;
+//            case 5 : pNewControl = new IVTabSwitchControl(b); break;
+//            case 6 : pNewControl = new IVRadioButtonControl(b); break;
+            case 7 : pNewControl = new IVKnobControl(b, kNoParameter); break;
+            case 8 : pNewControl = new IVSliderControl(b); break;
+//            case 9 : pNewControl = new IVRangeSliderControl(b); break;
+//            case 10 : pNewControl = new IVXYPadControl(b); break;
+//            case 11 : pNewControl = new IVPlotControl(b); break;
+//            case 12 : pNewControl = new IVGroupControl(b); break;
+//            case 13 : pNewControl = new IVPanelControl(b); break;
+//            case 14 : pNewControl = new IVColorSwatchControl(b); break;
+//            case 15 : pNewControl = new ISVGKnobControl(b); break;
+//            case 16 : pNewControl = new ISVGButtonControl(b); break;
+//            case 17 : pNewControl = new ISVGSwitchControl(b); break;
+//            case 18 : pNewControl = new ISVGSliderControl(b); break;
+//            case 19 : pNewControl = new IBButtonControl(b); break;
+//            case 20 : pNewControl = new IBSwitchControl(b); break;
+//            case 21 : pNewControl = new IBKnobControl(b); break;
+//            case 22 : pNewControl = new IBKnobRotaterControl(b); break;
+//            case 23 : pNewControl = new IBSliderControl(b); break;
+//            case 24 : pNewControl = new IBTextControl(b); break;
+//            case 25 : pNewControl = new IPanelControl(b); break;
+//            case 26 : pNewControl = new ILambdaControl(b); break;
+//            case 27 : pNewControl = new IBitmapControl(b); break;
+//            case 28 : pNewControl = new ISVGControl(b); break;
+//            case 29 : pNewControl = new ITextControl(b); break;
+//            case 30 : pNewControl = new IURLControl(b); break;
+//            case 31 : pNewControl = new ITextToggleControl(b); break;
+//            case 32 : pNewControl = new ICaptionControl(b); break;
+            case 33 : pNewControl = new IPlaceHolderControl(b); break;
+            default: break;
           }
+          
+          pGraphics->AttachControl(pNewControl);
         }
         else
         {
-          //      auto idx = pSelectedMenu->GetChosenItemIdx();
-          //      float x, y;
-          //      GetUI()->GetMouseDownPoint(x, y);
-          //      IRECT b = IRECT(x, y, x + 100.f, y + 100.f);
-          //
-          //      switch(idx)
-          //      {
-          //        case 0 : GetUI()->AttachControl(new PlaceHolder(b)); break;
-          //        case 1 : GetUI()->AttachControl(new IVKnobControl(b, nullptr)); break;
-          //        case 2 : GetUI()->AttachControl(new IVSliderControl(b, nullptr)); break;
-          //        default: break;
-          //      }
+          if(pSelectedMenu->GetChosenItemIdx() < props.size())
+          {
+            auto prop = *(props.find(pSelectedMenu->GetChosenItem()->GetText()));
+            auto& propName = prop.first;
+            auto& propVal = prop.second;
+            
+            switch (prop.second.index()) {
+              case kColor:
+              {
+                IColor startColor = *(pControl->GetProp<IColor>(propName));
+                GetUI()->PromptForColor(startColor,
+                                        propName.c_str(),
+                                        [pControl, propName](const IColor& color) {
+                                          pControl->SetProp(propName, color, true);
+                                        });
+                break;
+              }
+              default:
+                break;
+            }
+          }
+//          else
+//          {
+//          }
         }
       }
     }
