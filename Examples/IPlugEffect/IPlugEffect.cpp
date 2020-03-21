@@ -13,12 +13,12 @@ public:
 
   void Draw(IGraphics& g) override
   {
-    g.FillRect(*GetProp<IColor>("bgcolor"), mRECT);
-    g.PathRect(mRECT);
-    g.PathFill(*GetProp<IPattern>("pattern"));
-    g.FillRect(*GetProp<IColor>("fgcolor"), mRECT.GetCentredInside(*GetProp<IRECT>("rect")));
-//    g.DrawText(*GetProp<IText>("text"), *GetProp<const char*>("str"), mRECT);
-    g.DrawBitmap(*GetProp<IBitmap>("bmp"), mRECT, 0, 0);
+//    g.FillRect(*GetProp<IColor>("bg_color"), mRECT);
+//    g.PathRect(mRECT);
+//    g.PathFill(*GetProp<IPattern>("pattern"));
+//    g.FillRect(*GetProp<IColor>("fg_color"), mRECT.GetCentredInside(*GetProp<IRECT>("rect")));
+    g.DrawText(*GetProp<IText>("text"), *GetProp<const char*>("str"), mRECT);
+//    g.DrawBitmap(*GetProp<IBitmap>("bmp"), mRECT, 0, 0);
   }
   
 private:
@@ -52,12 +52,13 @@ IPlugEffect::IPlugEffect(const InstanceInfo& info)
     pGraphics->AttachCornerResizer(EUIResizerMode::Scale, false);
     pGraphics->AttachPanelBackground(COLOR_GRAY);
     pGraphics->LoadFont("Roboto-Regular", ROBOTO_FN);
+    pGraphics->EnableMouseOver(true);
     const IRECT b = pGraphics->GetBounds();
     
     const IPropMap props =
     {
-      {"bgcolor", COLOR_RED},
-      {"fgcolor", COLOR_BLUE},
+      {"background_color", COLOR_RED},
+      {"foreground_color", COLOR_BLUE},
       {"text", DEFAULT_TEXT.WithSize(10.f).WithVAlign(EVAlign::Top)},
       {"str", "Hello World"},
       {"rect", IRECT::MakeXYWH(0, 0, 10, 10)},
@@ -69,13 +70,14 @@ IPlugEffect::IPlugEffect(const InstanceInfo& info)
       {"bmp", pGraphics->LoadBitmap("/Users/oli/Dev/iPlug2/Examples/IPlugControls/resources/img/button@2x.png")}
     };
     
-    MyRoundPanelControl* pPanel;
-    pGraphics->AttachControl(pPanel = new MyRoundPanelControl(b.GetCentredInside(300), {{"roundness", 30.f}}));
-    pGraphics->AttachControl(new PropControl(b.GetCentredInside(100), props));
-    
-    pGraphics->AttachControl(new IVSliderControl(b.GetFromBottom(100.f), [pPanel](IControl* pSlider){
-      pPanel->SetProp("roundness", (float) (pSlider->GetValue() * 100.f), true);
-    }, "", DEFAULT_STYLE, false, EDirection::Horizontal));
+//    IPanelControl* pPanel;
+    pGraphics->AttachControl(new ITestURLControl(b.GetCentredInside(300), {{"background_color", COLOR_RED}}));
+//    pGraphics->AttachControl(pPanel = new IPanelControl(b.GetCentredInside(300), {{"color", COLOR_GREEN}}));
+//    pGraphics->AttachControl(new PropControl(b.GetCentredInside(100), props));
+//
+//    pGraphics->AttachControl(new IVSliderControl(b.GetFromBottom(100.f), [pPanel](IControl* pSlider){
+//      pPanel->SetProp("roundness", (float) (pSlider->GetValue() * 100.f), true);
+//    }, "", DEFAULT_STYLE, false, EDirection::Horizontal));
     
 //    pGraphics->AttachControl(new IVKnobControl(b.GetCentredInside(100).GetVShifted(-100), kGain));
 //    pGraphics->AttachControl(new IPanelControl(b, COLOR_RED));

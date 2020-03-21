@@ -537,7 +537,7 @@ public:
   {
     auto result = mProperties.find(name);
     
-    assert(result != mProperties.end()); // property not found
+//    assert(result != mProperties.end()); // property not found
     
     // can replace std::get_if with std::get on macOS > 10.14 https://stackoverflow.com/questions/52521388/stdvariantget-does-not-compile-with-apple-llvm-10-0/53887048#53887048
     return result == mProperties.end() ? std::nullopt : std::optional<T>(*std::get_if<T>(&result->second));
@@ -1478,6 +1478,55 @@ public:
   {
     g.FillRect(*GetProp<IColor>("color"), mRECT);
   }
+};
+
+class ITestTextControl : public IControl
+{
+public:
+  static const IPropMap DEFAULTS;
+  
+  ITestTextControl(const IRECT& bounds, const IPropMap& props = DEFAULTS)
+  : IControl(bounds, kNoParameter)
+  {
+    mIgnoreMouse = true;
+    SetPropertiesAndDefaults(props, DEFAULTS);
+  }
+
+  void Draw(IGraphics& g) override
+  {
+    g.FillRect(*GetProp<IColor>("bg_color"), mRECT);
+    g.DrawText(*GetProp<IText>("text"), *GetProp<const char*>("str"), mRECT);
+  }
+  
+//  virtual void SetStr(const char* str);
+//  virtual void SetStrFmt(int maxlen, const char* fmt, ...);
+//  virtual void ClearStr() { SetStr(""); }
+//  const char* GetStr() const { return mStr.Get(); }
+};
+
+class ITestURLControl : public ITestTextControl
+{
+public:
+  static const IPropMap DEFAULTS;
+
+  ITestURLControl(const IRECT& bounds, const IPropMap& props = DEFAULTS)
+  : ITestTextControl(bounds, props)
+  {
+    mIgnoreMouse = false;
+    IPropMap merged = DEFAULTS;
+    merged.insert(props.begin(), props.end());
+    SetProperties(merged);
+    IControl::mText = *GetProp<IText>("text");
+  }
+  
+  void Draw(IGraphics& g) override;
+  
+  void OnMouseDown(float x, float y, const IMouseMod& mod) override;
+  void OnMouseOver(float x, float y, const IMouseMod& mod) override { GetUI()->SetMouseCursor(ECursor::HAND); IControl::OnMouseOver(x, y, mod); };
+  void OnMouseOut() override { GetUI()->SetMouseCursor(); IControl::OnMouseOut(); }
+
+protected:
+  bool mClicked = false;
 };
 
 /** A control that can be specialised with a lambda function, for quick experiments without making a custom IControl */

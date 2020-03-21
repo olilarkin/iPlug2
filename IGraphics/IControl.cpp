@@ -444,8 +444,51 @@ double IControl::GetAnimationProgress() const
 
 const IPropMap IPanelControl::DEFAULTS =
 {
+  {"class_name", "IPanelControl"},
   {"color", COLOR_WHITE},
 };
+
+const IPropMap ITestTextControl::DEFAULTS =
+{
+  {"class_name", "ITestTextControl"},
+  {"text", DEFAULT_TEXT},
+  {"str", "Hello World"},
+  {"background_color", COLOR_TRANSPARENT},
+};
+
+const IPropMap ITestURLControl::DEFAULTS =
+{
+  {"class_name", "ITestURLControl"},
+  {"text", DEFAULT_TEXT},
+  {"str", "https://www.olilarkin.co.uk"},
+  {"url", "https://www.olilarkin.co.uk"},
+  {"background_color", COLOR_TRANSPARENT},
+  {"foreground_color", COLOR_BLACK},
+  {"clicked_color", COLOR_BLUE},
+  {"mouseover_color", COLOR_WHITE},
+};
+
+void ITestURLControl::Draw(IGraphics& g)
+{
+  g.FillRect(*GetProp<IColor>("background_color"), mRECT, &mBlend);
+  
+  if(mMouseIsOver)
+    mText.mFGColor = *GetProp<IColor>("mouseover_color");
+  else
+    mText.mFGColor = mClicked ? *GetProp<IColor>("clicked_color") : *GetProp<IColor>("foreground_color");
+  
+  g.DrawLine(mText.mFGColor, mRECT.L, mRECT.B, mRECT.R, mRECT.B, &mBlend);
+  
+  if (strlen(*GetProp<const char*>("str")))
+    g.DrawText(mText, *GetProp<const char*>("str"), mRECT, &mBlend);
+}
+
+void ITestURLControl::OnMouseDown(float x, float y, const IMouseMod& mod)
+{
+  GetUI()->OpenURL(*GetProp<const char*>("url"));
+  GetUI()->ReleaseMouseCapture();
+  mClicked = true;
+}
 
 ITextControl::ITextControl(const IRECT& bounds, const char* str, const IText& text, const IColor& BGColor, bool setBoundsBasedOnStr)
 : IControl(bounds)

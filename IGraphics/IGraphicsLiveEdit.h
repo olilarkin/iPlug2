@@ -51,17 +51,35 @@ public:
 
   void OnMouseDown(float x, float y, const IMouseMod& mod) override
   {
-    int c = GetUI()->GetMouseControlIdx(x, y, true);
+    IGraphics* pGraphics = GetUI();
+    int c = pGraphics->GetMouseControlIdx(x, y, true);
     
     if (c > 0)
     {
-      IControl* pControl = GetUI()->GetControl(c);
+      IControl* pControl = pGraphics->GetControl(c);
       mMouseDownRECT = pControl->GetRECT();
       mMouseDownTargetRECT = pControl->GetTargetRECT();
       
       if(mod.A)
       {
-        GetUI()->AttachControl(new IPlaceHolderControl(mMouseDownRECT));
+        auto className = pControl->GetProp<const char*>("class_name");
+        
+        IControl* pNewControl = nullptr;
+        
+        if(className.has_value())
+        {
+          if(strcmp(*className, "IPanelControl") == 0)
+          {
+            pNewControl = new IPanelControl(mMouseDownRECT, pControl->GetProperties());
+          }
+        }
+        else
+        {
+          pNewControl = new IPlaceHolderControl(mMouseDownRECT);
+        }
+        
+        pGraphics->AttachControl(pNewControl);
+        
         mClickedOnControl = GetUI()->NControls() - 1;
         mMouseClickedOnResizeHandle = false;
       }
@@ -73,23 +91,24 @@ public:
         {
           mMouseClickedOnResizeHandle = true;
         }
-//        else
-//        {
-//          mRightClickMenu.Clear();
-//          
+        else if(mod.R)
+        {
+          mRightClickMenu.Clear();
+          
 //          mRightClickMenu.AddItem("Replace with control...");
 //          mRightClickMenu.AddSeparator();
-//          
-//          for(auto& prop : pControl->GetProperties())
-//          {
-//            mRightClickMenu.AddItem(prop.first.c_str());
-//          }
-//          
-//          GetUI()->CreatePopupMenu(*this, mRightClickMenu, x, y);
-//        }
+          
+          for(auto& prop : pControl->GetProperties())
+          {
+            if(prop.first != "class_name")
+              mRightClickMenu.AddItem(prop.first.c_str());
+          }
+          
+          GetUI()->CreatePopupMenu(*this, mRightClickMenu, x, y);
+        }
       }
     }
-    else if(mod.R)
+    else if(mod.R) // right click on background
     {
       mClickedOnControl = 0;
       
@@ -97,7 +116,8 @@ public:
             
       for(auto& prop : GetUI()->GetBackgroundControl()->GetProperties())
       {
-        mRightClickMenu.AddItem(prop.first.c_str());
+        if(prop.first != "class_name")
+          mRightClickMenu.AddItem(prop.first.c_str());
       }
       
       mRightClickMenu.AddItem("Add control ...", new IPopupMenu("Add control",
@@ -269,7 +289,7 @@ public:
 //            case 22 : pNewControl = new IBKnobRotaterControl(b); break;
 //            case 23 : pNewControl = new IBSliderControl(b); break;
 //            case 24 : pNewControl = new IBTextControl(b); break;
-//            case 25 : pNewControl = new IPanelControl(b); break;
+            case 25 : pNewControl = new IPanelControl(b); break;
 //            case 26 : pNewControl = new ILambdaControl(b); break;
 //            case 27 : pNewControl = new IBitmapControl(b); break;
 //            case 28 : pNewControl = new ISVGControl(b); break;
@@ -291,7 +311,8 @@ public:
             auto& propName = prop.first;
             auto& propVal = prop.second;
             
-            switch (prop.second.index()) {
+            switch (prop.second.index())
+            {
               case kColor:
               {
                 IColor startColor = *(pControl->GetProp<IColor>(propName));
