@@ -40,7 +40,7 @@ class IControl;
 class ILambdaControl;
 class IPopupMenu;
 class IBitmap;
-class ISVG;
+struct ISVG;
 struct IRECT;
 struct IVec2;
 struct IMouseInfo;
