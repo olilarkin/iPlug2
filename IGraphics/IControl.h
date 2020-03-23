@@ -1513,8 +1513,9 @@ public:
   : ITestTextControl(bounds, props)
   {
     mIgnoreMouse = false;
-    IPropMap merged = DEFAULTS;
-    merged.insert(props.begin(), props.end());
+    IPropMap merged = props;
+    
+    merged.insert(DEFAULTS.begin(), DEFAULTS.end());
     SetProperties(merged);
     IControl::mText = *GetProp<IText>("text");
   }
