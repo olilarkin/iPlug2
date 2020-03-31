@@ -48,6 +48,8 @@ public:
   void HideMouseCursor(bool hide, bool lock) override;
   void MoveMouseCursor(float x, float y) override;
   ECursor SetMouseCursor(ECursor cursorType) override;
+  
+  void GetMouseLocation(float& x, float&y) const override;
 
   EMsgBoxResult ShowMessageBox(const char* str, const char* caption, EMsgBoxType type, IMsgBoxCompletionHanderFunc completionHandler) override;
 
@@ -78,7 +80,10 @@ public:
   const char* GetPlatformAPIStr() override { return "win32"; };
 
   bool GetTextFromClipboard(WDL_String& str) override;
-  bool SetTextInClipboard(const WDL_String& str) override;
+  bool SetTextInClipboard(const char* str) override;
+
+  bool PlatformSupportsMultiTouch() const override;
+
   
   static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
   static LRESULT CALLBACK ParamEditProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -162,6 +167,8 @@ private:
     
   static StaticStorage<InstalledFont> sPlatformFontCache;
   static StaticStorage<HFontHolder> sHFontCache;
+
+  std::unordered_map<ITouchID, IMouseInfo> mDeltaCapture; // associative array of touch id pointers to IMouseInfo structs, so that we can get deltas
 };
 
 END_IGRAPHICS_NAMESPACE
