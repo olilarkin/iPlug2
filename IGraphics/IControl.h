@@ -685,6 +685,15 @@ public:
   void SetStyleProp(const std::string& prop, const IPropVar& var)
   {
     mStyle.SetProp(prop, var);
+    
+    if(prop == "show_label" ||
+       prop == "show_value" ||
+       prop == "label_text" ||
+       prop == "value_text")
+    {
+      if(mControl)
+        mControl->OnResize();
+    }
   }
 
   void SetColor(EVColor colorIdx, const IColor& color)

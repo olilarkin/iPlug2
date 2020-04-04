@@ -49,6 +49,8 @@ virtual IControl* SetProperties(const IPropMap& properties) override \
   { \
     IVectorBase::SetStyleProp(prop.first, prop.second); \
   } \
+  \
+  return this; \
 } \
 
 
