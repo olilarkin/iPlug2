@@ -32,6 +32,7 @@ IVLabelControl::IVLabelControl(const IRECT& bounds, const char* label, const IVS
 , IVectorBase(style)
 {
   mText = style.valueText;
+  SetProperties(style.GetProps());
   AttachIControl(this, label);
 }
 
@@ -57,6 +58,7 @@ IVButtonControl::IVButtonControl(const IRECT& bounds, IActionFunction aF, const 
 {
   mText = style.valueText;
   mShape = shape;
+  SetProperties(style.GetProps());
   AttachIControl(this, label);
 }
 
@@ -502,6 +504,7 @@ IVKnobControl::IVKnobControl(const IRECT& bounds, int paramIdx, const char* labe
   mHideCursorOnDrag = mStyle.hideCursor;
   mShape = EVShape::Ellipse;
   mTrackSize = trackSize;
+  SetPropertiesAndDefaults(style.GetProps(), {{"class_name", "IVKnobControl"}});
   AttachIControl(this, label);
 }
 
@@ -518,6 +521,7 @@ IVKnobControl::IVKnobControl(const IRECT& bounds, IActionFunction aF, const char
   mShape = EVShape::Ellipse;
   mTrackSize = trackSize;
   SetActionFunction(aF);
+  SetPropertiesAndDefaults(style.GetProps(), {{"class_name", "IVKnobControl"}});
   AttachIControl(this, label);
 }
 
@@ -651,6 +655,7 @@ IVSliderControl::IVSliderControl(const IRECT& bounds, int paramIdx, const char* 
   mHideCursorOnDrag = style.hideCursor;
   mShape = EVShape::Ellipse;
   mTrackSize = trackSize;
+  SetPropertiesAndDefaults(style.GetProps(), {{"class_name", "IVSliderControl"}});
   AttachIControl(this, label);
 }
 
@@ -664,6 +669,7 @@ IVSliderControl::IVSliderControl(const IRECT& bounds, IActionFunction aF, const 
   mHideCursorOnDrag = style.hideCursor;
   mShape = EVShape::Ellipse;
   mTrackSize = trackSize;
+  SetPropertiesAndDefaults(style.GetProps(), {{"class_name", "IVSliderControl"}});
   AttachIControl(this, label);
 }
 

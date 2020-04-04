@@ -68,10 +68,47 @@ public:
         
         if(className.has_value())
         {
-          if(strcmp(*className, "IPanelControl") == 0)
-          {
-            pNewControl = new IPanelControl(mMouseDownRECT, pControl->GetProperties());
-          }
+          IVectorBase* pVectorBase = dynamic_cast<IVectorBase*>(pControl);
+          
+          const char* label = pVectorBase ? pVectorBase->GetLabelStr() : "";
+          
+          if(strcmp(*className, "IVLabelControl")            == 0)
+            pNewControl = new IVLabelControl(mMouseDownRECT, label);
+          else if(strcmp(*className, "IVButtonControl")      == 0) pNewControl = new IVButtonControl(mMouseDownRECT, SplashClickActionFunc, label);
+          else if(strcmp(*className, "IVSwitchControl")      == 0) pNewControl = new IVSwitchControl(mMouseDownRECT, SplashClickActionFunc, label);
+          else if(strcmp(*className, "IVToggleControl")      == 0) pNewControl = new IVToggleControl(mMouseDownRECT, SplashClickActionFunc, label);
+//          else if(strcmp(*className, "IVSlideSwitchControl") == 0) pNewControl = new IVSlideSwitchControl(mMouseDownRECT);
+//          else if(strcmp(*className, "IVTabSwitchControl")   == 0) pNewControl = new IVTabSwitchControl(mMouseDownRECT);
+//          else if(strcmp(*className, "IVRadioButtonControl") == 0) pNewControl = new IVRadioButtonControl(mMouseDownRECT);
+          else if(strcmp(*className, "IVKnobControl")        == 0) pNewControl = new IVKnobControl(mMouseDownRECT, kNoParameter, label);
+          else if(strcmp(*className, "IVSliderControl")      == 0) pNewControl = new IVSliderControl(mMouseDownRECT, kNoParameter, label);
+//          else if(strcmp(*className, "IVRangeSliderControl") == 0) pNewControl = new IVRangeSliderControl(mMouseDownRECT);
+//          else if(strcmp(*className, "IVXYPadControl")       == 0) pNewControl = new IVXYPadControl(mMouseDownRECT);
+//          else if(strcmp(*className, "IVPlotControl")        == 0) pNewControl = new IVPlotControl(mMouseDownRECT);
+//          else if(strcmp(*className, "IVGroupControl")       == 0) pNewControl = new IVGroupControl(mMouseDownRECT);
+//          else if(strcmp(*className, "IVPanelControl")       == 0) pNewControl = new IVPanelControl(mMouseDownRECT);
+//          else if(strcmp(*className, "IVColorSwatchControl") == 0) pNewControl = new IVColorSwatchControl(mMouseDownRECT);
+//          else if(strcmp(*className, "ISVGKnobControl")      == 0) pNewControl = new ISVGKnobControl(mMouseDownRECT);
+//          else if(strcmp(*className, "ISVGButtonControl")    == 0) pNewControl = new ISVGButtonControl(mMouseDownRECT);
+//          else if(strcmp(*className, "ISVGSwitchControl")    == 0) pNewControl = new ISVGSwitchControl(mMouseDownRECT);
+//          else if(strcmp(*className, "ISVGSliderControl")    == 0) pNewControl = new ISVGSliderControl(mMouseDownRECT);
+//          else if(strcmp(*className, "IBButtonControl")      == 0) pNewControl = new IBButtonControl(mMouseDownRECT);
+//          else if(strcmp(*className, "IBSwitchControl")      == 0) pNewControl = new IBSwitchControl(mMouseDownRECT);
+//          else if(strcmp(*className, "IBKnobControl")        == 0) pNewControl = new IBKnobControl(mMouseDownRECT);
+//          else if(strcmp(*className, "IBKnobRotaterControl") == 0) pNewControl = new IBKnobRotaterControl(mMouseDownRECT);
+//          else if(strcmp(*className, "IBSliderControl")      == 0) pNewControl = new IBSliderControl(mMouseDownRECT);
+//          else if(strcmp(*className, "IBTextControl")        == 0) pNewControl = new IBTextControl(mMouseDownRECT);
+//          else if(strcmp(*className, "IPanelControl")        == 0) pNewControl = new IPanelControl(mMouseDownRECT);
+//          else if(strcmp(*className, "ILambdaControl")       == 0) pNewControl = new ILambdaControl(mMouseDownRECT);
+//          else if(strcmp(*className, "IBitmapControl")       == 0) pNewControl = new IBitmapControl(mMouseDownRECT);
+//          else if(strcmp(*className, "ISVGControl")          == 0) pNewControl = new ISVGControl(mMouseDownRECT);
+//          else if(strcmp(*className, "ITextControl")         == 0) pNewControl = new ITextControl(mMouseDownRECT);
+//          else if(strcmp(*className, "IURLControl")          == 0) pNewControl = new IURLControl(mMouseDownRECT);
+//          else if(strcmp(*className, "ITextToggleControl")   == 0) pNewControl = new ITextToggleControl(mMouseDownRECT);
+//          else if(strcmp(*className, "ICaptionControl")      == 0) pNewControl = new ICaptionControl(mMouseDownRECT);
+//          else if(strcmp(*className, "IPlaceHolderControl")  == 0) pNewControl = new IPlaceHolderControl(mMouseDownRECT);
+          
+          pNewControl->SetProperties(pControl->GetProperties());
         }
         else
         {
@@ -101,7 +138,19 @@ public:
           for(auto& prop : pControl->GetProperties())
           {
             if(prop.first != "class_name")
-              mRightClickMenu.AddItem(prop.first.c_str());
+            {
+              int flags = 0;
+              
+              if(prop.second.index() == kBool)
+              {
+                if(*std::get_if<bool>(&prop.second))
+                  flags |= IPopupMenu::Item::Flags::kChecked;
+              }
+                
+              auto* pItem = new IPopupMenu::Item(prop.first.c_str(), flags);
+              
+              mRightClickMenu.AddItem(pItem);
+            }
           }
           
           GetUI()->CreatePopupMenu(*this, mRightClickMenu, x, y);
@@ -265,8 +314,8 @@ public:
           switch(idx)
           {
             case 0 : pNewControl = new IVLabelControl(b, "New IVLabelControl"); break;
-//            case 1 : pNewControl = new IVButtonControl(b); break;
-//            case 2 : pNewControl = new IVSwitchControl(b); break;
+            case 1 : pNewControl = new IVButtonControl(b, SplashClickActionFunc, "New IVButtonControl"); break;
+            case 2 : pNewControl = new IVSwitchControl(b, SplashClickActionFunc, "New IVSwitchControl"); break;
 //            case 3 : pNewControl = new IVToggleControl(b); break;
 //            case 4 : pNewControl = new IVSlideSwitchControl(b); break;
 //            case 5 : pNewControl = new IVTabSwitchControl(b); break;
@@ -321,6 +370,12 @@ public:
                                         [pControl, propName](const IColor& color) {
                                           pControl->SetProp(propName, color, true);
                                         });
+                break;
+              }
+              case kBool:
+              {
+                bool currentState = *std::get_if<bool>(&propVal);
+                pControl->SetProp(propName, !currentState, true);
                 break;
               }
               default:

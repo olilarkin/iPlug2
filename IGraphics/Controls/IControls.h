@@ -34,12 +34,32 @@ BEGIN_IGRAPHICS_NAMESPACE
  */
 
 #pragma mark - Vector Controls
+
+#define IVECTORBASE_SETPROPERTIES \
+IControl* SetProp(const std::string& name, const IPropVar& prop, bool dirtyControl = false) override \
+{ \
+  IVectorBase::SetStyleProp(name, prop); \
+  return IControl::SetProp(name, prop, dirtyControl); \
+} \
+\
+virtual IControl* SetProperties(const IPropMap& properties) override \
+{ \
+  IControl::SetProperties(properties); \
+  for(auto& prop : properties) \
+  { \
+    IVectorBase::SetStyleProp(prop.first, prop.second); \
+  } \
+} \
+
+
 class IVLabelControl : public ITextControl
                      , public IVectorBase
 {
 public:
   IVLabelControl(const IRECT& bounds, const char* label, const IVStyle& style = DEFAULT_STYLE);
   void Draw(IGraphics& g) override;
+  
+  IVECTORBASE_SETPROPERTIES
 };
 
 /** A vector button/momentary switch control. */
@@ -61,6 +81,8 @@ public:
   virtual void DrawWidget(IGraphics& g) override;
   bool IsHit(float x, float y) const override;
   void OnResize() override;
+  
+  IVECTORBASE_SETPROPERTIES
 };
 
 /** A vector switch control. Click to cycle through states. */
@@ -221,6 +243,8 @@ public:
   void SetDirty(bool push, int valIdx = kNoValIdx) override;
   void OnInit() override;
 
+  IVECTORBASE_SETPROPERTIES
+  
 protected:
   virtual IRECT GetKnobDragBounds() override;
 
@@ -254,6 +278,8 @@ public:
   void OnResize() override;
   void SetDirty(bool push, int valIdx = kNoValIdx) override;
   void OnInit() override;
+
+  IVECTORBASE_SETPROPERTIES
 
 protected:
   bool mHandleInsideTrack = false;

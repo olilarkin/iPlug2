@@ -49,6 +49,7 @@
 #include "IGraphicsPopupMenu.h"
 #include "IGraphicsEditorDelegate.h"
 
+
 #ifdef IGRAPHICS_IMGUI
 #include "IGraphicsImGui.h"
 #endif
@@ -75,6 +76,7 @@ class ITextEntryControl;
 class ICornerResizerControl;
 class IFPSDisplayControl;
 class IBubbleControl;
+class IGraphicsLiveEdit;
 
 /**  The lowest level base class of an IGraphics context */
 class IGraphics
@@ -1271,7 +1273,7 @@ public:
         touchesOnThisControl.push_back(i->first);
   }
   
-  /* Get the first control in the control list, the background */
+  /** Get the first control in the control list, the background */
   IControl* GetBackgroundControl() { return GetControl(0);  }
   
   /** @return Pointer to the special pop-up menu control, if one has been attached. \todo */
@@ -1279,6 +1281,9 @@ public:
   
   /** @return Pointer to the special text entry control, if one has been attached. \todo */
   ITextEntryControl* GetTextEntryControl() { return mTextEntryControl.get(); }
+  
+  /** @return Pointer to the special live edit control, if one has been attached. \todo */
+  IGraphicsLiveEdit* GetLiveEditControl() { return mLiveEdit.get(); }
   
   /** Helper method to style all of the controls which inherit IVectorBase
    * @param IVStyle Style for the controls */
@@ -1588,7 +1593,7 @@ private:
   std::unique_ptr<IPopupMenuControl> mPopupControl;
   std::unique_ptr<IFPSDisplayControl> mPerfDisplay;
   std::unique_ptr<ITextEntryControl> mTextEntryControl;
-  std::unique_ptr<IControl> mLiveEdit;
+  std::unique_ptr<IGraphicsLiveEdit> mLiveEdit;
   
   IPopupMenu mPromptPopupMenu;
   

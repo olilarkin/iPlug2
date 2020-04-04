@@ -2416,6 +2416,59 @@ struct IVStyle
   IVStyle WithWidgetFrac(float v) const { IVStyle newStyle = *this; newStyle.widgetFrac = Clip(v, 0.f, 1.f); return newStyle; }
   IVStyle WithAngle(float v) const { IVStyle newStyle = *this; newStyle.angle = Clip(v, 0.f, 360.f); return newStyle; }
   IVStyle WithEmboss(bool v = true) const { IVStyle newStyle = *this; newStyle.emboss = v; return newStyle; }
+  
+  void SetProp(const std::string& prop, const IPropVar& v)
+  {
+    if(     prop == "show_label") { showLabel = *std::get_if<bool>(&v); }
+    else if(prop == "show_value") { showValue = *std::get_if<bool>(&v); }
+    else if(prop == "label_text") { labelText = *std::get_if<IText>(&v); }
+    else if(prop == "value_text") { valueText = *std::get_if<IText>(&v); }
+    else if(prop == "bg_color") { colorSpec.mColors[kBG] = *std::get_if<IColor>(&v); }
+    else if(prop == "fg_color") { colorSpec.mColors[kFG] = *std::get_if<IColor>(&v); }
+    else if(prop == "pr_color") { colorSpec.mColors[kPR] = *std::get_if<IColor>(&v); }
+    else if(prop == "fr_color") { colorSpec.mColors[kFR] = *std::get_if<IColor>(&v); }
+    else if(prop == "hl_color") { colorSpec.mColors[kHL] = *std::get_if<IColor>(&v); }
+    else if(prop == "sh_color") { colorSpec.mColors[kSH] = *std::get_if<IColor>(&v); }
+    else if(prop == "x1_color") { colorSpec.mColors[kX1] = *std::get_if<IColor>(&v); }
+    else if(prop == "x2_color") { colorSpec.mColors[kX2] = *std::get_if<IColor>(&v); }
+    else if(prop == "x3_color") { colorSpec.mColors[kX3] = *std::get_if<IColor>(&v); }
+    else if(prop == "draw_shadows") { drawShadows = *std::get_if<bool>(&v); }
+    else if(prop == "draw_frame") { drawFrame = *std::get_if<bool>(&v); }
+    else if(prop == "emboss") { emboss = std::get_if<bool>(&v); }
+    else if(prop == "frame_thickness") { frameThickness = *std::get_if<float>(&v); }
+    else if(prop == "widget_frac") { widgetFrac = *std::get_if<float>(&v); }
+    else if(prop == "shadow_offset") { shadowOffset = *std::get_if<float>(&v); }
+    else if(prop == "angle") { angle = *std::get_if<float>(&v); }
+  }
+  
+  IPropMap GetProps() const
+  {
+    IPropMap map =
+    {
+      {"show_label", showLabel},
+      {"show_value", showValue},
+      {"label_text", labelText},
+      {"value_text", valueText},
+      {"bg_color", colorSpec.GetColor(kBG)},
+      {"fg_color", colorSpec.GetColor(kFG)},
+      {"pr_color", colorSpec.GetColor(kPR)},
+      {"fr_color", colorSpec.GetColor(kFR)},
+      {"hl_color", colorSpec.GetColor(kHL)},
+      {"sh_color", colorSpec.GetColor(kSH)},
+      {"x1_color", colorSpec.GetColor(kX1)},
+      {"x2_color", colorSpec.GetColor(kX2)},
+      {"x3_color", colorSpec.GetColor(kX3)},
+      {"draw_shadows", drawShadows},
+      {"draw_frame", drawFrame},
+      {"emboss", emboss},
+      {"frame_thickness", frameThickness},
+      {"widget_frac", widgetFrac},
+      {"shadow_offset", shadowOffset},
+      {"angle", angle},
+    };
+    
+    return map;
+  }
 };
 
 const IVStyle DEFAULT_STYLE = IVStyle();

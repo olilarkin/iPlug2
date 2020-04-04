@@ -505,18 +505,22 @@ public:
   }
   
   /** /todo */
-  void SetProperties(const IPropMap& properties)
+  virtual IControl* SetProperties(const IPropMap& properties)
   {
     mProperties = properties;
+    
+    return this;
   }
   
   /** /todo */
-  void SetProp(const std::string& name, const IPropVar& prop, bool dirtyControl = false)
+  virtual IControl* SetProp(const std::string& name, const IPropVar& prop, bool dirtyControl = false)
   {
     mProperties.insert_or_assign(name, prop);
     
     if(dirtyControl)
       SetDirty(false);
+    
+    return this;
   }
   
   /** /todo */
@@ -677,6 +681,11 @@ public:
     mControl = pControl;
     mLabelStr.Set(label);
   }
+  
+  void SetStyleProp(const std::string& prop, const IPropVar& var)
+  {
+    mStyle.SetProp(prop, var);
+  }
 
   void SetColor(EVColor colorIdx, const IColor& color)
   {
@@ -694,6 +703,7 @@ public:
     return mStyle.colorSpec.GetColor(color);
   }
   
+  const char* GetLabelStr() const { return mLabelStr.Get(); }
   void SetLabelStr(const char* label) { mLabelStr.Set(label); mControl->SetDirty(false); }
   void SetValueStr(const char* value) { mValueStr.Set(value); mControl->SetDirty(false); }
   void SetWidgetFrac(float frac) { mStyle.widgetFrac = Clip(frac, 0.f, 1.f);  mControl->OnResize(); mControl->SetDirty(false); }
