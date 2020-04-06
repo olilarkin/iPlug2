@@ -178,7 +178,7 @@ public:
   
   void Draw(IGraphics& g) override
   {
-    IBlend b {EBlend::Add, 0.25f};
+    IBlend b {EBlend::Default, 0.25f};
     g.DrawGrid(mGridColor, g.GetBounds(), mGridSize, mGridSize, &b);
     
     for(int i = 1; i < g.NControls(); i++)
