@@ -109,6 +109,12 @@ enum EVColor
   kNumVColors
 };
 
+/** /todo */
+static const char* kEAlignStrs[3] = { "Near", "Center", "Far" };
+
+/** /todo */
+static const char* kEVAlignStrs[3] = { "Top", "Middle", "Bottom" };
+
 static const char* kVColorStrs[kNumVColors] =
 {
   "bg",
