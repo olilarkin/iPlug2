@@ -11,6 +11,11 @@ IPlugFaustDSP::IPlugFaustDSP(const InstanceInfo& info)
   mFaustProcessor.Init();
   mFaustProcessor.CompileCPP();
   mFaustProcessor.SetAutoRecompile(true);
+#ifndef FAUST_COMPILED
+  mFaustProcessor.SetCompileFunc([&](){
+    OnParamReset(EParamSource::kRecompile);
+  });
+#endif
 #endif
   
 #if IPLUG_EDITOR
@@ -31,7 +36,7 @@ IPlugFaustDSP::IPlugFaustDSP(const InstanceInfo& info)
     }
     
     pGraphics->AttachPanelBackground(COLOR_GRAY);
-    pGraphics->AttachControl(new IVScopeControl<2>(viz, "", DEFAULT_STYLE.WithColor(kBG, COLOR_BLACK).WithColor(kFG, COLOR_GREEN)), kControlTagScope);
+    pGraphics->AttachControl(new IVScopeControl<2>(viz, "", DEFAULT_STYLE.WithColor(kBG, COLOR_BLACK).WithColor(kFG, COLOR_GREEN)), kCtrlTagScope);
   };
 #endif
 }
@@ -41,7 +46,7 @@ IPlugFaustDSP::IPlugFaustDSP(const InstanceInfo& info)
 void IPlugFaustDSP::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
 {
   mFaustProcessor.ProcessBlock(inputs, outputs, nFrames);
-  mScopeSender.ProcessBlock(outputs, nFrames);
+  mScopeSender.ProcessBlock(outputs, nFrames, kCtrlTagScope);
 }
 
 void IPlugFaustDSP::OnReset()

@@ -1,12 +1,22 @@
+ /*
+ ==============================================================================
+ 
+ This file is part of the iPlug 2 library. Copyright (C) the iPlug 2 developers.
+ 
+ See LICENSE.txt for  more info.
+ 
+ ==============================================================================
+*/
+
 #pragma once
 
 #include "IPlugEditorDelegate.h"
 #include <functional>
 
-/** This EditorDelegate allows using WKWebKitView for an iPlug user interface on macOS/iOS... */
 
 BEGIN_IPLUG_NAMESPACE
 
+/** This EditorDelegate allows using WKWebKitView for an iPlug user interface on macOS/iOS... */
 class WebViewEditorDelegate : public IEditorDelegate
 {
 public:
@@ -17,10 +27,10 @@ public:
   void* OpenWindow(void* pParent) override;
   void CloseWindow() override;
   
-  void SendControlValueFromDelegate(int controlTag, double normalizedValue) override;
-  void SendControlMsgFromDelegate(int controlTag, int messageTag, int dataSize, const void* pData) override;
+  void SendControlValueFromDelegate(int ctrlTag, double normalizedValue) override;
+  void SendControlMsgFromDelegate(int ctrlTag, int msgTag, int dataSize, const void* pData) override;
   void SendParameterValueFromDelegate(int paramIdx, double value, bool normalized) override;
-  void SendArbitraryMsgFromDelegate(int messageTag, int dataSize, const void* pData) override;
+  void SendArbitraryMsgFromDelegate(int msgTag, int dataSize, const void* pData) override;
   void Resize(int width, int height);
 
   //WebViewEditorDelegate

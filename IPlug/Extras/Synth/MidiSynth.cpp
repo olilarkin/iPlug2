@@ -30,9 +30,6 @@ MidiSynth::MidiSynth(VoiceAllocator::EPolyMode mode, int blockSize)
     mChannelStates[i] = ChannelState{0};
     mChannelStates[i].pitchBendRange = kPitchBendDefault;
   }
-
-  // TEST - set a default lower MPE zone and enable MPE mode
-  // SetMPEZones(0, 16);
 }
 
 MidiSynth::~MidiSynth()
@@ -80,13 +77,13 @@ VoiceInputEvent MidiSynth::MidiMessageToEventBasic(const IMidiMsg& msg)
     {
       event.mAction = kPitchBendAction;
       float bendRange = mChannelStates[event.mAddress.mChannel].pitchBendRange;
-      event.mValue = msg.PitchWheel() * bendRange / 12.f;
+      event.mValue = static_cast<float>(msg.PitchWheel()) * bendRange / 12.f;
       break;
     }
     case IMidiMsg::kControlChange:
     {
       event.mControllerNumber = msg.ControlChangeIdx();
-      event.mValue = msg.ControlChange(msg.ControlChangeIdx());
+      event.mValue = static_cast<float>(msg.ControlChange(msg.ControlChangeIdx()));
       switch(event.mControllerNumber)
       {
         // handle special controllers
@@ -148,7 +145,7 @@ VoiceInputEvent MidiSynth::MidiMessageToEventMPE(const IMidiMsg& msg)
     {
       event.mAction = kPitchBendAction;
       float bendRange = mChannelStates[event.mAddress.mChannel].pitchBendRange;
-      event.mValue = msg.PitchWheel() * bendRange / 12.f;
+      event.mValue = static_cast<float>(msg.PitchWheel()) * bendRange / 12.f;
 
       pChannelDestValue = &(mChannelStates[event.mAddress.mChannel].pitchBend);
       masterChannelStoredValue = mChannelStates[MasterChannelFor(event.mAddress.mChannel)].pitchBend;
@@ -163,12 +160,12 @@ VoiceInputEvent MidiSynth::MidiMessageToEventMPE(const IMidiMsg& msg)
     else if(isTimbre)
     {
       event.mAction = kTimbreAction;
-      event.mValue = msg.ControlChange(msg.ControlChangeIdx());
+      event.mValue = static_cast<float>(msg.ControlChange(msg.ControlChangeIdx()));
       pChannelDestValue = &(mChannelStates[event.mAddress.mChannel].timbre);
       masterChannelStoredValue = mChannelStates[MasterChannelFor(event.mAddress.mChannel)].timbre;
     }
 
-    if(isMasterChannel(event.mAddress.mChannel))
+    if(IsMasterChannel(event.mAddress.mChannel))
     {
       // store value in master channel
       *pChannelDestValue = event.mValue;
@@ -198,7 +195,7 @@ VoiceInputEvent MidiSynth::MidiMessageToEventMPE(const IMidiMsg& msg)
     // affects all voices within the zone. Program changes sent to member channels are ignored.
     case IMidiMsg::kProgramChange:
     {
-      if(isMasterChannel(event.mAddress.mChannel))
+      if(IsMasterChannel(event.mAddress.mChannel))
       {
         event.mAction = kProgramChangeAction;
         event.mControllerNumber = msg.Program();
@@ -243,10 +240,9 @@ VoiceInputEvent MidiSynth::MidiMessageToEventMPE(const IMidiMsg& msg)
           event.mAction = kControllerAction;
           break;
       }
-      event.mValue = msg.ControlChange(msg.ControlChangeIdx());
+      event.mValue = static_cast<float>(msg.ControlChange(msg.ControlChangeIdx()));
       break;
     }
-
     default:
     {
       break;
@@ -304,22 +300,23 @@ void MidiSynth::SetMPEZones(int channel, int nChans)
       SetChannelPitchBendRange(kMPEUpperZoneMasterChannel - 1, 48);
     }
   }
-  // std::cout << "MPE mode: " << (mMPEMode ? "ON" : "OFF") << "\n";
-  // std::cout << "MPE channels: \n    lo: " << mMPELowerZoneChannels << " hi " << mMPEUpperZoneChannels << "\n";
+  
+  std::cout << "MPE mode: " << (mMPEMode ? "ON" : "OFF") << "\n";
+  std::cout << "MPE channels: \n    lo: " << mMPELowerZoneChannels << " hi " << mMPEUpperZoneChannels << "\n";
 }
 
 void MidiSynth::SetChannelPitchBendRange(int channelParam, int rangeParam)
 {
   int channelLo, channelHi;
-  if(isInLowerZone(channelParam))
+  if(IsInLowerZone(channelParam))
   {
-    channelLo = lowerZoneStart();
-    channelHi = lowerZoneEnd();
+    channelLo = LowerZoneStart();
+    channelHi = LowerZoneEnd();
   }
-  else if (isInUpperZone(channelParam))
+  else if (IsInUpperZone(channelParam))
   {
-    channelLo = upperZoneStart();
-    channelHi = upperZoneEnd();
+    channelLo = UpperZoneStart();
+    channelHi = UpperZoneEnd();
   }
   else
   {
@@ -381,7 +378,7 @@ void MidiSynth::HandleRPN(IMidiMsg msg)
           SetChannelPitchBendRange(channel, value);
           break;
         case 6: // RPN 6 : MPE zone configuration. These messages may turn MPE mode on or off.
-          if(isMasterChannel(channel))
+          if(IsMasterChannel(channel))
           {
             SetMPEZones(channel, value);
           }
@@ -477,10 +474,10 @@ void MidiSynth::SetSampleRateAndBlockSize(double sampleRate, int blockSize)
 
   mSampleRate = sampleRate;
   mMidiQueue.Resize(blockSize);
-  mVoiceAllocator.SetSampleRate(sampleRate);
+  mVoiceAllocator.SetSampleRateAndBlockSize(sampleRate, blockSize);
 
   for(int v = 0; v < NVoices(); v++)
   {
-    GetVoice(v)->SetSampleRate(sampleRate);
+    GetVoice(v)->SetSampleRateAndBlockSize(sampleRate, blockSize);
   }
 }

@@ -232,12 +232,12 @@ public:
   
   ~IGraphicsLiveEdit()
   {
-    GetUI()->HandleMouseOver(mMouseOversEnabled); // Set it back to what it was
+    GetUI()->EnableMouseOver(mMouseOversEnabled); // Set it back to what it was
   }
   
   void OnInit() override
   {
-    GetUI()->HandleMouseOver(true);
+    GetUI()->EnableMouseOver(true);
   }
 
   void OnMouseDown(float x, float y, const IMouseMod& mod) override
@@ -344,30 +344,27 @@ public:
     if(mClickedOnControl > 0)
     {
       IControl* pControl = GetUI()->GetControl(mClickedOnControl);
-      IRECT r = pControl->GetRECT();
       
       if(mMouseClickedOnResizeHandle)
       {
+        IRECT r = pControl->GetRECT();
         r.R = SnapToGrid(mMouseDownRECT.R + (x - mouseDownX));
         r.B = SnapToGrid(mMouseDownRECT.B + (y - mouseDownY));
         
         if(r.R < mMouseDownRECT.L +mGridSize) r.R = mMouseDownRECT.L+mGridSize;
         if(r.B < mMouseDownRECT.T +mGridSize) r.B = mMouseDownRECT.T+mGridSize;
+          
+        pControl->SetSize(r.W(), r.H());
       }
       else
       {
-        r.L = SnapToGrid(mMouseDownRECT.L + (x - mouseDownX));
-        r.T = SnapToGrid(mMouseDownRECT.T + (y - mouseDownY));
-        r.R = r.L + mMouseDownRECT.W();
-        r.B = r.T + mMouseDownRECT.H();
+        const float x1 = SnapToGrid(mMouseDownRECT.L + (x - mouseDownX));
+        const float y1 = SnapToGrid(mMouseDownRECT.T + (y - mouseDownY));
+          
+        pControl->SetPosition(x1, y1);
       }
       
-      pControl->SetRECT(r);
-      pControl->SetTargetRECT(r);
-
-      mSourceEditor.UpdateControlRectSource(GetUI()->GetControlIdx(pControl), r);
-      
-      DBGMSG("%i, %i, %i, %i\n", (int) r.L, (int) r.T, (int) r.R, (int) r.B);
+      mSourceEditor.UpdateControlRectSource(GetUI()->GetControlIdx(pControl), pControl->GetRECT());
       
       GetUI()->SetAllControlsDirty();
     }
@@ -476,7 +473,8 @@ public:
   
   void Draw(IGraphics& g) override
   {
-    g.DrawGrid(mGridColor, g.GetBounds(), mGridSize, mGridSize, &BLEND_25);
+    IBlend b {EBlend::Default, 0.25f};
+    g.DrawGrid(mGridColor, g.GetBounds(), mGridSize, mGridSize, &b);
     
     for(int i = 1; i < g.NControls(); i++)
     {
@@ -485,7 +483,7 @@ public:
 
       if(pControl->IsHidden())
         g.DrawDottedRect(COLOR_RED, cr);
-      else if(pControl->IsGrayed())
+      else if(pControl->IsDisabled())
         g.DrawDottedRect(COLOR_GREEN, cr);
       else
         g.DrawDottedRect(COLOR_BLUE, cr);
@@ -540,7 +538,7 @@ private:
   WDL_String mErrorMessage;
   WDL_PtrList<IControl> mSelectedControls;
 
-  IColor mGridColor = COLOR_GRAY;
+  IColor mGridColor = COLOR_WHITE;
   IColor mRectColor = COLOR_WHITE;
   static const int RESIZE_HANDLE_SIZE = 10;
 

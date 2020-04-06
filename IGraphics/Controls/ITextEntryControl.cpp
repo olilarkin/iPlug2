@@ -108,7 +108,7 @@ void ITextEntryControl::Draw(IGraphics& g)
     }
     IRECT selectionRect(selectionStart, mRECT.T + row.ymin, selectionEnd, mRECT.T + row.ymax);
     selectionRect = selectionRect.GetVPadded(-mText.mSize*0.1f);
-    IBlend blend(EBlend::Default, 0.2);
+    IBlend blend(EBlend::Default, 0.2f);
     g.FillRect(mText.mTextEntryFGColor, selectionRect, &blend);
   }
 
@@ -133,7 +133,7 @@ bool ITextEntryControl::CallSTB(Proc proc)
   auto oldState = mEditState;
   proc();
   
-  if(memcmp (&oldState, &mEditState, sizeof (STB_TexteditState)) != 0)
+  if(memcmp(&oldState, &mEditState, sizeof (STB_TexteditState)) != 0)
   {
     OnStateChanged(); //TODO:
     return true;
@@ -153,16 +153,14 @@ void ITextEntryControl::OnMouseDown(float x, float y, const IMouseMod& mod)
   if(mod.L)
   {
     CallSTB ([&]() {
-      stb_textedit_click(this, &mEditState, x - mRECT.L, y - mRECT.T);
+      stb_textedit_click(this, &mEditState, x, y);
     });
-    
-    SetDirty(true);
   }
   
   if(mod.R)
   {
-    static IPopupMenu menu {"", {"Cut", "Copy", "Paste"}, [&](int indexInMenu, IPopupMenu::Item* itemChosen) {
-      switch (indexInMenu) {
+    static IPopupMenu menu {"", {"Cut", "Copy", "Paste"}, [&](IPopupMenu* pMenu) {
+      switch (pMenu->GetChosenItemIdx()) {
         case 0: Cut(); break;
         case 1: CopySelection(); break;
         case 2: Paste(); break;
@@ -180,11 +178,9 @@ void ITextEntryControl::OnMouseDrag(float x, float y, float dX, float dY, const 
 {
   if (mod.L)
   {
-    CallSTB ([&]() {
-      stb_textedit_drag(this, &mEditState, x - mRECT.L, y - mRECT.T);
+    CallSTB([&]() {
+      stb_textedit_drag(this, &mEditState, x, y);
     });
-
-    SetDirty(true);
   }
 }
 
@@ -201,7 +197,7 @@ void ITextEntryControl::OnMouseUp(float x, float y, const IMouseMod& mod)
   if (mod.L)
   {
     CallSTB([&]() {
-      stb_textedit_drag(this, &mEditState, x - mRECT.L, y - mRECT.T);
+      stb_textedit_drag(this, &mEditState, x, y);
     });
 
     SetDirty(true);
@@ -333,7 +329,7 @@ void ITextEntryControl::CopySelection()
     const int end = std::max(mEditState.select_start, mEditState.select_end);
     WDL_String selection;
     selection.Set(mEditString.Get() + start, end - start);
-    GetUI()->SetTextInClipboard(selection);
+    GetUI()->SetTextInClipboard(selection.Get());
   }
 }
 
@@ -404,13 +400,13 @@ void ITextEntryControl::Layout(StbTexteditRow* row, ITextEntryControl* _this, in
   {
     case EAlign::Near:
     {
-      row->x0 = _this->GetRECT().L + 1; 
+      row->x0 = _this->GetRECT().L;
       row->x1 = row->x0 + textWidth;
       break;
     }
     case EAlign::Center:
     {
-      row->x0 = roundf(_this->GetRECT().MW() - (textWidth * 0.5f));
+      row->x0 = _this->GetRECT().MW() - (textWidth * 0.5f);
       row->x1 = row->x0 + textWidth;
       break;
     }
@@ -543,6 +539,7 @@ void ITextEntryControl::DismissEdit()
 {
   mEditing = false;
   SetTargetAndDrawRECTs(IRECT());
+  GetUI()->mInTextEntry = nullptr;
   GetUI()->SetAllControlsDirty();
 }
 
