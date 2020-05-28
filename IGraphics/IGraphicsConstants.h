@@ -53,8 +53,6 @@ const char* const DEFAULT_FONT = "Roboto-Regular";
 static constexpr float DEFAULT_TEXT_SIZE = 14.f;
 static constexpr int FONT_LEN = 64;
 
-static const float SENDER_THRESHOLD = (float) DBToAmp(-90.);
-
 /** @enum EBlend Porter-Duff blend mode/compositing operators */
 enum class EBlend
 {
@@ -144,7 +142,7 @@ enum class ELineCap { Butt, Round, Square };
 enum class ELineJoin { Miter, Round, Bevel };
 
 /** /todo */
-enum class EPatternType { Solid, Linear, Radial };
+enum class EPatternType { Solid, Linear, Radial, Sweep };
 
 /** /todo */
 enum class EPatternExtend { None, Pad, Reflect, Repeat };

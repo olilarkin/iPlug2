@@ -3,11 +3,14 @@
 
 #include "IGraphicsSkia.h"
 
+#pragma warning( push )
+#pragma warning( disable : 4244 )
 #include "SkDashPathEffect.h"
 #include "SkGradientShader.h"
 #include "SkFont.h"
 #include "SkFontMetrics.h"
 #include "SkTypeface.h"
+#pragma warning( pop )
 
 #include "GrContext.h"
 
@@ -163,8 +166,9 @@ SkPaint SkiaPaint(const IPattern& pattern, const IBlend* pBlend)
   SkPaint paint;
   paint.setAntiAlias(true);
   paint.setBlendMode(SkiaBlendMode(pBlend));
+  int numStops = pattern.NStops();
     
-  if (pattern.mType == EPatternType::Solid || pattern.NStops() <  2)
+  if (pattern.mType == EPatternType::Solid || numStops <  2)
   {
     paint.setColor(SkiaColor(pattern.GetStop(0).mColor, pBlend));
   }
@@ -189,24 +193,42 @@ SkPaint SkiaPaint(const IPattern& pattern, const IBlend* pBlend)
     SkColor colors[8];
     SkScalar positions[8];
       
-    assert(pattern.NStops() <= 8);
+    assert(numStops <= 8);
     
-    for(int i = 0; i < pattern.NStops(); i++)
+    for(int i = 0; i < numStops; i++)
     {
       const IColorStop& stop = pattern.GetStop(i);
       colors[i] = SkiaColor(stop.mColor, pBlend);
       positions[i] = stop.mOffset;
     }
-   
-    if(pattern.mType == EPatternType::Linear)
-      paint.setShader(SkGradientShader::MakeLinear(points, colors, positions, pattern.NStops(), SkiaTileMode(pattern), 0, nullptr));
-    else
+
+    switch (pattern.mType)
+    {
+    case EPatternType::Linear:
+      paint.setShader(SkGradientShader::MakeLinear(points, colors, positions, numStops, SkiaTileMode(pattern), 0, nullptr));
+      break;
+
+    case EPatternType::Radial:
     {
       float xd = points[0].x() - points[1].x();
       float yd = points[0].y() - points[1].y();
       float radius = std::sqrt(xd * xd + yd * yd);
-        
-      paint.setShader(SkGradientShader::MakeRadial(points[0], radius, colors, positions, pattern.NStops(), SkiaTileMode(pattern), 0, nullptr));
+      paint.setShader(SkGradientShader::MakeRadial(points[0], radius, colors, positions, numStops, SkiaTileMode(pattern), 0, nullptr));
+      break;
+    }
+
+    case EPatternType::Sweep:
+    {
+      SkMatrix matrix = SkMatrix::MakeAll(m.mXX, m.mYX, 0, m.mXY, m.mYY, 0, 0, 0, 1);
+      
+      paint.setShader(SkGradientShader::MakeSweep(x1, y1, colors, nullptr, numStops, SkTileMode::kDecal,
+        0, 360 * positions[numStops - 1], 0, &matrix));
+
+      break;
+    }
+
+    default:
+      break;
     }
   }
     
@@ -221,6 +243,8 @@ END_IPLUG_NAMESPACE
 IGraphicsSkia::IGraphicsSkia(IGEditorDelegate& dlg, int w, int h, int fps, float scale)
 : IGraphicsPathBase(dlg, w, h, fps, scale)
 {
+  mMainPath.setIsVolatile(true);
+  
 #if defined IGRAPHICS_CPU
   DBGMSG("IGraphics Skia CPU @ %i FPS\n", fps);
 #elif defined IGRAPHICS_METAL
@@ -319,7 +343,8 @@ void IGraphicsSkia::DrawResize()
 #else
   #ifdef OS_WIN
     mSurface.reset();
-    const size_t bmpSize = sizeof(BITMAPINFOHEADER) + WindowWidth() * WindowHeight() * GetScreenScale() * sizeof(uint32_t);
+   
+    const size_t bmpSize = sizeof(BITMAPINFOHEADER) + (WindowWidth() * GetScreenScale()) * (WindowHeight() * GetScreenScale()) * sizeof(uint32_t);
     mSurfaceMemory.Resize(bmpSize);
     BITMAPINFO* bmpInfo = reinterpret_cast<BITMAPINFO*>(mSurfaceMemory.Get());
     ZeroMemory(bmpInfo, sizeof(BITMAPINFO));
@@ -431,6 +456,7 @@ void IGraphicsSkia::DrawBitmap(const IBitmap& bitmap, const IRECT& dest, int src
   SkPaint p;
   
   p.setFilterQuality(kHigh_SkFilterQuality);
+  p.setAntiAlias(true);
   p.setBlendMode(SkiaBlendMode(pBlend));
   if (pBlend)
     p.setAlpha(Clip(static_cast<int>(pBlend->mWeight * 255), 0, 255));
@@ -457,6 +483,8 @@ void IGraphicsSkia::DrawBitmap(const IBitmap& bitmap, const IRECT& dest, int src
 void IGraphicsSkia::PathArc(float cx, float cy, float r, float a1, float a2, EWinding winding)
 {
   SkPath arc;
+  arc.setIsVolatile(true);
+  
   float sweep = (a2 - a1);
 
   if (sweep >= 360.f || sweep <= -360.f)
@@ -555,7 +583,7 @@ void IGraphicsSkia::PrepareAndMeasureText(const IText& text, const char* str, IR
   r = IRECT((float) x, (float) y + ascender, (float) (x + textWidth), (float) (y + ascender + textHeight));
 }
 
-void IGraphicsSkia::DoMeasureText(const IText& text, const char* str, IRECT& bounds) const
+float IGraphicsSkia::DoMeasureText(const IText& text, const char* str, IRECT& bounds) const
 {
   SkFont font;
 
@@ -563,6 +591,7 @@ void IGraphicsSkia::DoMeasureText(const IText& text, const char* str, IRECT& bou
   double x, y;
   PrepareAndMeasureText(text, str, bounds, x, y, font);
   DoMeasureTextRotation(text, r, bounds);
+  return bounds.W();
 }
 
 void IGraphicsSkia::DoDrawText(const IText& text, const char* str, const IRECT& bounds, const IBlend* pBlend)
@@ -725,6 +754,7 @@ void IGraphicsSkia::RenderPath(SkPaint& paint)
   if (!mMatrix.isIdentity() && mMatrix.invert(&invMatrix))
   {
     SkPath path;
+    path.setIsVolatile(true);
     mMainPath.transform(invMatrix, &path);
     mCanvas->drawPath(path, paint);
   }

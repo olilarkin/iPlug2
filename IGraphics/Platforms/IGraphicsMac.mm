@@ -76,41 +76,38 @@ void IGraphicsMac::CachePlatformFont(const char* fontID, const PlatformFontPtr& 
   CoreTextHelpers::CachePlatformFont(fontID, font, sFontDescriptorCache);
 }
 
-void IGraphicsMac::MeasureText(const IText& text, const char* str, IRECT& bounds) const
+float IGraphicsMac::MeasureText(const IText& text, const char* str, IRECT& bounds) const
 {
 #ifdef IGRAPHICS_LICE
   @autoreleasepool
   {
-    IGRAPHICS_DRAW_CLASS::MeasureText(text, str, bounds);
+    return IGRAPHICS_DRAW_CLASS::MeasureText(text, str, bounds);
   }
 #else
-  IGRAPHICS_DRAW_CLASS::MeasureText(text, str, bounds);
+  return IGRAPHICS_DRAW_CLASS::MeasureText(text, str, bounds);
 #endif
-}
-
-void IGraphicsMac::ContextReady(void* pLayer)
-{
-  OnViewInitialized(pLayer);
-  SetScreenScale([[NSScreen mainScreen] backingScaleFactor]);
-  GetDelegate()->LayoutUI(this);
-  UpdateTooltips();
-  GetDelegate()->OnUIOpen();
 }
 
 void* IGraphicsMac::OpenWindow(void* pParent)
 {
   TRACE
   CloseWindow();
-  mView = (IGRAPHICS_VIEW*) [[IGRAPHICS_VIEW alloc] initWithIGraphics: this];
-  
-#ifndef IGRAPHICS_GL // with OpenGL, we don't get given the glcontext until later, ContextReady will get called elsewhere
-  IGRAPHICS_VIEW* pView = (IGRAPHICS_VIEW*) mView;
-  ContextReady([pView layer]);
+  IGRAPHICS_VIEW* pView = [[IGRAPHICS_VIEW alloc] initWithIGraphics: this];
+  mView = (void*) pView;
+    
+#ifdef IGRAPHICS_GL
+  [[pView openGLContext] makeCurrentContext];
 #endif
+    
+  OnViewInitialized([pView layer]);
+  SetScreenScale([[NSScreen mainScreen] backingScaleFactor]);
+  GetDelegate()->LayoutUI(this);
+  UpdateTooltips();
+  GetDelegate()->OnUIOpen();
   
   if (pParent)
   {
-    [(NSView*) pParent addSubview: (IGRAPHICS_VIEW*) mView];
+    [(NSView*) pParent addSubview: pView];
   }
 
   return mView;
@@ -133,7 +130,7 @@ void IGraphicsMac::CloseWindow()
     IGRAPHICS_VIEW* pView = (IGRAPHICS_VIEW*) mView;
       
 #ifdef IGRAPHICS_GL
-    [((IGRAPHICS_GLLAYER *)pView.layer).openGLContext makeCurrentContext];
+    [[pView openGLContext] makeCurrentContext];
 #endif
       
     [pView removeAllToolTips];

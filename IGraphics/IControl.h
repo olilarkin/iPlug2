@@ -217,6 +217,7 @@ public:
   int GetParamIdx(int valIdx = 0) const;
   
   /** Set the index of a parameter that the control is linked to
+   * If you are calling this "manually" to reuse a control for multiple parameters, you probably want to call IEditorDelegate::SendCurrentParamValuesFromDelegate() afterward, to update the control values
    * @param paramIdx Parameter index, or kNoParameter if there is no parameter linked with this control at valIdx
    * @param valIdx An index to choose which of the controls vals to set */
   void SetParamIdx(int paramIdx, int valIdx = 0);
@@ -482,17 +483,21 @@ public:
    * @param duration Duration in milliseconds for the animation  */
   void SetAnimation(IAnimationFunction func, int duration) { mAnimationFunc = func; StartAnimation(duration); }
 
-  /** /todo */
+  /** Get the control's animation function, if it exists */
   IAnimationFunction GetAnimationFunction() { return mAnimationFunc; }
 
-  /** /todo */
-  IAnimationFunction GetActionFunction() { return mActionFunc; }
+  /** Get the control's action function, if it exists */
+  IActionFunction GetActionFunction() { return mActionFunc; }
 
-  /** /todo */
+  /** Get the progress in a control's animation, in the range 0-1 */
   double GetAnimationProgress() const;
   
-  /** /todo */
+  /** Get the duration of animations applied to the control */
   Milliseconds GetAnimationDuration() const { return mAnimationDuration; }
+
+  /** Helper function to dynamic cast an IControl to a subclass */
+  template <class T>
+  T* As() { return dynamic_cast<T*>(this); }
     
 #if defined VST3_API || defined VST3C_API
   Steinberg::tresult PLUGIN_API executeMenuItem (Steinberg::int32 tag) override { OnContextSelection(tag); return Steinberg::kResultOk; }
@@ -677,7 +682,7 @@ public:
       handleBounds.Pad(- 0.5f * mStyle.frameThickness);
     
     if (mStyle.drawShadows)
-      handleBounds.Alter(0, 0, -mStyle.shadowOffset, -mStyle.shadowOffset);
+      handleBounds.Alter(mStyle.shadowOffset, 0, -mStyle.shadowOffset, -mStyle.shadowOffset);
     
     return handleBounds;
   }
@@ -1185,6 +1190,7 @@ public:
   ISliderControlBase(const IRECT& bounds, int paramIdx = kNoParameter, EDirection dir = EDirection::Vertical, double gearing = DEFAULT_GEARING, float handleSize = 0.f);
   ISliderControlBase(const IRECT& bounds, IActionFunction aF = nullptr, EDirection dir = EDirection::Vertical, double gearing = DEFAULT_GEARING, float handleSize = 0.f);
   
+  void OnResize() override;
   void OnMouseDown(float x, float y, const IMouseMod& mod) override;
   void OnMouseUp(float x, float y, const IMouseMod& mod) override;
   void OnMouseDrag(float x, float y, float dX, float dY, const IMouseMod& mod) override;
@@ -1207,7 +1213,7 @@ class IVTrackControlBase : public IControl
                          , public IVectorBase
 {
 public:
-  IVTrackControlBase(const IRECT& bounds, const char* label, const IVStyle& style, int maxNTracks = 1, EDirection dir = EDirection::Horizontal, float minTrackValue = 0.f, float maxTrackValue = 1.f, const char* trackNames = 0, ...)
+  IVTrackControlBase(const IRECT& bounds, const char* label, const IVStyle& style, int maxNTracks = 1, EDirection dir = EDirection::Horizontal, float minTrackValue = 0.f, float maxTrackValue = 1.f, std::initializer_list<const char*> trackNames = {})
   : IControl(bounds)
   , IVectorBase(style)
   , mMinTrackValue(minTrackValue)
@@ -1222,10 +1228,20 @@ public:
       mTrackBounds.Add(IRECT());
     }
     
+    if(trackNames.size())
+    {
+      assert(trackNames.size() == maxNTracks); // check that the trackNames list size matches the number of tracks
+      
+      for (auto& trackName : trackNames)
+      {
+        mTrackNames.Add(new WDL_String(trackName));
+      }
+    }
+    
     AttachIControl(this, label);
   }
 
-  IVTrackControlBase(const IRECT& bounds, const char* label, const IVStyle& style, int lowParamidx, int maxNTracks = 1, EDirection dir = EDirection::Horizontal, float minTrackValue = 0.f, float maxTrackValue = 1.f, const char* trackNames = 0, ...)
+  IVTrackControlBase(const IRECT& bounds, const char* label, const IVStyle& style, int lowParamidx, int maxNTracks = 1, EDirection dir = EDirection::Horizontal, float minTrackValue = 0.f, float maxTrackValue = 1.f, std::initializer_list<const char*> trackNames = {})
   : IControl(bounds)
   , IVectorBase(style)
   , mMinTrackValue(minTrackValue)
@@ -1239,11 +1255,21 @@ public:
       SetParamIdx(lowParamidx+i, i);
       mTrackBounds.Add(IRECT());
     }
+    
+    if(trackNames.size())
+    {
+      assert(trackNames.size() == maxNTracks);
+      
+      for (auto& trackName : trackNames)
+      {
+        mTrackNames.Add(new WDL_String(trackName));
+      }
+    }
 
     AttachIControl(this, label);
   }
   
-  IVTrackControlBase(const IRECT& bounds, const char* label, const IVStyle& style, const std::initializer_list<int>& params, EDirection dir = EDirection::Horizontal, float minTrackValue = 0.f, float maxTrackValue = 1.f, const char* trackNames = 0, ...)
+  IVTrackControlBase(const IRECT& bounds, const char* label, const IVStyle& style, const std::initializer_list<int>& params, EDirection dir = EDirection::Horizontal, float minTrackValue = 0.f, float maxTrackValue = 1.f, std::initializer_list<const char*> trackNames = {})
   : IControl(bounds)
   , IVectorBase(style)
   , mMinTrackValue(minTrackValue)
@@ -1259,7 +1285,22 @@ public:
       mTrackBounds.Add(IRECT());
     }
     
+    if(trackNames.size())
+    {
+      assert(trackNames.size() == params.size());
+      
+      for (auto& trackName : trackNames)
+      {
+        mTrackNames.Add(new WDL_String(trackName));
+      }
+    }
+    
     AttachIControl(this, label);
+  }
+  
+  virtual ~IVTrackControlBase()
+  {
+    mTrackNames.Empty(true);
   }
   
   virtual void MakeTrackRects(const IRECT& bounds)
@@ -1283,12 +1324,87 @@ public:
     }
   }
   
-  //void SetAllTrackData(float val) { memset(mTrackData.Get(), (int) Clip(val, mMinTrackValue, mMaxTrackValue), mTrackData.GetSize() * sizeof(float) ); }
+  /** Update the parameters based on a parameter group name.
+   * You probably want to call IEditorDelegate::SendCurrentParamValuesFromDelegate() after this, to update the control values */
+  void SetParamsByGroup(const char* paramGroup)
+  {
+    int nParams = GetDelegate()->NParams();
+    std::vector<int> paramIdsForGroup;
+    
+    for (auto p = 0; p < nParams; p++)
+    {
+      IParam* pParam = GetDelegate()->GetParam(p);
+      
+      if(strcmp(pParam->GetGroup(), paramGroup) == 0)
+      {
+        paramIdsForGroup.push_back(p);
+      }
+    }
+    
+    mTrackBounds.Resize(0);
+    
+    int nParamsInGroup = static_cast<int>(paramIdsForGroup.size());
+    
+    SetNVals(nParamsInGroup);
+  
+    int valIdx = 0;
+    for (auto param : paramIdsForGroup)
+    {
+      SetParamIdx(param, valIdx++);
+      mTrackBounds.Add(IRECT());
+    }
+    
+    OnResize();
+  }
+  
+  /** Update the parameters based on a parameter group name.
+   * You probably want to call IEditorDelegate::SendCurrentParamValuesFromDelegate() after this, to update the control values */
+  void SetParams(std::initializer_list<int> paramIds)
+  {
+    mTrackBounds.Resize(0);
+
+    SetNVals(static_cast<int>(paramIds.size()));
+  
+    int valIdx = 0;
+    for (auto param : paramIds)
+    {
+      SetParamIdx(param, valIdx++);
+      mTrackBounds.Add(IRECT());
+    }
+    
+    OnResize();
+  }
+  
+  bool HasTrackNames() const
+  {
+    return mTrackNames.GetSize() > 0;
+  }
+  
+  const char* GetTrackName(int chIdx) const
+  {
+    WDL_String* pStr = mTrackNames.Get(chIdx);
+    return pStr ? pStr->Get() : "";
+  }
+  
+  void SetTrackName(int chIdx, const char* newName)
+  {
+    assert(chIdx >= 0 && chIdx < mTrackNames.GetSize());
+    
+    if(chIdx >= 0 && chIdx < mTrackNames.GetSize())
+    {
+      mTrackNames.Get(chIdx)->Set(newName);
+    }
+  }
+  
 protected:
   
   virtual void DrawTrack(IGraphics& g, const IRECT& r, int chIdx)
   {
     DrawTrackBG(g, r, chIdx);
+    
+    if(HasTrackNames())
+      DrawTrackName(g, r, chIdx);
+    
     DrawTrackHandle(g, r, chIdx);
     
     if(mStyle.drawFrame && mDrawTrackFrame)
@@ -1298,6 +1414,11 @@ protected:
   virtual void DrawTrackBG(IGraphics& g, const IRECT& r, int chIdx)
   {
     g.FillRect(kBG, r, &mBlend);
+  }
+  
+  virtual void DrawTrackName(IGraphics& g, const IRECT& r, int chIdx)
+  {
+    g.DrawText(mText, GetTrackName(chIdx), r);
   }
   
   virtual void DrawTrackHandle(IGraphics& g, const IRECT& r, int chIdx)
@@ -1331,6 +1452,7 @@ protected:
 protected:
   EDirection mDirection = EDirection::Vertical;
   WDL_TypedBuf<IRECT> mTrackBounds;
+  WDL_PtrList<WDL_String> mTrackNames;
   float mMinTrackValue;
   float mMaxTrackValue;
   float mTrackPadding = 0.;
@@ -1611,7 +1733,7 @@ protected:
 class IEditableTextControl : public ITextControl
 {
 public:
-  IEditableTextControl(const IRECT& bounds, const char* str, const IText& text)
+  IEditableTextControl(const IRECT& bounds, const char* str, const IText& text = DEFAULT_TEXT)
   : ITextControl(bounds, str, text)
   {
     mIgnoreMouse = false;
@@ -1628,6 +1750,7 @@ public:
   }
 };
 
+/** A control to show a clickable URL, that changes colour after clicking */
 class IURLControl : public ITextControl
 {
 public:
@@ -1645,6 +1768,7 @@ protected:
   bool mClicked = false;
 };
 
+/** A control to toggle between two text strings on click */
 class ITextToggleControl : public ITextControl
 {
 public:

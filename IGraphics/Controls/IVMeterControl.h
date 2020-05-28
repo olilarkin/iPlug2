@@ -29,7 +29,7 @@ template <int MAXNC = 1>
 class IVMeterControl : public IVTrackControlBase
 {
 public:
-  IVMeterControl(const IRECT& bounds, const char* label, const IVStyle& style = DEFAULT_STYLE, EDirection dir = EDirection::Vertical, const char* trackNames = 0, ...)
+  IVMeterControl(const IRECT& bounds, const char* label, const IVStyle& style = DEFAULT_STYLE, EDirection dir = EDirection::Vertical, std::initializer_list<const char*> trackNames = {})
   : IVTrackControlBase(bounds, label, style, MAXNC, dir, 0, 1., trackNames)
   {
   }
@@ -56,7 +56,8 @@ public:
 
       for (auto c = d.chanOffset; c < (d.chanOffset + d.nChans); c++)
       {
-        SetValue(Clip(d.vals[c], 0.f, 1.f), c);
+        float ampValue = static_cast<float>(AmpToDB(d.vals[c]));
+        SetValue(Clip((ampValue + 90.f)/100.f, 0.f, 1.f), c); // TODO: tmp DB conversion to be improved
       }
 
       SetDirty(false);

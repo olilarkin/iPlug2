@@ -4,13 +4,14 @@
 IPlugFaustDSP::IPlugFaustDSP(const InstanceInfo& info)
 : Plugin(info, MakeConfig(kNumParams, 1))
 {
-  InitParamRange(0, kNumParams-1, 0, "Param %i", 0., 0., 1., 0.01, "", IParam::kFlagsNone);
+  InitParamRange(0, kNumParams-1, 0, "Param %i", 0., 0., 1., 0.01, "", IParam::kFlagsNone); // initialize kNumParams generic iplug params
   
 #if IPLUG_DSP
   mFaustProcessor.SetMaxChannelCount(MaxNChannels(ERoute::kInput), MaxNChannels(ERoute::kOutput));
   mFaustProcessor.Init();
   mFaustProcessor.CompileCPP();
   mFaustProcessor.SetAutoRecompile(true);
+//  mFaustProcessor.CreateIPlugParameters(this); // in order to create iplug params, based on faust .dsp params, uncomment this
 #ifndef FAUST_COMPILED
   mFaustProcessor.SetCompileFunc([&](){
     OnParamReset(EParamSource::kRecompile);
@@ -20,7 +21,7 @@ IPlugFaustDSP::IPlugFaustDSP(const InstanceInfo& info)
   
 #if IPLUG_EDITOR
   mMakeGraphicsFunc = [&]() {
-    return MakeGraphics(*this, PLUG_WIDTH, PLUG_HEIGHT, PLUG_FPS, 1.);
+    return MakeGraphics(*this, PLUG_WIDTH, PLUG_HEIGHT, PLUG_FPS, GetScaleForScreen(PLUG_HEIGHT));
   };
   
   mLayoutFunc = [&](IGraphics* pGraphics) {
@@ -56,7 +57,7 @@ void IPlugFaustDSP::OnReset()
 
 void IPlugFaustDSP::OnParamChange(int paramIdx)
 {
-  mFaustProcessor.SetParameterValueNormalised(paramIdx, GetParam(paramIdx)->Value());
+  mFaustProcessor.SetParameterValueNormalised(paramIdx, GetParam(paramIdx)->GetNormalized());
 }
 
 void IPlugFaustDSP::OnIdle()

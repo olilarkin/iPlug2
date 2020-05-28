@@ -1057,13 +1057,14 @@ struct IRECT
     return vrect.SubRectHorizontal(nColumns, col);
   }
   
-  /** Get a subrect (by index) of this IRECT which is a cell in a grid of size (nRows * nColumns)
+  /** Get a subrect (by index) of this IRECT which is a cell (or union of nCells sequential cells on same row/column) in a grid of size (nRows * nColumns)
    * @param cellIndex Index of the desired cell in the cell grid
    * @param nRows Number of rows in the cell grid
    * @param nColumns Number of columns in the cell grid
    * @param dir Desired direction of indexing, by row (EDirection::Horizontal) or by column (EDirection::Vertical)
+   * @param nCells Number of desired sequential cells to join (on same row/column)
    * @return IRECT The resulting subrect */
-  inline IRECT GetGridCell(int cellIndex, int nRows, int nColumns, EDirection dir = EDirection::Horizontal) const
+  inline IRECT GetGridCell(int cellIndex, int nRows, int nColumns, EDirection dir = EDirection::Horizontal, int nCells = 1) const
   {
     assert(cellIndex <= nRows * nColumns); // not enough cells !
 
@@ -1078,7 +1079,13 @@ struct IRECT
           if(cell == cellIndex)
           {
             const IRECT vrect = SubRectVertical(nRows, row);
-            return vrect.SubRectHorizontal(nColumns, col);
+            IRECT rect = vrect.SubRectHorizontal(nColumns, col);
+
+            for (int n = 1; n < nCells && (col + n) < nColumns; n++)
+            {
+              rect = rect.Union(vrect.SubRectHorizontal(nColumns, col + n));
+            }
+            return rect;
           }
 
           cell++;
@@ -1094,7 +1101,13 @@ struct IRECT
           if(cell == cellIndex)
           {
             const IRECT hrect = SubRectHorizontal(nColumns, col);
-            return hrect.SubRectVertical(nRows, row);
+            IRECT rect = hrect.SubRectVertical(nRows, row);;
+
+            for (int n = 1; n < nCells && (row + n) < nRows; n++)
+            {
+              rect = rect.Union(hrect.SubRectVertical(nRows, row + n));
+            }
+            return rect;
           }
           
           cell++;
@@ -2097,7 +2110,7 @@ struct IPattern
    * @param direction /todo
    * @param stops /todo
    * @return IPattern /todo */
-  static IPattern CreateLinearGradient(const IRECT& bounds, EDirection direction, const std::initializer_list<IColorStop>& stops = {})
+  static IPattern CreateLinearGradient(const IRECT& bounds, EDirection direction, const std::initializer_list<IColorStop>& stops)
   {
     float x1, y1, x2, y2;
     
@@ -2123,7 +2136,7 @@ struct IPattern
    * @param r /todo
    * @param stops /todo
    * @return IPattern /todo */
-  static IPattern CreateRadialGradient(float x1, float y1, float r, const std::initializer_list<IColorStop>& stops = {})
+  static IPattern CreateRadialGradient(float x1, float y1, float r, const std::initializer_list<IColorStop>& stops)
   {
     IPattern pattern(EPatternType::Radial);
     
@@ -2133,6 +2146,29 @@ struct IPattern
     
     for (auto& stop : stops)
       pattern.AddStop(stop.mColor, stop.mOffset);
+    
+    return pattern;
+  }
+
+  static IPattern CreateSweepGradient(float x1, float y1, const std::initializer_list<IColorStop>& stops, float angleStart = 0.0, float angleEnd = 360.0)
+  {
+    IPattern pattern(EPatternType::Sweep);
+
+    #ifdef IGRAPHICS_SKIA
+      angleStart -= 90;
+      angleEnd -= 90;
+    #endif
+
+    float rad = DegToRad(angleStart);
+    float c = std::cos(rad);
+    float s = std::sin(rad);
+
+    pattern.SetTransform(c, s, -s, c, -x1, -y1);
+
+    for (auto& stop : stops)
+    {
+      pattern.AddStop(stop.mColor, stop.mOffset * (angleEnd - angleStart) / 360.0);
+    }
     
     return pattern;
   }
@@ -2342,6 +2378,7 @@ static constexpr float DEFAULT_WIDGET_ANGLE = 0.f;
 const IText DEFAULT_LABEL_TEXT {DEFAULT_TEXT_SIZE + 5.f, EVAlign::Top};
 const IText DEFAULT_VALUE_TEXT {DEFAULT_TEXT_SIZE, EVAlign::Bottom};
 
+/** A struct encapsulating a set of properties used to configure IVControls */
 struct IVStyle
 {
   bool hideCursor = DEFAULT_HIDE_CURSOR;
