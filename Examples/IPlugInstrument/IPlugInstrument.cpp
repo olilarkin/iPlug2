@@ -3,7 +3,7 @@
 #include "LFO.h"
 
 IPlugInstrument::IPlugInstrument(const InstanceInfo& info)
-: Plugin(info, MakeConfig(kNumParams, kNumPrograms))
+: Plugin(info, MakeConfig(kNumParams, kNumPresets))
 {
   GetParam(kParamGain)->InitDouble("Gain", 100., 0., 100.0, 0.01, "%");
   GetParam(kParamNoteGlideTime)->InitMilliseconds("Note Glide Time", 0., 0.0, 30.);
@@ -19,7 +19,7 @@ IPlugInstrument::IPlugInstrument(const InstanceInfo& info)
     
 #if IPLUG_EDITOR // http://bit.ly/2S64BDd
   mMakeGraphicsFunc = [&]() {
-    return MakeGraphics(*this, PLUG_WIDTH, PLUG_HEIGHT, PLUG_FPS, 1.);
+    return MakeGraphics(*this, PLUG_WIDTH, PLUG_HEIGHT, PLUG_FPS, GetScaleForScreen(PLUG_HEIGHT));
   };
   
   mLayoutFunc = [&](IGraphics* pGraphics) {
@@ -28,11 +28,19 @@ IPlugInstrument::IPlugInstrument(const InstanceInfo& info)
     pGraphics->EnableMouseOver(true);
     pGraphics->EnableMultiTouch(true);
     
+#ifdef OS_WEB
+    pGraphics->AttachPopupMenuControl();
+#endif
+
 //    pGraphics->EnableLiveEdit(true);
     pGraphics->LoadFont("Roboto-Regular", ROBOTO_FN);
     const IRECT b = pGraphics->GetBounds().GetPadded(-20.f);
     const IRECT lfoPanel = b.GetFromLeft(300.f).GetFromTop(200.f);
-    pGraphics->AttachControl(new IVKeyboardControl(IRECT(10, 335, PLUG_WIDTH-10, PLUG_HEIGHT-10)), kCtrlTagKeyboard);
+    IRECT keyboardBounds = b.GetFromBottom(300);
+    IRECT wheelsBounds = keyboardBounds.ReduceFromLeft(100.f).GetPadded(-10.f);
+    pGraphics->AttachControl(new IVKeyboardControl(keyboardBounds), kCtrlTagKeyboard);
+    pGraphics->AttachControl(new IWheelControl(wheelsBounds.FracRectHorizontal(0.5)), kCtrlTagBender);
+    pGraphics->AttachControl(new IWheelControl(wheelsBounds.FracRectHorizontal(0.5, true), IMidiMsg::EControlChangeMsg::kModWheel));
 //    pGraphics->AttachControl(new IVMultiSliderControl<4>(b.GetGridCell(0, 2, 2).GetPadded(-30), "", DEFAULT_STYLE, kParamAttack, EDirection::Vertical, 0.f, 1.f));
     const IRECT controls = b.GetGridCell(1, 2, 2);
     pGraphics->AttachControl(new IVKnobControl(controls.GetGridCell(0, 2, 6).GetCentredInside(90), kParamGain, "Gain"));
@@ -42,7 +50,7 @@ IPlugInstrument::IPlugInstrument(const InstanceInfo& info)
     pGraphics->AttachControl(new IVSliderControl(sliders.GetGridCell(1, 1, 4).GetMidHPadded(30.), kParamDecay, "Decay"));
     pGraphics->AttachControl(new IVSliderControl(sliders.GetGridCell(2, 1, 4).GetMidHPadded(30.), kParamSustain, "Sustain"));
     pGraphics->AttachControl(new IVSliderControl(sliders.GetGridCell(3, 1, 4).GetMidHPadded(30.), kParamRelease, "Release"));
-    pGraphics->AttachControl(new IVMeterControl<2>(controls.GetFromRight(100).GetPadded(-30), ""), kCtrlTagMeter);
+    pGraphics->AttachControl(new IVLEDMeterControl<2>(controls.GetFromRight(100).GetPadded(-30)), kCtrlTagMeter);
     
     pGraphics->AttachControl(new IVKnobControl(lfoPanel.GetGridCell(0, 0, 2, 3).GetCentredInside(60), kParamLFORateHz, "Rate"), kNoTag, "LFO")->Hide(true);
     pGraphics->AttachControl(new IVKnobControl(lfoPanel.GetGridCell(0, 0, 2, 3).GetCentredInside(60), kParamLFORateTempo, "Rate"), kNoTag, "LFO")->DisablePrompt(false);
@@ -57,7 +65,7 @@ IPlugInstrument::IPlugInstrument(const InstanceInfo& info)
     
     pGraphics->AttachControl(new IVGroupControl("LFO", "LFO", 10.f, 20.f, 10.f, 10.f));
     
-    pGraphics->AttachControl(new IVButtonControl(controls.GetFromBottom(30).GetMidHPadded(100), SplashClickActionFunc,
+    pGraphics->AttachControl(new IVButtonControl(keyboardBounds.GetFromTRHC(200, 30).GetTranslated(0, -30), SplashClickActionFunc,
       "Show/Hide Keyboard", DEFAULT_STYLE.WithColor(kFG, COLOR_WHITE).WithLabelText({15.f, EVAlign::Middle})))->SetAnimationEndActionFunction(
       [pGraphics](IControl* pCaller) {
         static bool hide = false;
@@ -95,26 +103,6 @@ void IPlugInstrument::OnIdle()
   mLFOVisSender.TransmitData(*this);
 }
 
-bool IPlugInstrument::OnKeyDown(const IKeyPress& key)
-{
-#ifndef NO_IGRAPHICS
-  if (GetUI())
-    return GetUI()->OnKeyDown(0, 0, key);
-  else
-#endif
-    return false;
-}
-
-bool IPlugInstrument::OnKeyUp(const IKeyPress& key)
-{
-#ifndef NO_IGRAPHICS
-  if (GetUI())
-    return GetUI()->OnKeyUp(0, 0, key);
-  else
-#endif
-    return false;
-}
-
 void IPlugInstrument::OnReset()
 {
   mDSP.Reset(GetSampleRate(), GetBlockSize());
@@ -150,5 +138,16 @@ handle:
 void IPlugInstrument::OnParamChange(int paramIdx)
 {
   mDSP.SetParam(paramIdx, GetParam(paramIdx)->Value());
+}
+
+bool IPlugInstrument::OnMessage(int msgTag, int ctrlTag, int dataSize, const void* pData)
+{
+  if(ctrlTag == kCtrlTagBender && msgTag == IWheelControl::kMessageTagSetPitchBendRange)
+  {
+    const int bendRange = *static_cast<const int*>(pData);
+    mDSP.mSynth.SetPitchBendRange(bendRange);
+  }
+  
+  return false;
 }
 #endif

@@ -3,7 +3,7 @@
 #include "IPlug_include_in_plug_hdr.h"
 #include "IControls.h"
 
-const int kNumPrograms = 1;
+const int kNumPresets = 1;
 
 enum EParams
 {
@@ -33,13 +33,14 @@ enum EControlTags
   kCtrlTagScope,
   kCtrlTagRTText,
   kCtrlTagKeyboard,
+  kCtrlTagBender,
   kNumCtrlTags
 };
 
 using namespace iplug;
 using namespace igraphics;
 
-class IPlugInstrument : public Plugin
+class IPlugInstrument final : public Plugin
 {
 public:
   IPlugInstrument(const InstanceInfo& info);
@@ -51,8 +52,7 @@ public:
   void OnReset() override;
   void OnParamChange(int paramIdx) override;
   void OnIdle() override;
-  bool OnKeyDown(const IKeyPress& key) override;
-  bool OnKeyUp(const IKeyPress& key) override;
+  bool OnMessage(int msgTag, int ctrlTag, int dataSize, const void* pData) override;
 
 private:
   IPlugInstrumentDSP<sample> mDSP {16};

@@ -38,7 +38,7 @@ IVLabelControl::IVLabelControl(const IRECT& bounds, const char* label, const IVS
 
 void IVLabelControl::Draw(IGraphics& g)
 {
-  DrawBackGround(g, mRECT);
+  DrawBackground(g, mRECT);
 
   if (mStr.GetLength())
   {
@@ -64,7 +64,7 @@ IVButtonControl::IVButtonControl(const IRECT& bounds, IActionFunction aF, const 
 
 void IVButtonControl::Draw(IGraphics& g)
 {
-  DrawBackGround(g, mRECT);
+  DrawBackground(g, mRECT);
   DrawWidget(g);
   DrawLabel(g);
   DrawValue(g, false);
@@ -73,7 +73,7 @@ void IVButtonControl::Draw(IGraphics& g)
 void IVButtonControl::DrawWidget(IGraphics& g)
 {
   bool pressed = (bool)GetValue();
-  DrawHandle(g, mShape, mWidgetBounds, pressed, mMouseIsOver, IsDisabled());
+  DrawPressableShape(g, mShape, mWidgetBounds, pressed, mMouseIsOver, IsDisabled());
 }
 
 void IVButtonControl::OnResize()
@@ -111,15 +111,15 @@ IVSwitchControl::IVSwitchControl(const IRECT& bounds, IActionFunction aF, const 
 
 void IVSwitchControl::Draw(IGraphics& g)
 {
-  DrawBackGround(g, mRECT);
-  DrawWidget(g);
+  DrawBackground(g, mRECT);
   DrawLabel(g);
+  DrawWidget(g);
   DrawValue(g, false);
 }
 
 void IVSwitchControl::DrawWidget(IGraphics& g)
 {
-  DrawHandle(g, mShape, mWidgetBounds, mMouseDown, mMouseIsOver, IsDisabled());
+  DrawPressableShape(g, mShape, mWidgetBounds, mMouseDown, mMouseIsOver, IsDisabled());
 }
 
 void IVSwitchControl::SetDirty(bool push, int valIdx)
@@ -129,7 +129,7 @@ void IVSwitchControl::SetDirty(bool push, int valIdx)
   const IParam* pParam = GetParam();
 
   if(pParam)
-    pParam->GetDisplayForHost(mValueStr);
+    pParam->GetDisplay(mValueStr);
 }
 
 void IVSwitchControl::OnResize()
@@ -151,10 +151,10 @@ void IVSwitchControl::OnInit()
   
   if(pParam)
   {
-    pParam->GetDisplayForHostWithLabel(mValueStr);
+    pParam->GetDisplayWithLabel(mValueStr);
   
     if(!mLabelStr.GetLength())
-      mLabelStr.Set(pParam->GetNameForHost());
+      mLabelStr.Set(pParam->GetName());
   }
 }
 
@@ -176,7 +176,7 @@ IVToggleControl::IVToggleControl(const IRECT& bounds, IActionFunction aF, const 
 
 void IVToggleControl::DrawWidget(IGraphics& g)
 {
-  DrawHandle(g, mShape, mWidgetBounds, GetValue() > 0.5, mMouseIsOver, IsDisabled());
+  DrawPressableShape(g, mShape, mWidgetBounds, GetValue() > 0.5, mMouseIsOver, IsDisabled());
 }
 
 void IVToggleControl::DrawValue(IGraphics& g, bool mouseOver)
@@ -264,7 +264,7 @@ void IVSlideSwitchControl::OnEndAnimation()
 
 void IVSlideSwitchControl::Draw(IGraphics& g)
 {
-  DrawBackGround(g, mRECT);
+  DrawBackground(g, mRECT);
   DrawWidget(g);
   DrawLabel(g);
   
@@ -275,7 +275,7 @@ void IVSlideSwitchControl::Draw(IGraphics& g)
 void IVSlideSwitchControl::DrawWidget(IGraphics& g)
 {
   DrawTrack(g, mWidgetBounds);
-  DrawHandle(g, mShape, mHandleBounds, mMouseDown, mMouseIsOver, IsDisabled());
+  DrawPressableShape(g, mShape, mHandleBounds, mMouseDown, mMouseIsOver, IsDisabled());
 }
 
 void IVSlideSwitchControl::DrawTrack(IGraphics& g, const IRECT& filledArea)
@@ -292,7 +292,7 @@ void IVSlideSwitchControl::SetDirty(bool push, int valIdx)
     UpdateRects();
 }
 
-IVTabSwitchControl::IVTabSwitchControl(const IRECT& bounds, int paramIdx, const char* label, const IVStyle& style, EVShape shape, EDirection direction)
+IVTabSwitchControl::IVTabSwitchControl(const IRECT& bounds, int paramIdx, const std::initializer_list<const char*>& options, const char* label, const IVStyle& style, EVShape shape, EDirection direction)
 : ISwitchControlBase(bounds, paramIdx, SplashClickActionFunc)
 , IVectorBase(style)
 , mDirection(direction)
@@ -302,6 +302,11 @@ IVTabSwitchControl::IVTabSwitchControl(const IRECT& bounds, int paramIdx, const 
   mText.mAlign = mStyle.valueText.mAlign = EAlign::Center;
   mText.mVAlign = mStyle.valueText.mVAlign = EVAlign::Middle;
   mShape = shape;
+
+  for (auto& option : options)
+  {
+    mTabLabels.Add(new WDL_String(option));
+  }
 }
 
 IVTabSwitchControl::IVTabSwitchControl(const IRECT& bounds, IActionFunction aF, const std::initializer_list<const char*>& options, const char* label, const IVStyle& style, EVShape shape, EDirection direction)
@@ -327,7 +332,7 @@ void IVTabSwitchControl::OnInit()
   
   const IParam* pParam = GetParam();
   
-  if(pParam)
+  if(pParam && mTabLabels.GetSize() == 0) // don't add param display text based labels if allready added via ctor
   {
     for (int i = 0; i < mNumStates; i++)
     {
@@ -335,13 +340,13 @@ void IVTabSwitchControl::OnInit()
     }
     
     if(!mLabelStr.GetLength())
-      mLabelStr.Set(pParam->GetNameForHost());
+      mLabelStr.Set(pParam->GetName());
   }
 }
 
 void IVTabSwitchControl::Draw(IGraphics& g)
 {
-  DrawBackGround(g, mRECT);
+  DrawBackground(g, mRECT);
   DrawLabel(g);
   DrawWidget(g);
 }
@@ -363,7 +368,7 @@ void IVTabSwitchControl::DrawButton(IGraphics& g, const IRECT& r, bool pressed, 
         DrawPressableRectangle(g, r, pressed, mouseOver, IsDisabled(), false, true, false, true);
       break;
     default:
-      DrawHandle(g, mShape, r, pressed, mouseOver, IsDisabled());
+      DrawPressableShape(g, mShape, r, pressed, mouseOver, IsDisabled());
       break;
   }
 }
@@ -440,8 +445,13 @@ void IVTabSwitchControl::OnResize()
   SetDirty(false);
 }
 
-IVRadioButtonControl::IVRadioButtonControl(const IRECT& bounds, int paramIdx, const char* label, const IVStyle& style, EVShape shape, EDirection direction, float buttonSize)
-: IVTabSwitchControl(bounds, paramIdx, label, style, shape, direction)
+const char* IVTabSwitchControl::GetSelectedLabelStr() const
+{
+  return mTabLabels.Get(GetSelectedIdx())->Get();
+}
+
+IVRadioButtonControl::IVRadioButtonControl(const IRECT& bounds, int paramIdx, const std::initializer_list<const char*>& options, const char* label, const IVStyle& style, EVShape shape, EDirection direction, float buttonSize)
+: IVTabSwitchControl(bounds, paramIdx, options, label, style, shape, direction)
 , mButtonSize(buttonSize)
 {
   mButtonAreaWidth = buttonSize * 3.f;
@@ -527,9 +537,9 @@ IVKnobControl::IVKnobControl(const IRECT& bounds, IActionFunction aF, const char
 
 void IVKnobControl::Draw(IGraphics& g)
 {
-  DrawBackGround(g, mRECT);
-  DrawWidget(g);
+  DrawBackground(g, mRECT);
   DrawLabel(g);
+  DrawWidget(g);
   DrawValue(g, mValueMouseOver);
 }
 
@@ -561,13 +571,16 @@ void IVKnobControl::DrawWidget(IGraphics& g)
   IRECT knobHandleBounds = mWidgetBounds.GetCentredInside((widgetRadius - mTrackToHandleDistance) * 2.f );
   const float angle = mAngle1 + (static_cast<float>(GetValue()) * (mAngle2 - mAngle1));
   DrawIndicatorTrack(g, angle, cx, cy, widgetRadius);
-  DrawHandle(g, /*mShape*/ EVShape::Ellipse, knobHandleBounds, mMouseDown, mMouseIsOver, IsDisabled());
+  DrawPressableShape(g, /*mShape*/ EVShape::Ellipse, knobHandleBounds, mMouseDown, mMouseIsOver, IsDisabled());
   DrawPointer(g, angle, cx, cy, knobHandleBounds.W() / 2.f);
 }
 
 void IVKnobControl::DrawIndicatorTrack(IGraphics& g, float angle, float cx, float cy, float radius)
 {
-  g.DrawArc(GetColor(kX1), cx, cy, radius, angle >= mAnchorAngle ? mAnchorAngle : mAnchorAngle - (mAnchorAngle - angle), angle >= mAnchorAngle ? angle : mAnchorAngle, &mBlend, mTrackSize);
+  if (mTrackSize > 0.f)
+  {
+    g.DrawArc(GetColor(kX1), cx, cy, radius, angle >= mAnchorAngle ? mAnchorAngle : mAnchorAngle - (mAnchorAngle - angle), angle >= mAnchorAngle ? angle : mAnchorAngle, &mBlend, mTrackSize);
+  }
 }
 
 void IVKnobControl::DrawPointer(IGraphics& g, float angle, float cx, float cy, float radius)
@@ -629,7 +642,7 @@ void IVKnobControl::SetDirty(bool push, int valIdx)
   const IParam* pParam = GetParam();
   
   if(pParam)
-    pParam->GetDisplayForHostWithLabel(mValueStr);
+    pParam->GetDisplayWithLabel(mValueStr);
 }
 
 void IVKnobControl::OnInit()
@@ -638,10 +651,10 @@ void IVKnobControl::OnInit()
   
   if(pParam)
   {
-    pParam->GetDisplayForHostWithLabel(mValueStr);
+    pParam->GetDisplayWithLabel(mValueStr);
     
     if(!mLabelStr.GetLength())
-      mLabelStr.Set(pParam->GetNameForHost());
+      mLabelStr.Set(pParam->GetName());
   }
 }
 
@@ -675,9 +688,9 @@ IVSliderControl::IVSliderControl(const IRECT& bounds, IActionFunction aF, const 
 
 void IVSliderControl::Draw(IGraphics& g)
 {
-  DrawBackGround(g, mRECT);
-  DrawWidget(g);
+  DrawBackground(g, mRECT);
   DrawLabel(g);
+  DrawWidget(g);
   DrawValue(g, mValueMouseOver);
 }
 
@@ -719,9 +732,13 @@ void IVSliderControl::DrawWidget(IGraphics& g)
   
   if(mHandleSize > 0.f)
   {
-    IRECT handleBounds = IRECT(cx-mHandleSize, cy-mHandleSize, cx+mHandleSize, cy+mHandleSize);
-    DrawHandle(g, mShape, handleBounds, mMouseDown, mMouseIsOver, IsDisabled());
+    DrawHandle(g, {cx-mHandleSize, cy-mHandleSize, cx+mHandleSize, cy+mHandleSize});
   }
+}
+
+void IVSliderControl::DrawHandle(IGraphics& g, const IRECT& bounds)
+{
+  DrawPressableShape(g, mShape, bounds, mMouseDown, mMouseIsOver, IsDisabled());
 }
 
 void IVSliderControl::OnMouseDown(float x, float y, const IMouseMod& mod)
@@ -783,7 +800,7 @@ void IVSliderControl::SetDirty(bool push, int valIdx)
   const IParam* pParam = GetParam();
   
   if(pParam)
-    pParam->GetDisplayForHostWithLabel(mValueStr);
+    pParam->GetDisplayWithLabel(mValueStr);
 }
 
 void IVSliderControl::OnInit()
@@ -793,14 +810,14 @@ void IVSliderControl::OnInit()
   if(pParam)
   {
     if(!mLabelStr.GetLength())
-      mLabelStr.Set(pParam->GetNameForHost());
+      mLabelStr.Set(pParam->GetName());
     
-    pParam->GetDisplayForHostWithLabel(mValueStr);
+    pParam->GetDisplayWithLabel(mValueStr);
   }
 }
 
 IVRangeSliderControl::IVRangeSliderControl(const IRECT& bounds, const std::initializer_list<int>& params, const char* label, const IVStyle& style, EDirection dir, bool onlyHandle, float handleSize, float trackSize)
-: IVTrackControlBase(bounds, label, style, params, dir, 0, 1.)
+: IVTrackControlBase(bounds, label, style, params, 0, dir)
 , mHandleSize(handleSize)
 {
   mTrackSize = trackSize;
@@ -808,9 +825,9 @@ IVRangeSliderControl::IVRangeSliderControl(const IRECT& bounds, const std::initi
 
 void IVRangeSliderControl::Draw(IGraphics& g)
 {
-  DrawBackGround(g, mRECT);
-  DrawWidget(g);
+  DrawBackground(g, mRECT);
   DrawLabel(g);
+  DrawWidget(g);
 //  DrawValue(g, mValueMouseOver);
 }
 
@@ -869,7 +886,7 @@ void IVRangeSliderControl::DrawWidget(IGraphics& g)
 {
   IRECT r = mTrackBounds.Get()[0];
   
-  DrawTrackBG(g, r, 0);
+  DrawTrackBackground(g, r, 0);
   
   for(int i=0;i<NVals()-1;i++)
   {
@@ -930,12 +947,13 @@ IVXYPadControl::IVXYPadControl(const IRECT& bounds, const std::initializer_list<
 , IVectorBase(style)
 , mHandleRadius(handleRadius)
 {
+  mShape = EVShape::Ellipse;
   AttachIControl(this, label);
 }
 
 void IVXYPadControl::Draw(IGraphics& g)
 {
-  DrawBackGround(g, mRECT);
+  DrawBackground(g, mRECT);
   DrawLabel(g);
   
   if(mStyle.drawFrame)
@@ -946,13 +964,29 @@ void IVXYPadControl::Draw(IGraphics& g)
 
 void IVXYPadControl::DrawWidget(IGraphics& g)
 {
-  float xpos = static_cast<float>(GetValue(0)) * mWidgetBounds.W();
-  float ypos = static_cast<float>(GetValue(1)) * mWidgetBounds.H();
+  DrawTrack(g);
   
+  const IRECT trackBounds = mWidgetBounds.GetPadded(mTrackClipsHandle ? 0 : -mHandleRadius);
+
+  const float xpos = static_cast<float>(GetValue(0)) * trackBounds.W();
+  const float ypos = static_cast<float>(GetValue(1)) * trackBounds.H();
+  const IRECT handleBounds = IRECT(trackBounds.L + xpos-mHandleRadius, trackBounds.B - ypos-mHandleRadius, trackBounds.L + xpos+mHandleRadius,  trackBounds.B -ypos+mHandleRadius);
+  
+  DrawHandle(g, trackBounds, handleBounds);
+}
+
+void IVXYPadControl::DrawHandle(IGraphics& g, const IRECT& trackBounds, const IRECT& handleBounds)
+{
+  if(mTrackClipsHandle)
+    g.PathClipRegion(trackBounds.GetPadded(-0.5f * mStyle.frameThickness));
+  
+  DrawPressableShape(g, mShape, handleBounds, mMouseDown, mMouseIsOver, IsDisabled());
+}
+
+void IVXYPadControl::DrawTrack(IGraphics& g)
+{
   g.DrawVerticalLine(GetColor(kSH), mWidgetBounds, 0.5);
   g.DrawHorizontalLine(GetColor(kSH), mWidgetBounds, 0.5);
-  g.PathClipRegion(mWidgetBounds.GetPadded(-0.5f * mStyle.frameThickness));
-  DrawPressableEllipse(g, IRECT(mWidgetBounds.L + xpos-mHandleRadius, mWidgetBounds.B - ypos-mHandleRadius, mWidgetBounds.L + xpos+mHandleRadius,  mWidgetBounds.B -ypos+mHandleRadius), mMouseDown, mMouseIsOver, IsDisabled());
 }
 
 void IVXYPadControl::OnMouseDown(float x, float y, const IMouseMod& mod)
@@ -1008,7 +1042,7 @@ IVPlotControl::IVPlotControl(const IRECT& bounds, const std::initializer_list<Pl
 
 void IVPlotControl::Draw(IGraphics& g)
 {
-  DrawBackGround(g, mRECT);
+  DrawBackground(g, mRECT);
   DrawLabel(g);
 
   float hdiv = mWidgetBounds.W() / static_cast<float>(mHorizontalDivisions);
@@ -1099,9 +1133,8 @@ void IVGroupControl::Draw(IGraphics& g)
 //  const float cr = GetRoundedCornerRadius(mWidgetBounds);
 //  g.FillRoundRect(GetColor(kBG), mWidgetBounds, cr);
 //  g.FillRect(GetColor(kBG), mLabelBounds);
-
-  DrawWidget(g);
   DrawLabel(g);
+  DrawWidget(g);
 }
 
 void IVGroupControl::DrawWidget(IGraphics& g)
@@ -1337,11 +1370,25 @@ void ISVGSliderControl::OnResize()
   auto handleAspectRatio = mHandleSVG.W() / mHandleSVG.H();
   auto handleOverTrackHeight = mHandleSVG.H() / mTrackSVG.H();
 
-  mTrackSVGBounds = mRECT.GetCentredInside(mRECT.H() * trackAspectRatio, mRECT.H());
+  IRECT handleBoundsAtMidPoint;
+  
+  if (mDirection == EDirection::Vertical)
+  {
+    mTrackSVGBounds = mRECT.GetCentredInside(mRECT.H() * trackAspectRatio, mRECT.H());
 
-  IRECT handleBoundsAtMidPoint = mRECT.GetCentredInside(mRECT.H() * handleAspectRatio * handleOverTrackHeight, mRECT.H() * handleOverTrackHeight);
-  mHandleBoundsAtMax = { handleBoundsAtMidPoint.L, mTrackSVGBounds.T, handleBoundsAtMidPoint.R, mTrackSVGBounds.T + handleBoundsAtMidPoint.H() };
-  mTrackBounds = mTrackSVGBounds.GetPadded(0, -handleBoundsAtMidPoint.H(), 0, 0);
+    handleBoundsAtMidPoint = mRECT.GetCentredInside(mRECT.H() * handleAspectRatio * handleOverTrackHeight, mRECT.H() * handleOverTrackHeight);
+    mHandleBoundsAtMax = { handleBoundsAtMidPoint.L, mTrackSVGBounds.T, handleBoundsAtMidPoint.R, mTrackSVGBounds.T + handleBoundsAtMidPoint.H() };
+    mTrackBounds = mTrackSVGBounds.GetPadded(0, -handleBoundsAtMidPoint.H(), 0, 0);
+  }
+  else
+  {
+    mTrackSVGBounds = mRECT.GetCentredInside(mRECT.W(), mRECT.W() / trackAspectRatio);
+    auto handleHeight = mTrackSVGBounds.H() * handleOverTrackHeight;
+    handleBoundsAtMidPoint = mRECT.GetCentredInside(handleHeight * handleAspectRatio, handleHeight);
+    auto halfHeight = handleBoundsAtMidPoint.H() / 2.f;
+    mHandleBoundsAtMax = { mTrackSVGBounds.R - handleBoundsAtMidPoint.W(), mTrackSVGBounds.MH() - halfHeight, mTrackSVGBounds.R, mTrackSVGBounds.MH() + halfHeight };
+    mTrackBounds = mTrackSVGBounds.GetPadded(-handleBoundsAtMidPoint.W(), 0, 0, 0);
+  }
 
   SetDirty(false);
 }
@@ -1361,9 +1408,9 @@ IRECT ISVGSliderControl::GetHandleBounds(double value) const
   }
   else
   {
-    float offs = (float) value * mTrackBounds.W();
-    r.L += offs;
-    r.R += offs;
+    float offs = (1.f - (float) value) * mTrackBounds.W();
+    r.L -= offs;
+    r.R -= offs;
   }
 
   return r;

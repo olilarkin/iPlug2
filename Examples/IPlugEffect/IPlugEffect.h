@@ -2,7 +2,7 @@
 
 #include "IPlug_include_in_plug_hdr.h"
 
-const int kNumPrograms = 1;
+const int kNumPresets = 1;
 
 enum EParams
 {
@@ -13,7 +13,7 @@ enum EParams
 using namespace iplug;
 using namespace igraphics;
 
-class IPlugEffect : public Plugin
+class IPlugEffect final : public Plugin
 {
 public:
   IPlugEffect(const InstanceInfo& info);

@@ -12,7 +12,7 @@
 
 /**
  * @file ReaperExtBase.h
- * @brief IPlug ReaperExt base class interface
+ * @brief Reaper extension base class interface
  * Include this file in the main header for your reaper extension
 */
 
@@ -23,6 +23,7 @@ struct reaper_plugin_info_t;
 
 BEGIN_IPLUG_NAMESPACE
 
+/** Reaper extension base class interface */
 class ReaperExtBase : public EDITOR_DELEGATE_CLASS
 {
 public:
@@ -35,7 +36,7 @@ public:
   
   void EndInformHostOfParamChangeFromUI(int paramIdx) override {}; // NO-OP
   
-  bool EditorResizeFromUI(int viewWidth, int viewHeight) override;
+  bool EditorResizeFromUI(int viewWidth, int viewHeight, bool needsPlatformResize) override;
 
   /** /todo */
   virtual void OnIdle() {}; // NO-OP

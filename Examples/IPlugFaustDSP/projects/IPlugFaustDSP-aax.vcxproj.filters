@@ -80,6 +80,9 @@
     <ClCompile Include="..\..\..\IGraphics\Drawing\IGraphicsSkia.cpp">
       <Filter>IGraphics\Drawing</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\IPlug\Extras\Faust\IPlugFaust.cpp">
+      <Filter>IPlug\Extras</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\IPlugFaustDSP.h" />
@@ -227,6 +230,9 @@
     </ClInclude>
     <ClInclude Include="..\..\..\IPlug\IPlugPluginBase.h">
       <Filter>IPlug</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\IGraphics\ISender.h">
+      <Filter>IGraphics</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\IPlug\IPlugProcessor.h">
       <Filter>IPlug</Filter>

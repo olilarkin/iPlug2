@@ -26,10 +26,14 @@
 #include "heapbuf.h"
 
 #ifdef IGRAPHICS_SKIA
+  #pragma warning( push )
+  #pragma warning( disable : 4244 )
+  #pragma warning( disable : 5030 )
   #include "experimental/svg/model/SkSVGDOM.h"
   #include "include/core/SkCanvas.h"
   #include "include/core/SkStream.h"
   #include "src/xml/SkDOM.h"
+  #pragma warning( pop )
 #else
   #include "nanosvg.h"
 #endif
@@ -51,8 +55,11 @@
 #elif defined IGRAPHICS_NANOVG
   #define BITMAP_DATA_TYPE int;
 #elif defined IGRAPHICS_SKIA
+  #pragma warning( push )
+  #pragma warning( disable : 4244 )
   #include "SkImage.h"
   #include "SkSurface.h"
+  #pragma warning( pop )
   struct SkiaDrawable
   {
     bool mIsSurface;
@@ -626,6 +633,7 @@ private:
   WDL_PtrList<DataKey> mDatas;
 };
 
+/** Encapsulate an xy point in one struct */
 struct IVec2
 {
   float x, y;

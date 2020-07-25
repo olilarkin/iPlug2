@@ -36,6 +36,10 @@ static val GetPreloadedImages()
   return val::global("Module")["preloadedImages"];
 }
 
+extern void GetScreenDimensions(int& width, int& height);
+
+extern float GetScaleForScreen(int height);
+
 /** IGraphics platform class for the web
 * @ingroup PlatformClasses */
 class IGraphicsWeb final : public IGRAPHICS_DRAW_CLASS
@@ -53,6 +57,7 @@ public:
   void HideMouseCursor(bool hide, bool lock) override;
   void MoveMouseCursor(float x, float y) override { /* NOT SUPPORTABLE*/ }
   ECursor SetMouseCursor(ECursor cursorType) override;
+  void GetMouseLocation(float& x, float&y) const override;
 
   void ForceEndUserEdit() override {} // TODO:
   void* OpenWindow(void* pParent) override;

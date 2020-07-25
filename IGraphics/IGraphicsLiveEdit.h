@@ -18,6 +18,7 @@
 #ifndef NDEBUG
 
 #include "IControl.h"
+#include <fstream>
 
 BEGIN_IPLUG_NAMESPACE
 BEGIN_IGRAPHICS_NAMESPACE
@@ -30,11 +31,10 @@ BEGIN_IGRAPHICS_NAMESPACE
 class IGraphicsLiveEdit : public IControl
 {
 public:
-  IGraphicsLiveEdit(bool mouseOversEnabled, const char* pathToSourceFile = 0, float gridSize = 10)
+  IGraphicsLiveEdit(bool mouseOversEnabled)
   : IControl(IRECT())
-  , mPathToSourceFile(pathToSourceFile)
-  , mGridSize(gridSize)
-  , mMouseOversEnabled(mouseOversEnabled)
+  , mGridSize(10)
+  , mMouseOversEnabled(mouseOversEnabled) 
   {
     mTargetRECT = mRECT;
   }
@@ -59,7 +59,12 @@ public:
       IControl* pControl = pGraphics->GetControl(c);
       mMouseDownRECT = pControl->GetRECT();
       mMouseDownTargetRECT = pControl->GetTargetRECT();
+
+      if(!mod.S)
+        mSelectedControls.Empty();
       
+      mSelectedControls.Add(pControl);
+
       if(mod.A)
       {
         auto className = pControl->GetProp<const char*>("class_name");
@@ -130,10 +135,10 @@ public:
         }
         else if(mod.R)
         {
-          mRightClickMenu.Clear();
+          mRightClickOnControlMenu.Clear();
           
-//          mRightClickMenu.AddItem("Replace with control...");
-//          mRightClickMenu.AddSeparator();
+//          mRightClickOnControlMenu.AddItem("Replace with control...");
+//          mRightClickOnControlMenu.AddSeparator();
           
           for(auto& prop : pControl->GetProperties())
           {
@@ -149,11 +154,11 @@ public:
                 
               auto* pItem = new IPopupMenu::Item(prop.first.c_str(), flags);
               
-              mRightClickMenu.AddItem(pItem);
+              mRightClickOnControlMenu.AddItem(pItem);
             }
           }
           
-          GetUI()->CreatePopupMenu(*this, mRightClickMenu, x, y);
+          GetUI()->CreatePopupMenu(*this, mRightClickOnControlMenu, x, y);
         }
       }
     }
@@ -161,15 +166,15 @@ public:
     {
       mClickedOnControl = 0;
       
-      mRightClickMenu.Clear();
+      mRightClickOutsideControlMenu.Clear();
             
       for(auto& prop : GetUI()->GetBackgroundControl()->GetProperties())
       {
         if(prop.first != "class_name")
-          mRightClickMenu.AddItem(prop.first.c_str());
+          mRightClickOutsideControlMenu.AddItem(prop.first.c_str());
       }
       
-      mRightClickMenu.AddItem("Add control ...", new IPopupMenu("Add control",
+      mRightClickOutsideControlMenu.AddItem("Add control ...", new IPopupMenu("Add control",
       {
         "IVLabelControl",
         "IVButtonControl",
@@ -208,9 +213,15 @@ public:
       } ));
       
       
-      mRightClickMenu.AddSeparator();
+      mRightClickOutsideControlMenu.AddSeparator();
       
-      GetUI()->CreatePopupMenu(*this, mRightClickMenu, x, y);
+      GetUI()->CreatePopupMenu(*this, mRightClickOutsideControlMenu, x, y);
+    }
+    else
+    {
+      mSelectedControls.Empty();
+      mDragRegion.L = mDragRegion.R = x;
+      mDragRegion.T = mDragRegion.B = y;
     }
   }
   
@@ -232,6 +243,8 @@ public:
     mClickedOnControl = -1;
     mMouseClickedOnResizeHandle = false;
     GetUI()->SetAllControlsDirty();
+    
+    mDragRegion = IRECT();
   }
   
   void OnMouseDblClick(float x, float y, const IMouseMod& mod) override
@@ -285,9 +298,54 @@ public:
           
         pControl->SetPosition(x1, y1);
       }
-        
+
       GetUI()->SetAllControlsDirty();
     }
+    else
+    {
+      float mouseDownX, mouseDownY;
+      GetUI()->GetMouseDownPoint(mouseDownX, mouseDownY);
+      mDragRegion.L = x < mouseDownX ? x : mouseDownX;
+      mDragRegion.R = x < mouseDownX ? mouseDownX : x;
+      mDragRegion.T = y < mouseDownY ? y : mouseDownY;
+      mDragRegion.B = y < mouseDownY ? mouseDownY : y;
+      
+      GetUI()->ForStandardControlsFunc([&](IControl& c) {
+                                         if(mDragRegion.Contains(c.GetRECT())) {
+                                           if(mSelectedControls.FindR(&c) == -1)
+                                             mSelectedControls.Add(&c);
+                                         }
+                                         else {
+                                           int idx = mSelectedControls.FindR(&c);
+                                           if(idx > -1)
+                                             mSelectedControls.Delete(idx);
+                                         }
+                                       });
+    }
+  }
+  
+  bool OnKeyDown(float x, float y, const IKeyPress& key) override
+  {
+    GetUI()->ReleaseMouseCapture();
+    
+    if(key.VK == kVK_BACK || key.VK == kVK_DELETE)
+    {
+      if(mSelectedControls.GetSize())
+      {
+        for(int i = 0; i < mSelectedControls.GetSize(); i++)
+        {
+          IControl* pControl = mSelectedControls.Get(i);
+          GetUI()->RemoveControl(pControl);
+        }
+        
+        mSelectedControls.Empty();
+        GetUI()->SetAllControlsDirty();
+        
+        return true;
+      }
+    }
+    
+    return false;
   }
   
   void OnPopupMenuSelection(IPopupMenu* pSelectedMenu, int valIdx) override
@@ -387,6 +445,23 @@ public:
 //          }
         }
       }
+      
+      if (pSelectedMenu == &mRightClickOnControlMenu)
+      {
+        auto idx = pSelectedMenu->GetChosenItemIdx();
+
+        switch (idx)
+        {
+          case 0:
+            mSelectedControls.Empty();
+            GetUI()->RemoveControl(mClickedOnControl);
+            mClickedOnControl = -1;
+            break;
+          default:
+            break;
+        }
+
+      }
     }
     
     mClickedOnControl = -1;
@@ -413,10 +488,21 @@ public:
       g.FillTriangle(mRectColor, h.L, h.B, h.R, h.B, h.R, h.T);
       g.DrawTriangle(COLOR_BLACK, h.L, h.B, h.R, h.B, h.R, h.T);
     }
+    
+    for(int i = 0; i< mSelectedControls.GetSize(); i++)
+    {
+      g.DrawDottedRect(COLOR_WHITE, mSelectedControls.Get(i)->GetRECT());
+    }
+    
+    if(!mDragRegion.Empty())
+    {
+      g.DrawDottedRect(COLOR_RED, mDragRegion);
+    }
   }
   
   void OnResize() override
   {
+    mSelectedControls.Empty();
     mRECT = GetUI()->GetBounds();
     SetTargetRECT(mRECT);
   }
@@ -437,14 +523,14 @@ public:
   }
 
 private:
-  IPopupMenu mRightClickMenu {"Add an item", {}};
-  bool mMouseOversEnabled;
-//  bool mEditModeActive = false;
-//  bool mLiveEditingEnabled = false;
+  IPopupMenu mRightClickOutsideControlMenu {"Outside Control", {"Add Place Holder"}};
+  IPopupMenu mRightClickOnControlMenu{ "On Control", {"Delete Control"} };
+
+  bool mMouseOversEnabled = false;
   bool mMouseClickedOnResizeHandle = false;
   bool mMouseIsDragging = false;
-  WDL_String mPathToSourceFile;
   WDL_String mErrorMessage;
+  WDL_PtrList<IControl> mSelectedControls;
 
   IColor mGridColor = COLOR_WHITE;
   IColor mRectColor = COLOR_WHITE;
@@ -452,6 +538,7 @@ private:
 
   IRECT mMouseDownRECT;
   IRECT mMouseDownTargetRECT;
+  IRECT mDragRegion;
 
   float mGridSize = 10;
   int mClickedOnControl = -1;

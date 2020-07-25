@@ -20,6 +20,7 @@
 #include "IPlugPaths.h"
 
 #include <wininet.h>
+#include <VersionHelpers.h>
 
 using namespace iplug;
 using namespace igraphics;
@@ -34,7 +35,6 @@ static double sFPS = 0.0;
 
 #define PARAM_EDIT_ID 99
 #define IPLUG_TIMER_ID 2
-#define IPLUG_WIN_MAX_WIDE_PATH 4096
 
 #define TOOLTIPWND_MAXWIDTH 250
 
@@ -135,25 +135,9 @@ IFontDataPtr IGraphicsWin::Font::GetFontData()
 StaticStorage<IGraphicsWin::InstalledFont> IGraphicsWin::sPlatformFontCache;
 StaticStorage<IGraphicsWin::HFontHolder> IGraphicsWin::sHFontCache;
 
-#pragma mark - DPI Helper
+#pragma mark - Mouse and tablet helpers
 
-// DPI helper
-UINT(WINAPI *__GetDpiForWindow)(HWND);
-
-// Mouse and tablet helpers
-static int GetScaleForWindow(HWND hWnd)
-{
-  if (hWnd && __GetDpiForWindow)
-  {
-    int dpi = __GetDpiForWindow(hWnd);
-    if (dpi != USER_DEFAULT_SCREEN_DPI)
-      return std::round(static_cast<double>(dpi) / USER_DEFAULT_SCREEN_DPI);
-  }
-
-  return 1;
-}
-
-#pragma mark -
+extern int GetScaleForHWND(HWND hWnd);
 
 inline IMouseInfo IGraphicsWin::GetMouseInfo(LPARAM lParam, WPARAM wParam)
 {
@@ -203,26 +187,27 @@ void IGraphicsWin::DestroyEditWindow()
 
 void IGraphicsWin::OnDisplayTimer(int vBlankCount)
 {
-#ifdef IGRAPHICS_VSYNC
   // Check the message vblank with the current one to see if we are way behind. If so, then throw these away.
   DWORD msgCount = vBlankCount;
   DWORD curCount = mVBlankCount;
 
-  // skip until the actual vblank is at a certain number.
-  if (mVBlankSkipUntil != 0 && mVBlankSkipUntil > mVBlankCount)
+  if(mVSYNCEnabled)
   {
-    return;
-  }
+    // skip until the actual vblank is at a certain number.
+    if (mVBlankSkipUntil != 0 && mVBlankSkipUntil > mVBlankCount)
+    {
+      return;
+    }
 
-  mVBlankSkipUntil = 0;
+    mVBlankSkipUntil = 0;
 
-  if (msgCount != curCount)
-  {
-    // we are late, just skip it until we can get a message soon after the vblank event.
-    // DBGMSG("vblank is late by %i frames.  Skipping.", (mVBlankCount - msgCount));
-    return;
+    if (msgCount != curCount)
+    {
+      // we are late, just skip it until we can get a message soon after the vblank event.
+      // DBGMSG("vblank is late by %i frames.  Skipping.", (mVBlankCount - msgCount));
+      return;
+    }
   }
-#endif
 
   if (mParamEditWnd && mParamEditMsg != kNone)
   {
@@ -230,9 +215,11 @@ void IGraphicsWin::OnDisplayTimer(int vBlankCount)
     {
       case kCommit:
       {
-        char txt[MAX_WIN32_PARAM_LEN];
-        SendMessage(mParamEditWnd, WM_GETTEXT, MAX_WIN32_PARAM_LEN, (LPARAM)txt);
-        SetControlValueAfterTextEdit(txt);
+        WCHAR wtxt[MAX_WIN32_PARAM_LEN];
+        WDL_String tempUTF8;
+        SendMessageW(mParamEditWnd, WM_GETTEXT, MAX_WIN32_PARAM_LEN, (LPARAM)wtxt);
+        UTF16ToUTF8(tempUTF8, wtxt);
+        SetControlValueAfterTextEdit(tempUTF8.Get());
         DestroyEditWindow();
         break;
       }
@@ -247,7 +234,7 @@ void IGraphicsWin::OnDisplayTimer(int vBlankCount)
   }
 
   // TODO: move this... listen to the right messages in windows for screen resolution changes, etc.
-  int scale = GetScaleForWindow(mPlugWnd);
+  int scale = GetScaleForHWND(mPlugWnd);
   if (scale != GetScreenScale())
     SetScreenScale(scale);
 
@@ -283,16 +270,17 @@ void IGraphicsWin::OnDisplayTimer(int vBlankCount)
       // Force a redraw right now
       UpdateWindow(mPlugWnd);
 
-#ifdef IGRAPHICS_VSYNC
-      // Check and see if we are still in this frame.
-      curCount = mVBlankCount;
-      if (msgCount != curCount)
+      if(mVSYNCEnabled)
       {
-        // we are late, skip the next vblank to give us a breather.
-        mVBlankSkipUntil = curCount+1;
-        DBGMSG("vblank painting was late by %i frames.", (mVBlankSkipUntil - msgCount));
+        // Check and see if we are still in this frame.
+        curCount = mVBlankCount;
+        if (msgCount != curCount)
+        {
+          // we are late, skip the next vblank to give us a breather.
+          mVBlankSkipUntil = curCount+1;
+          DBGMSG("vblank painting was late by %i frames.", (mVBlankSkipUntil - msgCount));
+        }
       }
-#endif
     }
   }
   return;
@@ -307,14 +295,17 @@ LRESULT CALLBACK IGraphicsWin::WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     SetWindowLongPtr(hWnd, GWLP_USERDATA, (LPARAM)(lpcs->lpCreateParams));
     IGraphicsWin* pGraphics = (IGraphicsWin*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
 
-#ifdef IGRAPHICS_VSYNC // use VBLANK Thread
-    assert((pGraphics->FPS() == 60) && "If you want to run at frame rates other than 60FPS remove IGRAPHICS_VSYNC");
-    pGraphics->StartVBlankThread(hWnd);
-#else // use WM_TIMER -- its best to get below 16ms because the windows time quanta is slightly above 15ms.
-    int mSec = static_cast<int>(std::floorf(1000.0f / (pGraphics->FPS())));
-    if (mSec < 20) mSec = 15;
-    SetTimer(hWnd, IPLUG_TIMER_ID, mSec, NULL);
-#endif
+    if(pGraphics->mVSYNCEnabled) // use VBLANK thread
+    {
+      assert((pGraphics->FPS() == 60) && "If you want to run at frame rates other than 60FPS");
+      pGraphics->StartVBlankThread(hWnd);
+    }
+    else // use WM_TIMER -- its best to get below 16ms because the windows time quanta is slightly above 15ms.
+    {
+      int mSec = static_cast<int>(std::floorf(1000.0f / (pGraphics->FPS())));
+      if (mSec < 20) mSec = 15;
+      SetTimer(hWnd, IPLUG_TIMER_ID, mSec, NULL);
+    }
 
     SetFocus(hWnd); // gets scroll wheel working straight away
     DragAcceptFiles(hWnd, true);
@@ -812,16 +803,14 @@ LRESULT CALLBACK IGraphicsWin::ParamEditProc(HWND hWnd, UINT msg, WPARAM wParam,
 IGraphicsWin::IGraphicsWin(IGEditorDelegate& dlg, int w, int h, int fps, float scale)
   : IGRAPHICS_DRAW_CLASS(dlg, w, h, fps, scale)
 {
-  if (!__GetDpiForWindow)
-  {
-    HINSTANCE h = LoadLibrary("user32.dll");
-    if (h) *(void **)&__GetDpiForWindow = GetProcAddress(h, "GetDpiForWindow");
-  }
-
   StaticStorage<InstalledFont>::Accessor fontStorage(sPlatformFontCache);
   StaticStorage<HFontHolder>::Accessor hfontStorage(sHFontCache);
   fontStorage.Retain();
   hfontStorage.Retain();
+
+#ifndef IGRAPHICS_DISABLE_VSYNC
+  mVSYNCEnabled = IsWindows8OrGreater();
+#endif
 }
 
 IGraphicsWin::~IGraphicsWin()
@@ -950,12 +939,12 @@ void IGraphicsWin::MoveMouseCursor(float x, float y)
   p.x = std::round(x * scale);
   p.y = std::round(y * scale);
   
-  ::ClientToScreen((HWND)GetWindow(), &p);
+  ::ClientToScreen(mPlugWnd, &p);
   
   if (SetCursorPos(p.x, p.y))
   {
     GetCursorPos(&p);
-    ScreenToClient((HWND)GetWindow(), &p);
+    ScreenToClient(mPlugWnd, &p);
     
     mCursorX = p.x / scale;
     mCursorY = p.y / scale;
@@ -999,6 +988,18 @@ ECursor IGraphicsWin::SetMouseCursor(ECursor cursorType)
 bool IGraphicsWin::MouseCursorIsLocked()
 {
   return mCursorLock;
+}
+
+void IGraphicsWin::GetMouseLocation(float& x, float&y) const
+{
+  POINT p;
+  GetCursorPos(&p);
+  ScreenToClient(mPlugWnd, &p);
+
+  const float scale = GetTotalScale();
+
+  x = p.x / scale;
+  y = p.y / scale;
 }
 
 #ifdef IGRAPHICS_GL
@@ -1076,7 +1077,7 @@ EMsgBoxResult IGraphicsWin::ShowMessageBox(const char* text, const char* caption
 void* IGraphicsWin::OpenWindow(void* pParent)
 {
   mParentWnd = (HWND) pParent;
-  int screenScale = GetScaleForWindow(mParentWnd);
+  int screenScale = GetScaleForHWND(mParentWnd);
   int x = 0, y = 0, w = WindowWidth() * screenScale, h = WindowHeight() * screenScale;
 
   if (mPlugWnd)
@@ -1231,11 +1232,10 @@ void IGraphicsWin::CloseWindow()
 {
   if (mPlugWnd)
   {
-#ifdef IGRAPHICS_VSYNC
-    StopVBlankThread();
-#else
-    KillTimer(mPlugWnd, IPLUG_TIMER_ID);
-#endif
+    if(mVSYNCEnabled)
+      StopVBlankThread();
+    else
+      KillTimer(mPlugWnd, IPLUG_TIMER_ID);
 
 #ifdef IGRAPHICS_GL
     ActivateGLContext();
@@ -1356,30 +1356,30 @@ HMENU IGraphicsWin::CreateMenu(IPopupMenu& menu, long* pOffsetIdx)
       }
 
       flags = MF_STRING;
-      //if (nItems < 160 && pMenu->getNbItemsPerColumn () > 0 && inc && !(inc % _menu->getNbItemsPerColumn ()))
-      //  flags |= MF_MENUBARBREAK;
+      if (nItems < 160 && menu.NItemsPerColumn() > 0 && inc && !(inc % menu.NItemsPerColumn()))
+        flags |= MF_MENUBARBREAK;
+
+      if (pMenuItem->GetEnabled())
+        flags |= MF_ENABLED;
+      else
+        flags |= MF_GRAYED;
+      if (pMenuItem->GetIsTitle())
+        flags |= MF_DISABLED;
+      if (pMenuItem->GetChecked())
+        flags |= MF_CHECKED;
+      else
+        flags |= MF_UNCHECKED;
 
       if (pMenuItem->GetSubmenu())
       {
         HMENU submenu = CreateMenu(*pMenuItem->GetSubmenu(), pOffsetIdx);
         if (submenu)
         {
-          AppendMenu(hMenu, flags|MF_POPUP|MF_ENABLED, (UINT_PTR)submenu, (const TCHAR*)entryText.Get());
+          AppendMenu(hMenu, flags|MF_POPUP, (UINT_PTR)submenu, (const TCHAR*)entryText.Get());
         }
       }
       else
       {
-        if (pMenuItem->GetEnabled())
-          flags |= MF_ENABLED;
-        else
-          flags |= MF_GRAYED;
-        if (pMenuItem->GetIsTitle())
-          flags |= MF_DISABLED;
-        if (pMenuItem->GetChecked())
-          flags |= MF_CHECKED;
-        else
-          flags |= MF_UNCHECKED;
-
         AppendMenu(hMenu, flags, offset + inc, entryText.Get());
       }
     }
@@ -1461,7 +1461,10 @@ void IGraphicsWin::CreatePlatformTextEntry(int paramIdx, const IText& text, cons
   const float scale = GetTotalScale();
   IRECT scaledBounds = bounds.GetScaled(scale);
 
-  mParamEditWnd = CreateWindow("EDIT", str, ES_AUTOHSCROLL /*only works for left aligned text*/ | WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS | WS_VISIBLE | ES_MULTILINE | editStyle,
+  WCHAR strWide[MAX_PARAM_DISPLAY_LEN];
+  UTF8ToUTF16(strWide, str, MAX_PARAM_DISPLAY_LEN);
+
+  mParamEditWnd = CreateWindowW(L"EDIT", strWide, ES_AUTOHSCROLL /*only works for left aligned text*/ | WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS | WS_VISIBLE | ES_MULTILINE | editStyle,
     scaledBounds.L, scaledBounds.T, scaledBounds.W()+1, scaledBounds.H()+1,
     mPlugWnd, (HMENU) PARAM_EDIT_ID, mHInstance, 0);
 
@@ -1989,7 +1992,6 @@ void IGraphicsWin::CachePlatformFont(const char* fontID, const PlatformFontPtr& 
     hfontStorage.Add(new HFontHolder(hfont), fontID);
 }
 
-#ifdef IGRAPHICS_VSYNC
 DWORD WINAPI VBlankRun(LPVOID lpParam)
 {
   IGraphicsWin* pGraphics = (IGraphicsWin*)lpParam;
@@ -2173,8 +2175,6 @@ void IGraphicsWin::VBlankNotify()
   mVBlankCount++;
   ::PostMessage(mVBlankWindow, WM_VBLANK, mVBlankCount, 0);
 }
-#endif
-
 
 #ifndef NO_IGRAPHICS
 #if defined IGRAPHICS_AGG

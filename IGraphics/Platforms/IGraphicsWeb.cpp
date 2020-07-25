@@ -14,6 +14,23 @@
 
 #include "IGraphicsWeb.h"
 
+BEGIN_IPLUG_NAMESPACE
+BEGIN_IGRAPHICS_NAMESPACE
+
+void GetScreenDimensions(int& width, int& height)
+{
+  width = val::global("window")["innerWidth"].as<int>();
+  height = val::global("window")["innerHeight"].as<int>();
+}
+
+float GetScaleForScreen(int height)
+{
+  return 1.f;
+}
+
+END_IPLUG_NAMESPACE
+END_IGRAPHICS_NAMESPACE
+
 using namespace iplug;
 using namespace igraphics;
 using namespace emscripten;
@@ -272,24 +289,31 @@ static int domVKToWinVK(int dom_vk_code)
 static EM_BOOL key_callback(int eventType, const EmscriptenKeyboardEvent* pEvent, void* pUserData)
 {
   IGraphicsWeb* pGraphicsWeb = (IGraphicsWeb*) pUserData;
-  
-  IKeyPress keyPress {pEvent->key,
+
+  int VK = domVKToWinVK(pEvent->keyCode);
+  WDL_String keyUTF8;
+
+  // filter utf8 for non ascii keys
+  if((VK >= kVK_0 && VK <= kVK_Z) || VK == kVK_NONE)
+    keyUTF8.Set(pEvent->key);
+  else
+    keyUTF8.Set("");
+
+  IKeyPress keyPress {keyUTF8.Get(),
                       domVKToWinVK(pEvent->keyCode),
                       static_cast<bool>(pEvent->shiftKey),
-                      static_cast<bool>(pEvent->ctrlKey),
+                      static_cast<bool>(pEvent->ctrlKey || pEvent->metaKey),
                       static_cast<bool>(pEvent->altKey)};
   
   switch (eventType)
   {
     case EMSCRIPTEN_EVENT_KEYDOWN:
     {
-      pGraphicsWeb->OnKeyDown(pGraphicsWeb->mPrevX, pGraphicsWeb->mPrevY, keyPress);
-      break;
+      return pGraphicsWeb->OnKeyDown(pGraphicsWeb->mPrevX, pGraphicsWeb->mPrevY, keyPress);
     }
     case EMSCRIPTEN_EVENT_KEYUP:
     {
-      pGraphicsWeb->OnKeyUp(pGraphicsWeb->mPrevX, pGraphicsWeb->mPrevY, keyPress);
-      break;
+      return pGraphicsWeb->OnKeyUp(pGraphicsWeb->mPrevX, pGraphicsWeb->mPrevY, keyPress);
     }
     default:
       break;
@@ -341,9 +365,13 @@ static EM_BOOL mouse_callback(int eventType, const EmscriptenMouseEvent* pEvent,
   info.y = pEvent->targetY / pGraphics->GetDrawScale();
   info.dX = pEvent->movementX;
   info.dY = pEvent->movementY;
-  info.ms = {pEvent->buttons == 1, pEvent->buttons == 2, static_cast<bool>(pEvent->shiftKey), static_cast<bool>(pEvent->ctrlKey), static_cast<bool>(pEvent->altKey)};
-  std::vector<IMouseInfo> list {info};
+  info.ms = {pEvent->buttons == 1,
+             pEvent->buttons == 2,
+             static_cast<bool>(pEvent->shiftKey),
+             static_cast<bool>(pEvent->ctrlKey),
+             static_cast<bool>(pEvent->altKey)};
   
+  std::vector<IMouseInfo> list {info};
   switch (eventType)
   {
     case EMSCRIPTEN_EVENT_MOUSEDOWN:
@@ -499,6 +527,20 @@ static EM_BOOL text_entry_keydown(int eventType, const EmscriptenKeyboardEvent* 
   return false;
 }
 
+static EM_BOOL uievent_callback(int eventType, const EmscriptenUiEvent* pEvent, void* pUserData)
+{
+  IGraphicsWeb* pGraphics = (IGraphicsWeb*) pUserData;
+
+  if (eventType == EMSCRIPTEN_EVENT_RESIZE)
+  {
+    pGraphics->GetDelegate()->OnParentWindowResize(pEvent->windowInnerWidth, pEvent->windowInnerHeight);
+
+    return true;
+  }
+  
+  return false;
+}
+
 IColorPickerHandlerFunc gColorPickerHandlerFunc = nullptr;
 
 static void color_picker_callback(val e)
@@ -549,6 +591,7 @@ IGraphicsWeb::IGraphicsWeb(IGEditorDelegate& dlg, int w, int h, int fps, float s
   emscripten_set_touchend_callback("#canvas", this, 1, touch_callback);
   emscripten_set_touchmove_callback("#canvas", this, 1, touch_callback);
   emscripten_set_touchcancel_callback("#canvas", this, 1, touch_callback);
+  emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, this, 1, uievent_callback);
 }
 
 IGraphicsWeb::~IGraphicsWeb()
@@ -630,6 +673,12 @@ ECursor IGraphicsWeb::SetMouseCursor(ECursor cursorType)
   return IGraphics::SetMouseCursor(cursorType);
 }
 
+void IGraphicsWeb::GetMouseLocation(float& x, float&y) const
+{
+  x = mPrevX;
+  y = mPrevY;
+}
+
 //static
 void IGraphicsWeb::OnMainLoopTimer()
 {
@@ -644,7 +693,7 @@ void IGraphicsWeb::OnMainLoopTimer()
   {
     gGraphics->SetScreenScale(screenScale);
   }
-  
+
   if (gGraphics->IsDirty(rects))
   {
     gGraphics->SetAllControlsClean();

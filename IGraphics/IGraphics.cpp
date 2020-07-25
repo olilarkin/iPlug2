@@ -50,10 +50,6 @@ IGraphics::IGraphics(IGEditorDelegate& dlg, int w, int h, int fps, float scale)
 , mDrawScale(scale)
 , mMinScale(scale / 2)
 , mMaxScale(scale * 2)
-, mMinWidth(w / 2)
-, mMaxWidth(w * 2)
-, mMinHeight(h / 2)
-, mMaxHeight(h * 2)
 {
   mFPS = (fps > 0 ? fps : DEFAULT_FPS);
     
@@ -80,16 +76,19 @@ IGraphics::~IGraphics()
 void IGraphics::SetScreenScale(int scale)
 {
   mScreenScale = scale;
-  PlatformResize(GetDelegate()->EditorResizeFromUI(WindowWidth() * GetPlatformWindowScale(), WindowHeight() * GetPlatformWindowScale()));
+  int windowWidth = WindowWidth() * GetPlatformWindowScale();
+  int windowHeight = WindowHeight() * GetPlatformWindowScale();
+    
+  PlatformResize(GetDelegate()->EditorResizeFromUI(windowWidth, windowHeight, true));
   ForAllControls(&IControl::OnRescale);
   SetAllControlsDirty();
   DrawResize();
 }
 
-void IGraphics::Resize(int w, int h, float scale)
+void IGraphics::Resize(int w, int h, float scale, bool needsPlatformResize)
 {
-  w = Clip(w, mMinWidth, mMaxWidth);
-  h = Clip(h, mMinHeight, mMaxHeight);
+  GetDelegate()->ConstrainEditorResize(w, h);
+  
   scale = Clip(scale, mMinScale, mMaxScale);
   
   if (w == Width() && h == Height() && scale == GetDrawScale()) return;
@@ -104,7 +103,10 @@ void IGraphics::Resize(int w, int h, float scale)
   if (mCornerResizer)
     mCornerResizer->OnRescale();
 
-  PlatformResize(GetDelegate()->EditorResizeFromUI(WindowWidth() * GetPlatformWindowScale(), WindowHeight() * GetPlatformWindowScale()));
+  int windowWidth = WindowWidth() * GetPlatformWindowScale();
+  int windowHeight = WindowHeight() * GetPlatformWindowScale();
+    
+  PlatformResize(GetDelegate()->EditorResizeFromUI(windowWidth, windowHeight, needsPlatformResize));
   ForAllControls(&IControl::OnResize);
   SetAllControlsDirty();
   DrawResize();
@@ -121,6 +123,7 @@ void IGraphics::SetLayoutOnResize(bool layoutOnResize)
 void IGraphics::RemoveControlWithTag(int ctrlTag)
 {
   mControls.DeletePtr(GetControlWithTag(ctrlTag));
+  mCtrlTags.erase(ctrlTag);
   SetAllControlsDirty();
 }
 
@@ -134,17 +137,47 @@ void IGraphics::RemoveControls(int fromIdx)
     if(ControlIsCaptured(pControl))
       ReleaseMouseCapture();
 
-    if (pControl == mMouseOver)
+    if(pControl == mMouseOver)
       ClearMouseOver();
 
-    if (pControl == mInTextEntry)
+    if(pControl == mInTextEntry)
       mInTextEntry = nullptr;
 
-    if (pControl == mInPopupMenu)
+    if(pControl == mInPopupMenu)
       mInPopupMenu = nullptr;
+    
+    if(pControl->GetTag() > kNoTag)
+      mCtrlTags.erase(pControl->GetTag());
     
     mControls.Delete(idx--, true);
   }
+  
+  SetAllControlsDirty();
+}
+
+void IGraphics::RemoveControl(int idx)
+{
+  RemoveControl(GetControl(idx));
+}
+
+void IGraphics::RemoveControl(IControl* pControl)
+{
+  if(ControlIsCaptured(pControl))
+    ReleaseMouseCapture();
+  
+  if(pControl == mMouseOver)
+    ClearMouseOver();
+  
+  if(pControl == mInTextEntry)
+    mInTextEntry = nullptr;
+  
+  if(pControl == mInPopupMenu)
+    mInPopupMenu = nullptr;
+  
+  if(pControl->GetTag() > kNoTag)
+    mCtrlTags.erase(pControl->GetTag());
+  
+  mControls.DeletePtr(pControl, true);
   
   SetAllControlsDirty();
 }
@@ -159,11 +192,13 @@ void IGraphics::RemoveAllControls()
   mCornerResizer = nullptr;
   mPerfDisplay = nullptr;
     
-#if !defined(NDEBUG)
+#ifndef NDEBUG
   mLiveEdit = nullptr;
 #endif
   
   mBubbleControls.Empty(true);
+  
+  mCtrlTags.clear();
   mControls.Empty(true);
 }
 
@@ -196,14 +231,32 @@ void IGraphics::SetControlValueAfterPopupMenu(IPopupMenu* pMenu)
     mInPopupMenu->OnContextSelection(pMenu ? pMenu->GetChosenItemIdx() : -1);
   else
     mInPopupMenu->OnPopupMenuSelection(!pMenu || pMenu->GetChosenItemIdx() == -1 ? nullptr : pMenu, mPopupMenuValIdx);
+  
+  int nVals = mInPopupMenu->NVals();
+
+  for (int v = 0; v < nVals; v++)
+  {
+    int paramIdx = mInPopupMenu->GetParamIdx(v);
     
+    if (paramIdx > kNoParameter)
+    {
+      GetDelegate()->EndInformHostOfParamChangeFromUI(paramIdx);
+    }
+  }
+  
   mInPopupMenu = nullptr;
 }
 
-void IGraphics::AttachBackground(const char* name)
+void IGraphics::AttachBackground(const char* fileName)
 {
-  IBitmap bg = LoadBitmap(name, 1, false);
-  IControl* pBG = new IBitmapControl(0, 0, bg, kNoParameter, EBlend::Default);
+  IControl* pBG = new IBitmapControl(0, 0, LoadBitmap(fileName, 1, false), kNoParameter, EBlend::Default);
+  pBG->SetDelegate(*GetDelegate());
+  mControls.Insert(0, pBG);
+}
+
+void IGraphics::AttachSVGBackground(const char* fileName)
+{
+  IControl* pBG = new ISVGControl(GetBounds(), LoadSVG(fileName), true);
   pBG->SetDelegate(*GetDelegate());
   mControls.Insert(0, pBG);
 }
@@ -224,17 +277,26 @@ void IGraphics::AttachPanelBackground(const IPattern& pattern)
 
 IControl* IGraphics::AttachControl(IControl* pControl, int ctrlTag, const char* group)
 {
+  if(ctrlTag > kNoTag)
+  {
+    auto result = mCtrlTags.insert(std::make_pair(ctrlTag, pControl));
+    assert(result.second && "AttachControl failed: ctrl tags must be unique");
+    
+    if (!result.second)
+      return nullptr;
+  }
+  
   pControl->SetDelegate(*GetDelegate());
-  pControl->SetTag(ctrlTag);
   pControl->SetGroup(group);
   mControls.Add(pControl);
+    
   pControl->OnAttached();
   return pControl;
 }
 
-void IGraphics::AttachCornerResizer(EUIResizerMode sizeMode, bool layoutOnResize)
+void IGraphics::AttachCornerResizer(EUIResizerMode sizeMode, bool layoutOnResize, const IColor& color, const IColor& mouseOverColor, const IColor& dragColor, float size)
 {
-  AttachCornerResizer(new ICornerResizerControl(GetBounds(), 20), sizeMode, layoutOnResize);
+  AttachCornerResizer(new ICornerResizerControl(GetBounds(), size, color, mouseOverColor, dragColor), sizeMode, layoutOnResize);
 }
 
 void IGraphics::AttachCornerResizer(ICornerResizerControl* pControl, EUIResizerMode sizeMode, bool layoutOnResize)
@@ -273,6 +335,11 @@ void IGraphics::AttachPopupMenuControl(const IText& text, const IRECT& bounds)
   }
 }
 
+void IGraphics::RemovePopupMenuControl()
+{
+  mPopupControl = nullptr;
+}
+
 void IGraphics::AttachTextEntryControl()
 {
   if (!mTextEntryControl)
@@ -280,6 +347,11 @@ void IGraphics::AttachTextEntryControl()
     mTextEntryControl = std::make_unique<ITextEntryControl>();
     mTextEntryControl->SetDelegate(*GetDelegate());
   }
+}
+
+void IGraphics::RemoveTextEntryControl()
+{
+  mTextEntryControl = nullptr;
 }
 
 void IGraphics::ShowBubbleControl(IControl* pCaller, float x, float y, const char* str, EDirection dir, IRECT minimumContentBounds)
@@ -347,16 +419,17 @@ void IGraphics::ShowFPSDisplay(bool enable)
 
 IControl* IGraphics::GetControlWithTag(int ctrlTag)
 {
-  for (auto c = 0; c < NControls(); c++)
-  {
-    IControl* pControl = GetControl(c);
-    if (pControl->GetTag() == ctrlTag)
-    {
-      return pControl;
-    }
-  }
+  IControl* pControl = mCtrlTags[ctrlTag];
   
-  return nullptr;
+  if(pControl != nullptr)
+  {
+    return pControl;
+  }
+  else
+  {
+    assert(pControl && "There is no control attached with this tag");
+    return nullptr;
+  }
 }
 
 void IGraphics::HideControl(int paramIdx, bool hide)
@@ -411,7 +484,7 @@ void IGraphics::ForAllControlsFunc(std::function<void(IControl& control)> func)
   if (mPerfDisplay)
     func(*mPerfDisplay);
   
-#if !defined(NDEBUG)
+#ifndef NDEBUG
   if (mLiveEdit)
     func(*mLiveEdit);
 #endif
@@ -461,7 +534,7 @@ void IGraphics::AssignParamNameToolTips()
   auto func = [](IControl& control)
   {
     if (control.GetParamIdx() > kNoParameter)
-      control.SetTooltip(control.GetParam()->GetNameForHost());
+      control.SetTooltip(control.GetParam()->GetName());
   };
   
   ForStandardControlsFunc(func);
@@ -489,7 +562,7 @@ void IGraphics::UpdatePeers(IControl* pCaller, int callerValIdx) // TODO: this c
 void IGraphics::PromptUserInput(IControl& control, const IRECT& bounds, int valIdx)
 {
   assert(valIdx > kNoValIdx);
-    
+  
   const IParam* pParam = control.GetParam(valIdx);
 
   if(pParam)
@@ -500,7 +573,7 @@ void IGraphics::PromptUserInput(IControl& control, const IRECT& bounds, int valI
 
     if ( type == IParam::kTypeEnum || (type == IParam::kTypeBool && nDisplayTexts))
     {
-      pParam->GetDisplayForHost(currentText);
+      pParam->GetDisplay(currentText);
       mPromptPopupMenu.Clear();
 
       // Fill the menu
@@ -513,7 +586,7 @@ void IGraphics::PromptUserInput(IControl& control, const IRECT& bounds, int valI
         else // not equal
           mPromptPopupMenu.AddItem( new IPopupMenu::Item(str), -1 );
         
-        mPromptPopupMenu.SetRootTitle(pParam->GetNameForHost());
+        mPromptPopupMenu.SetRootTitle(pParam->GetName());
       }
 
       CreatePopupMenu(control, mPromptPopupMenu, bounds, valIdx);
@@ -521,7 +594,14 @@ void IGraphics::PromptUserInput(IControl& control, const IRECT& bounds, int valI
     // TODO: what if there are Int/Double Params with a display text e.g. -96db = "mute"
     else // type == IParam::kTypeInt || type == IParam::kTypeDouble
     {
-      pParam->GetDisplayForHost(currentText, false);
+      pParam->GetDisplay(currentText, false);
+      
+      if(control.GetPromptShowsParamLabel())
+      {
+        currentText.Append(" ");
+        currentText.Append(pParam->GetLabel());
+      }
+      
       CreateTextEntry(control, control.GetText(), bounds, currentText.Get(), valIdx);
     }
   }
@@ -535,12 +615,12 @@ void IGraphics::DrawText(const IText& text, const char* str, const IRECT& bounds
   DoDrawText(text, str, bounds, pBlend);
 }
 
-void IGraphics::MeasureText(const IText& text, const char* str, IRECT& bounds) const
+float IGraphics::MeasureText(const IText& text, const char* str, IRECT& bounds) const
 {
   if (!str || str[0] == '\0')
-    return;
+    return 0.f;
     
-  DoMeasureText(text, str, bounds);
+  return DoMeasureText(text, str, bounds);
 }
 
 void IGraphics::DrawText(const IText& text, const char* str, float x, float y, const IBlend* pBlend)
@@ -733,10 +813,10 @@ bool IGraphics::IsDirty(IRECTList& rects)
 #endif
 
   //TODO: for GL backends, having an ImGui on top currently requires repainting everything on each frame
-#if defined IGRAPHICS_IMGUI && (defined IGRAPHICS_GL2 || defined IGRAPHICS_GL3)
+#if defined IGRAPHICS_IMGUI && defined IGRAPHICS_GL
   if (mImGuiRenderer && mImGuiRenderer->GetDrawFunc())
   {
-    rects.Add(GetBounds());
+    rects.Add(IRECT(0,0,1,1));
     return true;
   }
 #endif
@@ -848,7 +928,7 @@ void IGraphics::OnMouseDown(const std::vector<IMouseInfo>& points)
     if(mCornerResizer.get() != nullptr)
       cornerResizer = pControl == mCornerResizer.get();
 
-    if(!cornerResizer && mImGuiRenderer.get()->OnMouseDown(points[0].x, points[0].y, points[0].ms))
+    if(!cornerResizer && mImGuiRenderer->OnMouseDown(points[0].x, points[0].y, points[0].ms))
     {
       ReleaseMouseCapture();
       return;
@@ -974,7 +1054,7 @@ void IGraphics::OnMouseUp(const std::vector<IMouseInfo>& points)
 #ifdef IGRAPHICS_IMGUI
   if(mImGuiRenderer && points.size() == 1)
   {
-    if(mImGuiRenderer.get()->OnMouseUp(points[0].x, points[0].y, points[0].ms))
+    if(mImGuiRenderer->OnMouseUp(points[0].x, points[0].y, points[0].ms))
     {
       ReleaseMouseCapture();
       return;
@@ -1015,7 +1095,7 @@ bool IGraphics::OnMouseOver(float x, float y, const IMouseMod& mod)
   
 #ifdef IGRAPHICS_IMGUI
   if(mImGuiRenderer)
-    mImGuiRenderer.get()->OnMouseMove(x, y, mod);
+    mImGuiRenderer->OnMouseMove(x, y, mod);
 #endif
   
   // N.B. GetMouseControl handles which controls can receive mouseovers
@@ -1047,12 +1127,12 @@ void IGraphics::OnMouseOut()
 
 void IGraphics::OnMouseDrag(const std::vector<IMouseInfo>& points)
 {
-//  Trace("IGraphics::OnMouseDrag:", __LINE__, "x:%0.2f, y:%0.2f, dX:%0.2f, dY:%0.2f, mod:LRSCA: %i%i%i%i%i",
-//        x, y, dX, dY, mod.L, mod.R, mod.S, mod.C, mod.A);
+  Trace("IGraphics::OnMouseDrag:", __LINE__, "x:%0.2f, y:%0.2f, dX:%0.2f, dY:%0.2f, mod:LRSCA: %i%i%i%i%i",
+        points[0].x, points[0].y, points[0].dX, points[0].dY, points[0].ms.L, points[0].ms.R, points[0].ms.S, points[0].ms.C, points[0].ms.A);
 
   if (mResizingInProcess && points.size() == 1)
     OnDragResize(points[0].x, points[0].y);
-  else if (ControlIsCaptured())
+  else if (ControlIsCaptured() && !GetControlInTextEntry())
   {
     for (auto& point : points)
     {
@@ -1077,7 +1157,7 @@ void IGraphics::OnMouseDrag(const std::vector<IMouseInfo>& points)
   }
 #ifdef IGRAPHICS_IMGUI
   else if(mImGuiRenderer && points.size() == 1)
-    mImGuiRenderer.get()->OnMouseMove(points[0].x, points[0].y, points[0].ms);
+    mImGuiRenderer->OnMouseMove(points[0].x, points[0].y, points[0].ms);
 #endif
 }
 
@@ -1089,7 +1169,7 @@ bool IGraphics::OnMouseDblClick(float x, float y, const IMouseMod& mod)
 #ifdef IGRAPHICS_IMGUI
   if(mImGuiRenderer)
   {
-    mImGuiRenderer.get()->OnMouseDown(x, y, mod);
+    mImGuiRenderer->OnMouseDown(x, y, mod);
     return true;
   }
 #endif
@@ -1122,7 +1202,7 @@ void IGraphics::OnMouseWheel(float x, float y, const IMouseMod& mod, float d)
 #ifdef IGRAPHICS_IMGUI
     if(mImGuiRenderer)
     {
-      mImGuiRenderer.get()->OnMouseWheel(x, y, mod, d);
+      mImGuiRenderer->OnMouseWheel(x, y, mod, d);
       return;
     }
 #endif
@@ -1142,7 +1222,7 @@ bool IGraphics::OnKeyDown(float x, float y, const IKeyPress& key)
 #ifdef IGRAPHICS_IMGUI
   if(mImGuiRenderer)
   {
-    handled = mImGuiRenderer.get()->OnKeyDown(x, y, key);
+    handled = mImGuiRenderer->OnKeyDown(x, y, key);
     
     if(handled)
       return true;
@@ -1170,7 +1250,7 @@ bool IGraphics::OnKeyUp(float x, float y, const IKeyPress& key)
 #ifdef IGRAPHICS_IMGUI
   if(mImGuiRenderer)
   {
-    handled = mImGuiRenderer.get()->OnKeyUp(x, y, key);
+    handled = mImGuiRenderer->OnKeyUp(x, y, key);
     
     if(handled)
       return true;
@@ -1209,7 +1289,7 @@ int IGraphics::GetMouseControlIdx(float x, float y, bool mouseOver)
     {
       IControl* pControl = GetControl(c);
 
-#if _DEBUG
+#ifndef NDEBUG
       if(!mLiveEdit)
       {
 #endif
@@ -1223,7 +1303,7 @@ int IGraphics::GetMouseControlIdx(float x, float y, bool mouseOver)
             }
           }
         }
-#if _DEBUG
+#ifndef NDEBUG
       }
       else if (pControl->GetRECT().Contains(x, y))
       {
@@ -1411,14 +1491,14 @@ void IGraphics::EnableTooltips(bool enable)
   if (enable) mEnableMouseOver = true;
 }
 
-void IGraphics::EnableLiveEdit(bool enable, const char* file, int gridsize)
+void IGraphics::EnableLiveEdit(bool enable)
 {
-#if defined(_DEBUG)
+#ifndef NDEBUG
   if (enable)
   {
     if (!mLiveEdit)
     {
-      mLiveEdit = std::make_unique<IGraphicsLiveEdit>(mEnableMouseOver/*, file, gridsize*/);
+      mLiveEdit = std::make_unique<IGraphicsLiveEdit>(mEnableMouseOver);
       mLiveEdit->SetDelegate(*GetDelegate());
     }
   }
@@ -1736,6 +1816,8 @@ void IGraphics::CreateTextEntry(IControl& control, const IText& text, const IREC
     mTextEntryControl->CreateTextEntry(paramIdx, text, bounds, control.GetTextEntryLength(), str);
   else
     CreatePlatformTextEntry(paramIdx, text, bounds, control.GetTextEntryLength(), str);
+  
+  mInTextEntry->SetDirty(false);
 }
 
 void IGraphics::DoCreatePopupMenu(IControl& control, IPopupMenu& menu, const IRECT& bounds, int valIdx, bool isContext)
@@ -2167,7 +2249,7 @@ void IGraphics::AttachImGui(std::function<void(IGraphics*)> drawFunc, std::funct
 {
   mImGuiRenderer = std::make_unique<ImGuiRenderer>(this, drawFunc, setupFunc);
   
-#if !defined IGRAPHICS_GL2 && !defined IGRAPHICS_GL3 // TODO: IGRAPHICS_GL!
+#if !defined IGRAPHICS_GL
   CreatePlatformImGui();
 #endif
 }
