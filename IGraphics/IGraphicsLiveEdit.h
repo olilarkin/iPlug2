@@ -446,22 +446,22 @@ public:
         }
       }
       
-      if (pSelectedMenu == &mRightClickOnControlMenu)
-      {
-        auto idx = pSelectedMenu->GetChosenItemIdx();
-
-        switch (idx)
-        {
-          case 0:
-            mSelectedControls.Empty();
-            GetUI()->RemoveControl(mClickedOnControl);
-            mClickedOnControl = -1;
-            break;
-          default:
-            break;
-        }
-
-      }
+//      if (pSelectedMenu == &mRightClickOnControlMenu)
+//      {
+//        auto idx = pSelectedMenu->GetChosenItemIdx();
+//
+//        switch (idx)
+//        {
+//          case 0:
+//            mSelectedControls.Empty();
+//            GetUI()->RemoveControl(mClickedOnControl);
+//            mClickedOnControl = -1;
+//            break;
+//          default:
+//            break;
+//        }
+//
+//      }
     }
     
     mClickedOnControl = -1;
