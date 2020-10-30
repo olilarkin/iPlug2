@@ -268,6 +268,11 @@ public:
         mClickedOnControl = c;
         GetUI()->CreatePopupMenu(*this, mRightClickOnControlMenu, x, y);
       }
+      else if (mod.R)
+      {
+        mClickedOnControl = c;
+        GetUI()->CreatePopupMenu(*this, mRightClickOnControlMenu, x, y);
+      }
       else
       {
         mClickedOnControl = c;
@@ -354,14 +359,14 @@ public:
         if(r.R < mMouseDownRECT.L +mGridSize) r.R = mMouseDownRECT.L+mGridSize;
         if(r.B < mMouseDownRECT.T +mGridSize) r.B = mMouseDownRECT.T+mGridSize;
           
-        pControl->SetSize(r.W(), r.H());
+        GetUI()->SetControlSize(mClickedOnControl, r.W(), r.H());
       }
       else
       {
         const float x1 = SnapToGrid(mMouseDownRECT.L + (x - mouseDownX));
         const float y1 = SnapToGrid(mMouseDownRECT.T + (y - mouseDownY));
           
-        pControl->SetPosition(x1, y1);
+        GetUI()->SetControlPosition(mClickedOnControl, x1, y1);
       }
       
       mSourceEditor.UpdateControlRectSource(GetUI()->GetControlIdx(pControl), pControl->GetRECT());
@@ -378,13 +383,11 @@ public:
       mDragRegion.B = y < mouseDownY ? mouseDownY : y;
       
       GetUI()->ForStandardControlsFunc([&](IControl& c) {
-                                         if(mDragRegion.Contains(c.GetRECT()))
-                                         {
+                                         if(mDragRegion.Contains(c.GetRECT())) {
                                            if(mSelectedControls.FindR(&c) == -1)
                                              mSelectedControls.Add(&c);
                                          }
-                                         else
-                                         {
+                                         else {
                                            int idx = mSelectedControls.FindR(&c);
                                            if(idx > -1)
                                              mSelectedControls.Delete(idx);
@@ -524,6 +527,11 @@ public:
       return (float) std::round(input / (float) mGridSize) * mGridSize;
     else
       return input;
+  }
+  
+  bool GetActive() const
+  {
+    return mClickedOnControl > 0;
   }
 
 private:
