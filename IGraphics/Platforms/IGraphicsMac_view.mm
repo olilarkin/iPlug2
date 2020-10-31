@@ -488,7 +488,7 @@ static CVReturn displayLinkCallback(CVDisplayLinkRef displayLink, const CVTimeSt
   #ifdef IGRAPHICS_GL
   CGLContextObj cglContext = [[self openGLContext] CGLContextObj];
   CGLPixelFormatObj cglPixelFormat = [[self pixelFormat] CGLPixelFormatObj];
-  CVDisplayLinkSetCurrentCGDisplayFromOpenGLContext(displayLink, cglContext, cglPixelFormat);
+  CVDisplayLinkSetCurrentCGDisplayFromOpenGLContext(mDisplayLink, cglContext, cglPixelFormat);
   #endif
   
   CGDirectDisplayID viewDisplayID =
@@ -655,9 +655,9 @@ static CVReturn displayLinkCallback(CVDisplayLinkRef displayLink, const CVTimeSt
       for (int i = 0; i < mDirtyRects.Size(); i++)
         [self setNeedsDisplayInRect:ToNSRect(mGraphics, mDirtyRects.Get(i))];
     #else
-    #ifdef IGRAPHICS_GL
-      [[self openGLContext] makeCurrentContext];
-    #endif
+      #ifdef IGRAPHICS_GL
+        [[self openGLContext] makeCurrentContext];
+      #endif
       // so just draw on each frame, if something is dirty
       mGraphics->Draw(mDirtyRects);
     #endif
@@ -1069,7 +1069,7 @@ static void MakeCursorFromName(NSCursor*& cursor, const char *name)
 {
   IGRAPHICS_MENU_RCVR* pDummyView = [[[IGRAPHICS_MENU_RCVR alloc] initWithFrame:bounds] autorelease];
   NSMenu* pNSMenu = [[[IGRAPHICS_MENU alloc] initWithIPopupMenuAndReceiver:&menu : pDummyView] autorelease];
-  NSPoint wp = {bounds.origin.x, bounds.origin.y + 4};
+  NSPoint wp = {bounds.origin.x, bounds.origin.y + bounds.size.height + 4};
 
   [pNSMenu popUpMenuPositioningItem:nil atLocation:wp inView:self];
   

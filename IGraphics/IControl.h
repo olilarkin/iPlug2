@@ -1720,8 +1720,13 @@ public:
   void OnMouseUp(float x, float y, const IMouseMod& mod) override;
   
   int GetSelectedIdx() const { return int(0.5 + GetValue() * (double) (mNumStates - 1)); }
+  
+  void SetStateDisabled(int stateIdx, bool disabled);
+  void SetAllStatesDisabled(bool disabled);
+  bool GetStateDisabled(int stateIdx) const;
 protected:
   int mNumStates;
+  WDL_TypedBuf<bool> mDisabledState;
   bool mMouseDown = false;
 };
 
@@ -1856,6 +1861,7 @@ public:
       SetAnimation(DefaultAnimationFunc, mAnimationDuration);
     
     mIgnoreMouse = ignoreMouse;
+    mDblAsSingleClick = true;
   }
   
   void Draw(IGraphics& g) override
@@ -1880,10 +1886,24 @@ public:
     SetAnimation(DefaultAnimationFunc, mAnimationDuration);
   }
   
-  void OnMouseUp(float x, float y, const IMouseMod& mod) override { mMouseInfo.x = x; mMouseInfo.y = y; mMouseInfo.ms = mod; SetDirty(false); }
-  void OnMouseDrag(float x, float y, float dX, float dY, const IMouseMod& mod) override { mMouseInfo.x = x; mMouseInfo.y = y; mMouseInfo.ms = mod; SetDirty(false); }
-  void OnMouseDblClick(float x, float y, const IMouseMod& mod) override { mMouseInfo.x = x; mMouseInfo.y = y; mMouseInfo.ms = mod; SetDirty(false); }
+  void OnMouseUp(float x, float y, const IMouseMod& mod) override
+  {
+    mMouseInfo.x = x;
+    mMouseInfo.y = y;
+    mMouseInfo.ms = IMouseMod();
+    SetDirty(false);
+  }
   
+  void OnMouseDrag(float x, float y, float dX, float dY, const IMouseMod& mod) override
+  {
+    mMouseInfo.x = x;
+    mMouseInfo.y = y;
+    mMouseInfo.dX = dX;
+    mMouseInfo.dY = dY;
+    mMouseInfo.ms = mod;
+    SetDirty(false);
+  }
+
 public: // public for easy access :-)
   ILayerPtr mLayer;
   IMouseInfo mMouseInfo;

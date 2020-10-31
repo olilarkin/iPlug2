@@ -352,20 +352,27 @@ static EM_BOOL outside_mouse_callback(int eventType, const EmscriptenMouseEvent*
   info.y = (pEvent->targetY - rect["top"].as<double>()) / pGraphics->GetDrawScale();
   info.dX = pEvent->movementX;
   info.dY = pEvent->movementY;
-  info.ms = {pEvent->buttons == 1, pEvent->buttons == 2, static_cast<bool>(pEvent->shiftKey), static_cast<bool>(pEvent->ctrlKey), static_cast<bool>(pEvent->altKey)};
+  info.ms = {(pEvent->buttons & 1) != 0, (pEvent->buttons & 2) != 0, static_cast<bool>(pEvent->shiftKey), static_cast<bool>(pEvent->ctrlKey), static_cast<bool>(pEvent->altKey)};
   std::vector<IMouseInfo> list {info};
   
   switch (eventType)
   {
     case EMSCRIPTEN_EVENT_MOUSEUP:
+    {
+      // Get button states based on what caused the mouse up (nothing in buttons)
+      list[0].ms.L = pEvent->button == 0;
+      list[0].ms.R = pEvent->button == 2;
       pGraphics->OnMouseUp(list);
       emscripten_set_mousemove_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, pGraphics, 1, nullptr);
       emscripten_set_mouseup_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, pGraphics, 1, nullptr);
       break;
+    }
     case EMSCRIPTEN_EVENT_MOUSEMOVE:
+    {
       if(pEvent->buttons != 0 && !pGraphics->IsInPlatformTextEntry())
         pGraphics->OnMouseDrag(list);
       break;
+    }
     default:
       break;
   }
@@ -385,8 +392,8 @@ static EM_BOOL mouse_callback(int eventType, const EmscriptenMouseEvent* pEvent,
   info.y = pEvent->targetY / pGraphics->GetDrawScale();
   info.dX = pEvent->movementX;
   info.dY = pEvent->movementY;
-  info.ms = {pEvent->buttons == 1,
-             pEvent->buttons == 2,
+  info.ms = {(pEvent->buttons & 1) != 0,
+             (pEvent->buttons & 2) != 0,
              static_cast<bool>(pEvent->shiftKey),
              static_cast<bool>(pEvent->ctrlKey),
              static_cast<bool>(pEvent->altKey)};
@@ -414,7 +421,14 @@ static EM_BOOL mouse_callback(int eventType, const EmscriptenMouseEvent* pEvent,
       
       break;
     }
-    case EMSCRIPTEN_EVENT_MOUSEUP: pGraphics->OnMouseUp(list); break;
+    case EMSCRIPTEN_EVENT_MOUSEUP:
+    {
+      // Get button states based on what caused the mouse up (nothing in buttons)
+      list[0].ms.L = pEvent->button == 0;
+      list[0].ms.R = pEvent->button == 2;
+      pGraphics->OnMouseUp(list);
+      break;
+    }
     case EMSCRIPTEN_EVENT_MOUSEMOVE:
     {
       gFirstClick = false;
@@ -454,7 +468,7 @@ static EM_BOOL wheel_callback(int eventType, const EmscriptenWheelEvent* pEvent,
 {
   IGraphics* pGraphics = (IGraphics*) pUserData;
   
-  IMouseMod modifiers(0, 0, pEvent->mouse.shiftKey, pEvent->mouse.ctrlKey, pEvent->mouse.altKey);
+  IMouseMod modifiers(false, false, pEvent->mouse.shiftKey, pEvent->mouse.ctrlKey, pEvent->mouse.altKey);
   
   double x = pEvent->mouse.targetX;
   double y = pEvent->mouse.targetY;
@@ -643,6 +657,9 @@ void* IGraphicsWeb::OpenWindow(void* pHandle)
 
 void IGraphicsWeb::HideMouseCursor(bool hide, bool lock)
 {
+  if (mCursorHidden == hide)
+    return;
+    
   if (hide)
   {
 #ifdef IGRAPHICS_WEB_POINTERLOCK
@@ -652,6 +669,7 @@ void IGraphicsWeb::HideMouseCursor(bool hide, bool lock)
 #endif
       val::global("document")["body"]["style"].set("cursor", "none");
     
+    mCursorHidden = true;
     mCursorLock = lock;
   }
   else
@@ -661,8 +679,9 @@ void IGraphicsWeb::HideMouseCursor(bool hide, bool lock)
       emscripten_exit_pointerlock();
     else
 #endif
-      OnSetCursor();
+    OnSetCursor();
       
+    mCursorHidden = false;
     mCursorLock = false;
   }
 }
@@ -719,15 +738,6 @@ void IGraphicsWeb::OnMainLoopTimer()
     gGraphics->SetAllControlsClean();
     gGraphics->Draw(rects);
   }
-}
-
-bool IGraphicsWeb::GetTextFromClipboard(WDL_String& str)
-{
-  val clipboardText = val::global("window")["clipboardData"].call<val>("getData", std::string("Text"));
-  
-  str.Set(clipboardText.as<std::string>().c_str());
-
-  return true; // TODO: return?
 }
 
 EMsgBoxResult IGraphicsWeb::ShowMessageBox(const char* str, const char* caption, EMsgBoxType type, IMsgBoxCompletionHanderFunc completionHandler)

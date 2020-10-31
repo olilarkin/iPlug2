@@ -25,6 +25,7 @@
 #include "IRTTextControl.h"
 #include "IVDisplayControl.h"
 #include "ILEDControl.h"
+#include "IPopupMenuControl.h"
 
 BEGIN_IPLUG_NAMESPACE
 BEGIN_IGRAPHICS_NAMESPACE
@@ -177,7 +178,7 @@ public:
   void OnInit() override;
 
   virtual void DrawWidget(IGraphics& g) override;
-  virtual void DrawButton(IGraphics& g, const IRECT& bounds, bool pressed, bool mouseOver, ETabSegment segment);
+  virtual void DrawButton(IGraphics& g, const IRECT& bounds, bool pressed, bool mouseOver, ETabSegment segment, bool disabled);
   void OnMouseDown(float x, float y, const IMouseMod& mod) override;
   void OnMouseOver(float x, float y, const IMouseMod& mod) override;
   void OnMouseOut() override { mMouseOverButton = -1; ISwitchControlBase::OnMouseOut(); SetDirty(false); }
