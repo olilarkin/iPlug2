@@ -374,6 +374,9 @@ public:
   void OnMouseUp(float x, float y, const IMouseMod& mod) override;
   void OnMouseDrag(float x, float y, float dX, float dY, const IMouseMod& mod) override;
   void OnResize() override;
+  
+  IVECTORBASE_SETPROPERTIES ("IVXYPadControl")
+
 protected:
   float mHandleRadius;
   bool mMouseDown = false;
@@ -416,6 +419,8 @@ public:
    * @param func A reference object containing the function implementation to display */
   void AddPlotFunc(const IColor& color, const IPlotFunc& func);
   
+  IVECTORBASE_SETPROPERTIES ("IVPlotControl")
+
 protected:
   ILayerPtr mLayer;
   std::vector<Plot> mPlots;
@@ -443,6 +448,9 @@ public:
   void OnInit() override;
   
   void SetBoundsBasedOnGroup(const char* groupName, float padL, float padT, float padR, float padB);
+  
+  IVECTORBASE_SETPROPERTIES ("IVGroupControl")
+
 protected:
   WDL_String mGroupName;
   float mPadL = 0.f;
@@ -483,6 +491,8 @@ public:
   {
     SetTargetRECT(MakeRects(mRECT));
   }
+  
+  IVECTORBASE_SETPROPERTIES ("IVPanelControl")
 };
 
 /** A control to show a colour swatch of up to 9 colous. **/
@@ -508,6 +518,8 @@ public:
 
   void DrawWidget(IGraphics& g) override;
 
+  IVECTORBASE_SETPROPERTIES ("IVColorSwatchControl")
+  
 private:
   ColorChosenFunc mColorChosenFunc = nullptr;
   int mCellOver = -1;
