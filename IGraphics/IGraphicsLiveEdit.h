@@ -77,14 +77,13 @@ public:
           
           const char* label = pVectorBase ? pVectorBase->GetLabelStr() : "";
           
-          if(strcmp(*className, "IVLabelControl")            == 0)
-            pNewControl = new IVLabelControl(mMouseDownRECT, label);
-          else if(strcmp(*className, "IVButtonControl")      == 0) pNewControl = new IVButtonControl(mMouseDownRECT, SplashClickActionFunc, label);
-          else if(strcmp(*className, "IVSwitchControl")      == 0) pNewControl = new IVSwitchControl(mMouseDownRECT, SplashClickActionFunc, label);
-          else if(strcmp(*className, "IVToggleControl")      == 0) pNewControl = new IVToggleControl(mMouseDownRECT, SplashClickActionFunc, label);
-//          else if(strcmp(*className, "IVSlideSwitchControl") == 0) pNewControl = new IVSlideSwitchControl(mMouseDownRECT);
-//          else if(strcmp(*className, "IVTabSwitchControl")   == 0) pNewControl = new IVTabSwitchControl(mMouseDownRECT);
-//          else if(strcmp(*className, "IVRadioButtonControl") == 0) pNewControl = new IVRadioButtonControl(mMouseDownRECT);
+          if(strcmp(*className, "IVLabelControl")            == 0) pNewControl = new IVLabelControl(mMouseDownRECT, label);
+          else if(strcmp(*className, "IVButtonControl")      == 0) pNewControl = new IVButtonControl(mMouseDownRECT);
+          else if(strcmp(*className, "IVSwitchControl")      == 0) pNewControl = new IVSwitchControl(mMouseDownRECT, kNoParameter, label);
+          else if(strcmp(*className, "IVToggleControl")      == 0) pNewControl = new IVToggleControl(mMouseDownRECT, kNoParameter, label);
+          else if(strcmp(*className, "IVSlideSwitchControl") == 0) pNewControl = new IVSlideSwitchControl(mMouseDownRECT, kNoParameter, label);
+          else if(strcmp(*className, "IVTabSwitchControl")   == 0) pNewControl = new IVTabSwitchControl(mMouseDownRECT, kNoParameter, {"One", "Two", "Three"}, label);
+          else if(strcmp(*className, "IVRadioButtonControl") == 0) pNewControl = new IVRadioButtonControl(mMouseDownRECT, kNoParameter, {"One", "Two", "Three"}, label);
           else if(strcmp(*className, "IVKnobControl")        == 0) pNewControl = new IVKnobControl(mMouseDownRECT, kNoParameter, label);
           else if(strcmp(*className, "IVSliderControl")      == 0) pNewControl = new IVSliderControl(mMouseDownRECT, kNoParameter, label);
 //          else if(strcmp(*className, "IVRangeSliderControl") == 0) pNewControl = new IVRangeSliderControl(mMouseDownRECT);
@@ -113,7 +112,8 @@ public:
 //          else if(strcmp(*className, "ICaptionControl")      == 0) pNewControl = new ICaptionControl(mMouseDownRECT);
 //          else if(strcmp(*className, "IPlaceHolderControl")  == 0) pNewControl = new IPlaceHolderControl(mMouseDownRECT);
           
-          pNewControl->SetProperties(pControl->GetProperties());
+          if(pNewControl)
+            pNewControl->SetProperties(pControl->GetProperties());
         }
         else
         {
@@ -372,12 +372,12 @@ public:
             case 0 : pNewControl = new IVLabelControl(b, "New IVLabelControl"); break;
             case 1 : pNewControl = new IVButtonControl(b, SplashClickActionFunc, "New IVButtonControl"); break;
             case 2 : pNewControl = new IVSwitchControl(b, SplashClickActionFunc, "New IVSwitchControl"); break;
-//            case 3 : pNewControl = new IVToggleControl(b); break;
-//            case 4 : pNewControl = new IVSlideSwitchControl(b); break;
-//            case 5 : pNewControl = new IVTabSwitchControl(b); break;
-//            case 6 : pNewControl = new IVRadioButtonControl(b); break;
-            case 7 : pNewControl = new IVKnobControl(b, kNoParameter); break;
-            case 8 : pNewControl = new IVSliderControl(b); break;
+            case 3 : pNewControl = new IVToggleControl(b, kNoParameter, "New IVToggleControl"); break;
+            case 4 : pNewControl = new IVSlideSwitchControl(b, kNoParameter, "New IVSlideSwitchControl"); break;
+            case 5 : pNewControl = new IVTabSwitchControl(b, kNoParameter, {"One", "Two", "Three"}, "New IVTabSwitchControl"); break;
+            case 6 : pNewControl = new IVRadioButtonControl(b, kNoParameter, {"One", "Two", "Three"}, "New IVRadioButtonControl"); break;
+            case 7 : pNewControl = new IVKnobControl(b, kNoParameter, "New IVKnobControl"); break;
+            case 8 : pNewControl = new IVSliderControl(b, kNoParameter, "New IVSliderControl"); break;
 //            case 9 : pNewControl = new IVRangeSliderControl(b); break;
 //            case 10 : pNewControl = new IVXYPadControl(b); break;
 //            case 11 : pNewControl = new IVPlotControl(b); break;

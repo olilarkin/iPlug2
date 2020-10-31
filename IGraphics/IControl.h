@@ -515,7 +515,6 @@ public:
   virtual IControl* SetProperties(const IPropMap& properties)
   {
     mProperties = properties;
-    
     return this;
   }
   
@@ -553,6 +552,8 @@ public:
     // can replace std::get_if with std::get on macOS > 10.14 https://stackoverflow.com/questions/52521388/stdvariantget-does-not-compile-with-apple-llvm-10-0/53887048#53887048
     return result == mProperties.end() ? std::nullopt : std::optional<T>(*std::get_if<T>(&result->second));
   }
+  
+  virtual const char* GetClassName() const { return ""; }
   
 #if defined VST3_API || defined VST3C_API
   Steinberg::tresult PLUGIN_API executeMenuItem (Steinberg::int32 tag) override { OnContextSelection(tag); return Steinberg::kResultOk; }
@@ -685,6 +686,7 @@ public:
   
   void AttachIControl(IControl* pControl, const char* label)
   {
+    pControl->SetPropertiesAndDefaults(mStyle.GetProps(), {{"class_name", pControl->GetClassName()}});
     mControl = pControl;
     mLabelStr.Set(label);
   }
@@ -698,7 +700,7 @@ public:
        prop == "label_text" ||
        prop == "value_text")
     {
-      if(mControl)
+      if(mControl && mControl->GetUI())
         mControl->OnResize();
     }
   }
