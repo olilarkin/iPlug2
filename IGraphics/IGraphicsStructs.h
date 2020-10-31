@@ -2363,6 +2363,11 @@ struct IVColorSpec
 {
   IColor mColors[kNumVColors];
   
+  void SetColor(EVColor idx, const IColor& color)
+  {
+    mColors[(int) idx] = color;
+  }
+  
   const IColor& GetColor(EVColor color) const
   {
     return mColors[(int) color];

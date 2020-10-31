@@ -742,9 +742,12 @@ public:
   {
     mStyle = style;
     SetColors(style.colorSpec);
+    OnSetStyle();
   }
 
   IVStyle GetStyle() const { return mStyle; }
+  
+  virtual void OnSetStyle() {};
   
   IRECT GetAdjustedHandleBounds(IRECT handleBounds) const
   {

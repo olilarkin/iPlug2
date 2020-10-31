@@ -1114,12 +1114,17 @@ public:
   /**@return \c true if showning the control bounds */
   bool ShowControlBoundsEnabled() const { return mShowControlBounds; }
   
-  /** Live edit mode allows you to relocate controls at runtime in debug builds
+  /** Live edit mode allows you to relocate controls at runtime in debug builds and save the locations to a predefined file (e.g. main plugin .cpp file) \todo we need a separate page for liveedit info
    * @param enable Set \c true if you wish to enable live editing mode */
   void EnableLiveEdit(bool enable);
 
+  void SetLiveEditSourcePath(const char* path) { mLiveEditSourcePath.Set(path); }
+
   /**@return \c true if live edit mode is enabled */
   bool LiveEditEnabled() const { return mLiveEdit != nullptr; }
+  
+  /**@return \c true if live edit is happening */
+  bool LiveEditInProgress() const;
   
   /** Returns an IRECT that represents the entire UI bounds
    * This is useful for programatically arranging UI elements by slicing up the IRECT using the various IRECT methods
@@ -1712,6 +1717,7 @@ private:
   IPopupMenu mPromptPopupMenu;
   
   WDL_String mSharedResourcesSubPath;
+  WDL_String mLiveEditSourcePath;
   
   ECursor mCursorType = ECursor::ARROW;
   int mWidth;
