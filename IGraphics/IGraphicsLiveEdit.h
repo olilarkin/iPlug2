@@ -406,7 +406,10 @@ public:
             default: break;
           }
           
-          pGraphics->AttachControl(pNewControl);
+          if(pNewControl)
+            pGraphics->AttachControl(pNewControl);
+          else
+            pGraphics->ShowMessageBox("Not implemented yet!", "", EMsgBoxType::kMB_OK, nullptr);
         }
         else
         {
