@@ -1,0 +1,5 @@
+#include "LiveGUI.h"
+#include "IGraphics_include_in_plug_hdr.h"
+#include "IControls.h"
+#include "IGraphicsLiveEdit.h"
+#include "config.h"
