@@ -686,7 +686,7 @@ public:
   
   void AttachIControl(IControl* pControl, const char* label)
   {
-    pControl->SetPropertiesAndDefaults(mStyle.GetProps(), {{"class_name", pControl->GetClassName()}});
+    pControl->SetPropertiesAndDefaults(mStyle.GetProps(), {});
     mControl = pControl;
     mLabelStr.Set(label);
   }

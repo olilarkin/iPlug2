@@ -444,13 +444,11 @@ double IControl::GetAnimationProgress() const
 
 const IPropMap IPanelControl::DEFAULTS =
 {
-  {"class_name", "IPanelControl"},
   {"color", COLOR_WHITE},
 };
 
 const IPropMap ITestTextControl::DEFAULTS =
 {
-  {"class_name", "ITestTextControl"},
   {"text", DEFAULT_TEXT},
   {"str", "Hello World"},
   {"background_color", COLOR_TRANSPARENT},
@@ -458,7 +456,6 @@ const IPropMap ITestTextControl::DEFAULTS =
 
 const IPropMap ITestURLControl::DEFAULTS =
 {
-  {"class_name", "ITestURLControl"},
   {"text", DEFAULT_TEXT},
   {"str", "https://www.olilarkin.co.uk"},
   {"url", "https://www.olilarkin.co.uk"},
