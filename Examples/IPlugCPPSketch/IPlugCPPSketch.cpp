@@ -23,6 +23,7 @@ IPlugCPPSketch::IPlugCPPSketch(const InstanceInfo& info)
     
     if(GetUI()) {
       LayoutUI(GetUI());
+      SendCurrentParamValuesFromDelegate();
     }
   };
   

@@ -45,6 +45,10 @@ BEGIN_IGRAPHICS_NAMESPACE
 
 #define LIVE_EDIT_COLOR(A, R, G, B) IColor(A, R, G, B)
 
+#define LIVE_EDIT_PARAM(IDX) IDX
+
+constexpr int kLineSzMax = 2048;
+
 class IGraphicsLiveEditSourceEditor
 {
 public:
@@ -65,11 +69,11 @@ public:
 
     if (controlIndex == -1 || sourceControlIndexStart == -1 || sourceControlIndexEnd == -1) return;
 
+    WDL_String rectSrc;
+    rectSrc.SetFormatted(128, "LIVE_EDIT_RECT(%0.1f, %0.1f, %0.1f, %0.1f)", r.L, r.T, r.R, r.B);
+    
     for (int i = sourceControlIndexStart + 1; i < sourceControlIndexEnd; i++)
     {
-      WDL_String rectSrc;
-      rectSrc.SetFormatted(128, "LIVE_EDIT_RECT(%0.1f, %0.1f, %0.1f, %0.1f)", r.L, r.T, r.R, r.B);
-
       ReplaceSourceText(mSourceFile[i], "LIVE_EDIT_RECT", ")", rectSrc.Get());
     }
 
@@ -83,12 +87,30 @@ public:
 
     if (controlIndex == -1 || sourceControlIndexStart == -1 || sourceControlIndexEnd == -1) return;
 
+    WDL_String colorSrc;
+    colorSrc.SetFormatted(128, "LIVE_EDIT_COLOR(%i, %i, %i, %i)", c.A, c.R, c.G, c.B);
+    
     for (int i = sourceControlIndexStart + 1; i < sourceControlIndexEnd; i++)
     {
-      WDL_String rectSrc;
-      rectSrc.SetFormatted(128, "LIVE_EDIT_COLOR(%i, %i, %i, %i)", c.A, c.R, c.G, c.B);
+      ReplaceSourceText(mSourceFile[i], "LIVE_EDIT_COLOR", ")", colorSrc.Get());
+    }
 
-      ReplaceSourceText(mSourceFile[i], "LIVE_EDIT_COLOR", ")", rectSrc.Get());
+    WriteSourceFile();
+  }
+  
+  void UpdateControlParamIdx(int controlIndex, int paramIdx)
+  {
+    int sourceControlIndexStart = FindSourceIndex(controlIndex, "LIVE_EDIT_CONTROL_START");
+    int sourceControlIndexEnd = FindSourceIndex(controlIndex, "LIVE_EDIT_CONTROL_END");
+
+    if (controlIndex == -1 || sourceControlIndexStart == -1 || sourceControlIndexEnd == -1) return;
+
+    WDL_String paramSrc;
+    paramSrc.SetFormatted(128, "LIVE_EDIT_PARAM(%i)", paramIdx);
+    
+    for (int i = sourceControlIndexStart + 1; i < sourceControlIndexEnd; i++)
+    {
+      ReplaceSourceText(mSourceFile[i], "LIVE_EDIT_PARAM", ")", paramSrc.Get());
     }
 
     WriteSourceFile();
@@ -141,7 +163,7 @@ private:
   void ReplaceSourceText(std::string &textToBeReplaced, std::string start, std::string end, std::string replaceWith)
   {
     size_t startPos = textToBeReplaced.find(start);
-    size_t endPos = textToBeReplaced.find(end);
+    size_t endPos = textToBeReplaced.find(end, startPos);
 
     if (startPos == std::string::npos || endPos == std::string::npos) return;
 
@@ -298,70 +320,85 @@ public:
         mClickedOnControl = GetUI()->NControls() - 1;
         mMouseClickedOnResizeHandle = false;
         WDL_String src;
-        CreateSrcBasedOnClassName(*className, src);
+        CreateSrcBasedOnClassName(*className, src, pControl->GetParamIdx());
         
         IPropMap map = pControl->GetProperties();
         
         if(!map.empty()) {
-          src.AppendFormatted(1024, ")\n    ->SetProperties({\n    ");
+          src.AppendFormatted(kLineSzMax, ")\n    ->SetProperties({\n    ");
         }
         
         for (auto&& prop : map) {
-          src.AppendFormatted(1024, "{\"%s\", ", prop.first.c_str());
+          src.AppendFormatted(kLineSzMax, "{\"%s\", ", prop.first.c_str());
           switch (prop.second.index())
           {
             case kColor:
             {
               IColor val = *pControl->GetProp<IColor>(prop.first);
-              src.AppendFormatted(1024, "IColor(%i, %i, %i, %i)", val.A, val.R, val.G, val.B);
+              src.AppendFormatted(kLineSzMax, "IColor(%i, %i, %i, %i)", val.A, val.R, val.G, val.B);
               break;
             }
             case kBool:
             {
               bool val = *pControl->GetProp<bool>(prop.first);
-              src.AppendFormatted(1024, val ? "true" : "false");
+              src.AppendFormatted(kLineSzMax, val ? "true" : "false");
               break;
             }
             case kFloat:
             {
               float val = *pControl->GetProp<float>(prop.first);
-              src.AppendFormatted(1024, "%0.6ff", val);
+              src.AppendFormatted(kLineSzMax, "%0.2ff", val);
               break;
             }
             case kInt:
             {
               int val = *pControl->GetProp<int>(prop.first);
-              src.AppendFormatted(1024, "%i", val);
+              src.AppendFormatted(kLineSzMax, "%i", val);
               break;
             }
             case kRect:
             {
               IRECT val = *pControl->GetProp<IRECT>(prop.first);
-              src.AppendFormatted(1024, "IRECT(%f,%f,%f,%f)", val.L, val.T, val.R, val.B);
+              src.AppendFormatted(kLineSzMax, "IRECT(%f,%f,%f,%f)", val.L, val.T, val.R, val.B);
               break;
             }
             case kText:
             {
               IText val = *pControl->GetProp<IText>(prop.first);
-              src.AppendFormatted(1024, "DEFAULT_TEXT");
+              src.AppendFormatted(kLineSzMax, "IText(%0.2f, IColor(%i, %i, %i, %i), \"%s\", ", val.mSize, val.mFGColor.A, val.mFGColor.R, val.mFGColor.G, val.mFGColor.B, val.mFont);
+              switch (val.mAlign) {
+                case EAlign::Near: src.Append("EAlign::Near, "); break;
+                case EAlign::Center: src.Append("EAlign::Center, "); break;
+                case EAlign::Far: src.Append("EAlign::Far, "); break;
+                default:
+                  break;
+              }
+              switch (val.mVAlign) {
+                case EVAlign::Top: src.Append("EVAlign::Top, "); break;
+                case EVAlign::Middle: src.Append("EVAlign::Middle, "); break;
+                case EVAlign::Bottom: src.Append("EVAlign::Bottom, "); break;
+                default:
+                  break;
+              }
+              src.AppendFormatted(kLineSzMax, "%0.2ff, IColor(%i, %i, %i, %i), IColor(%i, %i, %i, %i))", val.mAngle, val.mTextEntryBGColor.A, val.mTextEntryBGColor.R, val.mTextEntryBGColor.G, val.mTextEntryBGColor.B, val.mTextEntryFGColor.A, val.mTextEntryFGColor.R, val.mTextEntryFGColor.G, val.mTextEntryFGColor.B);
               break;
             }
             case kStr:
             {
               const char* val = *pControl->GetProp<const char*>(prop.first);
-              src.AppendFormatted(1024, "\"%s\"", val);
+              src.AppendFormatted(kLineSzMax, "\"%s\"", val);
               break;
             }
             default:
             {
 //              bool val = *pControl->GetProp<bool>(prop.first);
-              src.AppendFormatted(1024, "TODO");
+              src.AppendFormatted(kLineSzMax, "TODO");
               break;
             }
           }
-          src.AppendFormatted(1024, "},\n    ");
+          src.AppendFormatted(kLineSzMax, "},\n    ");
         }
-        src.AppendFormatted(1024, "}");
+        src.AppendFormatted(kLineSzMax, "}");
         
         mSourceEditor.AddControlToSource(src.Get(), mMouseDownRECT);
       }
@@ -382,8 +419,24 @@ public:
         {
           mRightClickOnControlMenu.Clear();
           
-//          mRightClickOnControlMenu.AddItem("Replace with control...");
-//          mRightClickOnControlMenu.AddSeparator();
+          mRightClickOnControlMenu.AddItem("Delete Control");
+//          mRightClickOnControlMenu.AddItem("Replace with control");
+          
+          IPopupMenu* pParamMenu = new IPopupMenu("Params");
+          IEditorDelegate* pDelegate = GetDelegate();
+          
+          pParamMenu->AddItem("kNoParameter (-1)");
+          
+          for(int i=0; i<pDelegate->NParams();i++)
+          {
+            pParamMenu->AddItem(pDelegate->GetParam(i)->GetName(), -1, pControl->GetParamIdx() == i ? IPopupMenu::Item::kChecked : 0);
+          }
+          
+          mRightClickOnControlMenu.AddItem("Link to parameter", pParamMenu);
+
+          mRightClickOnControlMenu.AddSeparator();
+          
+          IPopupMenu* pStyleMenu = new IPopupMenu("Style");
           
           for(auto& prop : pControl->GetProperties())
           {
@@ -399,9 +452,13 @@ public:
                 
               auto* pItem = new IPopupMenu::Item(prop.first.c_str(), flags);
               
-              mRightClickOnControlMenu.AddItem(pItem);
+              pStyleMenu->AddItem(pItem);
             }
           }
+          
+          mRightClickOnControlMenu.AddItem("Style", pStyleMenu);
+          
+          mRightClickOnControlMenu.AddItem("Edit Label");
           
           GetUI()->CreatePopupMenu(*this, mRightClickOnControlMenu, x, y);
         }
@@ -412,14 +469,18 @@ public:
       mClickedOnControl = 0;
       
       mRightClickOutsideControlMenu.Clear();
-            
+      
+      IPopupMenu* pStyleMenu = new IPopupMenu("Style");
+      
       for(auto& prop : GetUI()->GetBackgroundControl()->GetProperties())
       {
         if(prop.first != "class_name")
-          mRightClickOutsideControlMenu.AddItem(prop.first.c_str());
+          pStyleMenu->AddItem(prop.first.c_str());
       }
       
-      mRightClickOutsideControlMenu.AddItem("Add control ...", new IPopupMenu("Add control",
+      mRightClickOutsideControlMenu.AddItem("Style", pStyleMenu);
+      
+      mRightClickOutsideControlMenu.AddItem("Add control", new IPopupMenu("Add control",
       {
         "IVLabelControl",
         "IVButtonControl",
@@ -456,8 +517,7 @@ public:
         "ICaptionControl",
         "IPlaceHolderControl"
       } ));
-      
-      
+            
       mRightClickOutsideControlMenu.AddSeparator();
       
       GetUI()->CreatePopupMenu(*this, mRightClickOutsideControlMenu, x, y);
@@ -632,16 +692,20 @@ public:
           else
             pGraphics->ShowMessageBox("Not implemented yet!", "", EMsgBoxType::kMB_OK, nullptr);
         }
-        else
+        else if(strcmp(pSelectedMenu->GetRootTitle(), "Replace control") == 0)
         {
-          if(strcmp(pSelectedMenu->GetChosenItem()->GetText(), "Delete Control") == 0)
-          {
-            mSelectedControls.Empty();
-            mSourceEditor.RemoveControlFromSource(pGraphics->GetControlIdx(pControl));
-            pGraphics->RemoveControl(mClickedOnControl);
-            mClickedOnControl = -1;
-          }
-          else if(pSelectedMenu->GetChosenItemIdx() < props.size())
+          
+        }
+        else if(strcmp(pSelectedMenu->GetRootTitle(), "Params") == 0)
+        {
+          int paramIdx = pSelectedMenu->GetChosenItemIdx() - 1; // first element is kNoParameter
+          pControl->SetParamIdx(paramIdx);
+          mSourceEditor.UpdateControlParamIdx(pGraphics->GetControlIdx(pControl), paramIdx);
+        }
+
+        else if(strcmp(pSelectedMenu->GetRootTitle(), "Style") == 0)
+        {
+          if(pSelectedMenu->GetChosenItemIdx() < props.size())
           {
             auto prop = *(props.find(pSelectedMenu->GetChosenItem()->GetText()));
             auto& propName = prop.first;
@@ -670,8 +734,32 @@ public:
             }
           }
         }
+        else
+        {
+          if(strcmp(pSelectedMenu->GetChosenItem()->GetText(), "Delete Control") == 0)
+          {
+            mSelectedControls.Empty();
+            mSourceEditor.RemoveControlFromSource(pGraphics->GetControlIdx(pControl));
+            pGraphics->RemoveControl(mClickedOnControl);
+            mClickedOnControl = -1;
+          }
+          else if(strcmp(pSelectedMenu->GetChosenItem()->GetText(), "Edit Label") == 0)
+          {
+            pGraphics->CreateTextEntry(*this, mText, pControl->As<IVectorBase>()->GetLabelBounds());
+            return; // don't invalidate mClickedOnControl
+          }
+        }
       }
     }
+    
+    mClickedOnControl = -1;
+  }
+  
+  void OnTextEntryCompletion(const char *str, int valIdx) override
+  {
+    IControl* pControl = GetUI()->GetControl(mClickedOnControl);
+    
+    pControl->As<IVectorBase>()->SetLabelStr(str);
     
     mClickedOnControl = -1;
   }
@@ -791,43 +879,43 @@ private:
     return pNewControl;
   }
   
-  void CreateSrcBasedOnClassName(const char* cname, WDL_String& str)
+  void CreateSrcBasedOnClassName(const char* cname, WDL_String& str, int paramIdx = -1)
   {
     const char* LER = "LIVE_EDIT_RECT()";
-    if     (strcmp(cname, "IVLabelControl")       == 0) str.SetFormatted(1024, "IVLabelControl(%s, \"%s\")", LER, cname);
-    else if(strcmp(cname, "IVButtonControl")      == 0) str.SetFormatted(1024, "IVButtonControl(%s, SplashClickActionFunc, \"%s\")", LER, cname);
-    else if(strcmp(cname, "IVSwitchControl")      == 0) str.SetFormatted(1024, "IVSwitchControl(%s, SplashClickActionFunc, \"%s\")", LER, cname);
-    else if(strcmp(cname, "IVToggleControl")      == 0) str.SetFormatted(1024, "IVToggleControl(%s, kNoParameter, \"%s\")", LER, cname);
-    else if(strcmp(cname, "IVSlideSwitchControl") == 0) str.SetFormatted(1024, "IVSlideSwitchControl(%s, kNoParameter, \"%s\")", LER, cname);
-    else if(strcmp(cname, "IVTabSwitchControl")   == 0) str.SetFormatted(1024, "IVTabSwitchControl(%s, kNoParameter, {\"One\", \"Two\", \"Three\"}, \"%s\")", LER, cname);
-    else if(strcmp(cname, "IVRadioButtonControl") == 0) str.SetFormatted(1024, "IVRadioButtonControl(%s, kNoParameter, {\"One\", \"Two\", \"Three\"}", LER);
-    else if(strcmp(cname, "IVKnobControl")        == 0) str.SetFormatted(1024, "IVKnobControl(%s, kNoParameter, \"%s\")", LER, cname);
-    else if(strcmp(cname, "IVSliderControl")      == 0) str.SetFormatted(1024, "IVSliderControl(%s, kNoParameter, \"%s\")", LER, cname);
-    else if(strcmp(cname, "IVRangeSliderControl") == 0) str.SetFormatted(1024, "IVRangeSliderControl(%s, {kNoParameter, kNoParameter}, \"%s\")", LER, cname);
-    else if(strcmp(cname, "IVXYPadControl")       == 0) str.SetFormatted(1024, "IVXYPadControl(%s, {kNoParameter, kNoParameter}, \"%s\")", LER, cname);
-    else if(strcmp(cname, "IVPlotControl")        == 0) str.SetFormatted(1024, "IVPlotControl(%s, \"%s\")", LER, cname);
-    else if(strcmp(cname, "IVGroupControl")       == 0) str.SetFormatted(1024, "IVGroupControl(%s, \"%s\")", LER, cname);
-    else if(strcmp(cname, "IVPanelControl")       == 0) str.SetFormatted(1024, "IVPanelControl(%s, \"%s\")", LER, cname);
-    else if(strcmp(cname, "IVColorSwatchControl") == 0) str.SetFormatted(1024, "IVColorSwatchControl(%s, \"%s\")", LER, cname);
-    else if(strcmp(cname, "ISVGKnobControl")      == 0) str.SetFormatted(1024, "ISVGKnobControl(%s, kNoParameter, \"%s\")", LER, cname);
-    else if(strcmp(cname, "ISVGButtonControl")    == 0) str.SetFormatted(1024, "ISVGButtonControl(%s, kNoParameter, \"%s\")", LER, cname);
-    else if(strcmp(cname, "ISVGSwitchControl")    == 0) str.SetFormatted(1024, "ISVGSwitchControl(%s, kNoParameter, \"%s\")", LER, cname);
-    else if(strcmp(cname, "ISVGSliderControl")    == 0) str.SetFormatted(1024, "ISVGSliderControl(%s, kNoParameter, \"%s\")", LER, cname);
-    else if(strcmp(cname, "IBButtonControl")      == 0) str.SetFormatted(1024, "IBButtonControl(%s, kNoParameter, \"%s\")", LER, cname);
-    else if(strcmp(cname, "IBSwitchControl")      == 0) str.SetFormatted(1024, "IBSwitchControl(%s, kNoParameter, \"%s\")", LER, cname);
-    else if(strcmp(cname, "IBKnobControl")        == 0) str.SetFormatted(1024, "IBKnobControl(%s, kNoParameter, \"%s\")", LER, cname);
-    else if(strcmp(cname, "IBKnobRotaterControl") == 0) str.SetFormatted(1024, "IBKnobRotaterControl(%s, kNoParameter, \"%s\")", LER, cname);
-    else if(strcmp(cname, "IBSliderControl")      == 0) str.SetFormatted(1024, "IBSliderControl(%s, kNoParameter, \"%s\")", LER, cname);
-    else if(strcmp(cname, "IBTextControl")        == 0) str.SetFormatted(1024, "IBTextControl(%s, kNoParameter, \"%s\")", LER, cname);
-    else if(strcmp(cname, "IPanelControl")        == 0) str.SetFormatted(1024, "IPanelControl(%s, \"%s\")", LER, cname);
-    else if(strcmp(cname, "ILambdaControl")       == 0) str.SetFormatted(1024, "ILambdaControl(%s, nullptr, \"%s\")", LER, cname);
-    else if(strcmp(cname, "IBitmapControl")       == 0) str.SetFormatted(1024, "IBitmapControl(%s, kNoParameter, \"%s\")", LER, cname);
-    else if(strcmp(cname, "ISVGControl")          == 0) str.SetFormatted(1024, "ISVGControl(%s, kNoParameter, \"%s\")", LER, cname);
-    else if(strcmp(cname, "ITextControl")         == 0) str.SetFormatted(1024, "ITextControl(%s, \"%s\")", LER, cname);
-    else if(strcmp(cname, "IURLControl")          == 0) str.SetFormatted(1024, "IURLControl(%s, \"URL\", \"https://iPlug2.github.io\", \"%s\")", LER, cname);
-    else if(strcmp(cname, "ITextToggleControl")   == 0) str.SetFormatted(1024, "ITextToggleControl(%s, kNoParameter, \"OFF\", \"ON\", \"%s\")", LER, cname);
-    else if(strcmp(cname, "ICaptionControl")      == 0) str.SetFormatted(1024, "ICaptionControl(%s, kNoParameter)", LER, cname);
-    else                                                str.SetFormatted(1024, "IPlaceHolderControl(LER)",               LER);
+    if     (strcmp(cname, "IVLabelControl")       == 0) str.SetFormatted(kLineSzMax, "IVLabelControl(%s, \"%s\")", LER, cname);
+    else if(strcmp(cname, "IVButtonControl")      == 0) str.SetFormatted(kLineSzMax, "IVButtonControl(%s, SplashClickActionFunc, \"%s\")", LER, cname);
+    else if(strcmp(cname, "IVSwitchControl")      == 0) str.SetFormatted(kLineSzMax, "IVSwitchControl(%s, SplashClickActionFunc, \"%s\")", LER, cname);
+    else if(strcmp(cname, "IVToggleControl")      == 0) str.SetFormatted(kLineSzMax, "IVToggleControl(%s, LIVE_EDIT_PARAM(%i), \"%s\")", LER, paramIdx, cname);
+    else if(strcmp(cname, "IVSlideSwitchControl") == 0) str.SetFormatted(kLineSzMax, "IVSlideSwitchControl(%s, LIVE_EDIT_PARAM(%i), \"%s\")", LER, paramIdx, cname);
+    else if(strcmp(cname, "IVTabSwitchControl")   == 0) str.SetFormatted(kLineSzMax, "IVTabSwitchControl(%s, LIVE_EDIT_PARAM(%i), {\"One\", \"Two\", \"Three\"}, \"%s\")", LER, paramIdx, cname);
+    else if(strcmp(cname, "IVRadioButtonControl") == 0) str.SetFormatted(kLineSzMax, "IVRadioButtonControl(%s, LIVE_EDIT_PARAM(%i), {\"One\", \"Two\", \"Three\"}", LER, paramIdx);
+    else if(strcmp(cname, "IVKnobControl")        == 0) str.SetFormatted(kLineSzMax, "IVKnobControl(%s, LIVE_EDIT_PARAM(%i), \"%s\")", LER, paramIdx, cname);
+    else if(strcmp(cname, "IVSliderControl")      == 0) str.SetFormatted(kLineSzMax, "IVSliderControl(%s, LIVE_EDIT_PARAM(%i), \"%s\")", LER, paramIdx, cname);
+    else if(strcmp(cname, "IVRangeSliderControl") == 0) str.SetFormatted(kLineSzMax, "IVRangeSliderControl(%s, {kNoParameter, kNoParameter}, \"%s\")", LER, cname);
+    else if(strcmp(cname, "IVXYPadControl")       == 0) str.SetFormatted(kLineSzMax, "IVXYPadControl(%s, {kNoParameter, kNoParameter}, \"%s\")", LER, cname);
+    else if(strcmp(cname, "IVPlotControl")        == 0) str.SetFormatted(kLineSzMax, "IVPlotControl(%s, \"%s\")", LER, cname);
+    else if(strcmp(cname, "IVGroupControl")       == 0) str.SetFormatted(kLineSzMax, "IVGroupControl(%s, \"%s\")", LER, cname);
+    else if(strcmp(cname, "IVPanelControl")       == 0) str.SetFormatted(kLineSzMax, "IVPanelControl(%s, \"%s\")", LER, cname);
+    else if(strcmp(cname, "IVColorSwatchControl") == 0) str.SetFormatted(kLineSzMax, "IVColorSwatchControl(%s, \"%s\")", LER, cname);
+    else if(strcmp(cname, "ISVGKnobControl")      == 0) str.SetFormatted(kLineSzMax, "ISVGKnobControl(%s, LIVE_EDIT_PARAM(%i), \"%s\")", LER, paramIdx, cname);
+    else if(strcmp(cname, "ISVGButtonControl")    == 0) str.SetFormatted(kLineSzMax, "ISVGButtonControl(%s, LIVE_EDIT_PARAM(%i), \"%s\")", LER, paramIdx, cname);
+    else if(strcmp(cname, "ISVGSwitchControl")    == 0) str.SetFormatted(kLineSzMax, "ISVGSwitchControl(%s, LIVE_EDIT_PARAM(%i), \"%s\")", LER, paramIdx, cname);
+    else if(strcmp(cname, "ISVGSliderControl")    == 0) str.SetFormatted(kLineSzMax, "ISVGSliderControl(%s, LIVE_EDIT_PARAM(%i), \"%s\")", LER, paramIdx, cname);
+    else if(strcmp(cname, "IBButtonControl")      == 0) str.SetFormatted(kLineSzMax, "IBButtonControl(%s, LIVE_EDIT_PARAM(%i), \"%s\")", LER, paramIdx, cname);
+    else if(strcmp(cname, "IBSwitchControl")      == 0) str.SetFormatted(kLineSzMax, "IBSwitchControl(%s, LIVE_EDIT_PARAM(%i), \"%s\")", LER, paramIdx, cname);
+    else if(strcmp(cname, "IBKnobControl")        == 0) str.SetFormatted(kLineSzMax, "IBKnobControl(%s, LIVE_EDIT_PARAM(%i), \"%s\")", LER, paramIdx, cname);
+    else if(strcmp(cname, "IBKnobRotaterControl") == 0) str.SetFormatted(kLineSzMax, "IBKnobRotaterControl(%s, LIVE_EDIT_PARAM(%i), \"%s\")", LER, paramIdx, cname);
+    else if(strcmp(cname, "IBSliderControl")      == 0) str.SetFormatted(kLineSzMax, "IBSliderControl(%s, LIVE_EDIT_PARAM(%i), \"%s\")", LER, paramIdx, cname);
+    else if(strcmp(cname, "IBTextControl")        == 0) str.SetFormatted(kLineSzMax, "IBTextControl(%s, LIVE_EDIT_PARAM(%i), \"%s\")", LER, paramIdx, cname);
+    else if(strcmp(cname, "IPanelControl")        == 0) str.SetFormatted(kLineSzMax, "IPanelControl(%s, \"%s\")", LER, cname);
+    else if(strcmp(cname, "ILambdaControl")       == 0) str.SetFormatted(kLineSzMax, "ILambdaControl(%s, nullptr, \"%s\")", LER, cname);
+    else if(strcmp(cname, "IBitmapControl")       == 0) str.SetFormatted(kLineSzMax, "IBitmapControl(%s, LIVE_EDIT_PARAM(%i), \"%s\")", LER, paramIdx, cname);
+    else if(strcmp(cname, "ISVGControl")          == 0) str.SetFormatted(kLineSzMax, "ISVGControl(%s, LIVE_EDIT_PARAM(%i), \"%s\")", LER, paramIdx, cname);
+    else if(strcmp(cname, "ITextControl")         == 0) str.SetFormatted(kLineSzMax, "ITextControl(%s, \"%s\")", LER, cname);
+    else if(strcmp(cname, "IURLControl")          == 0) str.SetFormatted(kLineSzMax, "IURLControl(%s, \"URL\", \"https://iPlug2.github.io\", \"%s\")", LER, cname);
+    else if(strcmp(cname, "ITextToggleControl")   == 0) str.SetFormatted(kLineSzMax, "ITextToggleControl(%s, LIVE_EDIT_PARAM(%i), \"OFF\", \"ON\", \"%s\")", LER, paramIdx, cname);
+    else if(strcmp(cname, "ICaptionControl")      == 0) str.SetFormatted(kLineSzMax, "ICaptionControl(%s, LIVE_EDIT_PARAM(%i))", LER, paramIdx, cname);
+    else                                                str.SetFormatted(kLineSzMax, "IPlaceHolderControl(LER)",               LER);
   }
   
   IPopupMenu mRightClickOutsideControlMenu {"Outside Control", {""}};

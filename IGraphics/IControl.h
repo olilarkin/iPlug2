@@ -721,6 +721,9 @@ public:
     return mStyle.colorSpec.GetColor(color);
   }
   
+  IRECT GetLabelBounds() const { return mLabelBounds; }
+  IRECT GetWidgetBounds() const { return mWidgetBounds; }
+
   const char* GetLabelStr() const { return mLabelStr.Get(); }
   void SetLabelStr(const char* label) { mLabelStr.Set(label); mControl->SetDirty(false); }
   void SetValueStr(const char* value) { mValueStr.Set(value); mControl->SetDirty(false); }
