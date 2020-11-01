@@ -326,79 +326,79 @@ public:
         
         if(!map.empty()) {
           src.AppendFormatted(kLineSzMax, ")\n    ->SetProperties({\n    ");
-        }
-        
-        for (auto&& prop : map) {
-          src.AppendFormatted(kLineSzMax, "{\"%s\", ", prop.first.c_str());
-          switch (prop.second.index())
-          {
-            case kColor:
+
+          for (auto&& prop : map) {
+            src.AppendFormatted(kLineSzMax, "{\"%s\", ", prop.first.c_str());
+            switch (prop.second.index())
             {
-              IColor val = *pControl->GetProp<IColor>(prop.first);
-              src.AppendFormatted(kLineSzMax, "IColor(%i, %i, %i, %i)", val.A, val.R, val.G, val.B);
-              break;
-            }
-            case kBool:
-            {
-              bool val = *pControl->GetProp<bool>(prop.first);
-              src.AppendFormatted(kLineSzMax, val ? "true" : "false");
-              break;
-            }
-            case kFloat:
-            {
-              float val = *pControl->GetProp<float>(prop.first);
-              src.AppendFormatted(kLineSzMax, "%0.2ff", val);
-              break;
-            }
-            case kInt:
-            {
-              int val = *pControl->GetProp<int>(prop.first);
-              src.AppendFormatted(kLineSzMax, "%i", val);
-              break;
-            }
-            case kRect:
-            {
-              IRECT val = *pControl->GetProp<IRECT>(prop.first);
-              src.AppendFormatted(kLineSzMax, "IRECT(%f,%f,%f,%f)", val.L, val.T, val.R, val.B);
-              break;
-            }
-            case kText:
-            {
-              IText val = *pControl->GetProp<IText>(prop.first);
-              src.AppendFormatted(kLineSzMax, "IText(%0.2f, IColor(%i, %i, %i, %i), \"%s\", ", val.mSize, val.mFGColor.A, val.mFGColor.R, val.mFGColor.G, val.mFGColor.B, val.mFont);
-              switch (val.mAlign) {
-                case EAlign::Near: src.Append("EAlign::Near, "); break;
-                case EAlign::Center: src.Append("EAlign::Center, "); break;
-                case EAlign::Far: src.Append("EAlign::Far, "); break;
-                default:
-                  break;
+              case kColor:
+              {
+                IColor val = *pControl->GetProp<IColor>(prop.first);
+                src.AppendFormatted(kLineSzMax, "IColor(%i, %i, %i, %i)", val.A, val.R, val.G, val.B);
+                break;
               }
-              switch (val.mVAlign) {
-                case EVAlign::Top: src.Append("EVAlign::Top, "); break;
-                case EVAlign::Middle: src.Append("EVAlign::Middle, "); break;
-                case EVAlign::Bottom: src.Append("EVAlign::Bottom, "); break;
-                default:
-                  break;
+              case kBool:
+              {
+                bool val = *pControl->GetProp<bool>(prop.first);
+                src.AppendFormatted(kLineSzMax, val ? "true" : "false");
+                break;
               }
-              src.AppendFormatted(kLineSzMax, "%0.2ff, IColor(%i, %i, %i, %i), IColor(%i, %i, %i, %i))", val.mAngle, val.mTextEntryBGColor.A, val.mTextEntryBGColor.R, val.mTextEntryBGColor.G, val.mTextEntryBGColor.B, val.mTextEntryFGColor.A, val.mTextEntryFGColor.R, val.mTextEntryFGColor.G, val.mTextEntryFGColor.B);
-              break;
+              case kFloat:
+              {
+                float val = *pControl->GetProp<float>(prop.first);
+                src.AppendFormatted(kLineSzMax, "%0.2ff", val);
+                break;
+              }
+              case kInt:
+              {
+                int val = *pControl->GetProp<int>(prop.first);
+                src.AppendFormatted(kLineSzMax, "%i", val);
+                break;
+              }
+              case kRect:
+              {
+                IRECT val = *pControl->GetProp<IRECT>(prop.first);
+                src.AppendFormatted(kLineSzMax, "IRECT(%f,%f,%f,%f)", val.L, val.T, val.R, val.B);
+                break;
+              }
+              case kText:
+              {
+                IText val = *pControl->GetProp<IText>(prop.first);
+                src.AppendFormatted(kLineSzMax, "IText(%0.2f, IColor(%i, %i, %i, %i), \"%s\", ", val.mSize, val.mFGColor.A, val.mFGColor.R, val.mFGColor.G, val.mFGColor.B, val.mFont);
+                switch (val.mAlign) {
+                  case EAlign::Near: src.Append("EAlign::Near, "); break;
+                  case EAlign::Center: src.Append("EAlign::Center, "); break;
+                  case EAlign::Far: src.Append("EAlign::Far, "); break;
+                  default:
+                    break;
+                }
+                switch (val.mVAlign) {
+                  case EVAlign::Top: src.Append("EVAlign::Top, "); break;
+                  case EVAlign::Middle: src.Append("EVAlign::Middle, "); break;
+                  case EVAlign::Bottom: src.Append("EVAlign::Bottom, "); break;
+                  default:
+                    break;
+                }
+                src.AppendFormatted(kLineSzMax, "%0.2ff, IColor(%i, %i, %i, %i), IColor(%i, %i, %i, %i))", val.mAngle, val.mTextEntryBGColor.A, val.mTextEntryBGColor.R, val.mTextEntryBGColor.G, val.mTextEntryBGColor.B, val.mTextEntryFGColor.A, val.mTextEntryFGColor.R, val.mTextEntryFGColor.G, val.mTextEntryFGColor.B);
+                break;
+              }
+              case kStr:
+              {
+                const char* val = *pControl->GetProp<const char*>(prop.first);
+                src.AppendFormatted(kLineSzMax, "\"%s\"", val);
+                break;
+              }
+              default:
+              {
+  //              bool val = *pControl->GetProp<bool>(prop.first);
+                src.AppendFormatted(kLineSzMax, "TODO");
+                break;
+              }
             }
-            case kStr:
-            {
-              const char* val = *pControl->GetProp<const char*>(prop.first);
-              src.AppendFormatted(kLineSzMax, "\"%s\"", val);
-              break;
-            }
-            default:
-            {
-//              bool val = *pControl->GetProp<bool>(prop.first);
-              src.AppendFormatted(kLineSzMax, "TODO");
-              break;
-            }
+            src.AppendFormatted(kLineSzMax, "},\n    ");
           }
-          src.AppendFormatted(kLineSzMax, "},\n    ");
-        }
-        src.AppendFormatted(kLineSzMax, "}");
+          src.AppendFormatted(kLineSzMax, "}");
+        } // mapEmpty
         
         mSourceEditor.AddControlToSource(src.Get(), mMouseDownRECT);
       }
@@ -436,7 +436,7 @@ public:
 
           mRightClickOnControlMenu.AddSeparator();
           
-          IPopupMenu* pStyleMenu = new IPopupMenu("Style");
+          IPopupMenu* pStyleMenu = new IPopupMenu("Properties");
           
           for(auto& prop : pControl->GetProperties())
           {
@@ -456,7 +456,7 @@ public:
             }
           }
           
-          mRightClickOnControlMenu.AddItem("Style", pStyleMenu);
+          mRightClickOnControlMenu.AddItem("Properties", pStyleMenu);
           
           mRightClickOnControlMenu.AddItem("Edit Label");
           
@@ -470,7 +470,7 @@ public:
       
       mRightClickOutsideControlMenu.Clear();
       
-      IPopupMenu* pStyleMenu = new IPopupMenu("Style");
+      IPopupMenu* pStyleMenu = new IPopupMenu("Properties");
       
       for(auto& prop : GetUI()->GetBackgroundControl()->GetProperties())
       {
@@ -478,7 +478,7 @@ public:
           pStyleMenu->AddItem(prop.first.c_str());
       }
       
-      mRightClickOutsideControlMenu.AddItem("Style", pStyleMenu);
+      mRightClickOutsideControlMenu.AddItem("Properties", pStyleMenu);
       
       mRightClickOutsideControlMenu.AddItem("Add control", new IPopupMenu("Add control",
       {
@@ -703,7 +703,7 @@ public:
           mSourceEditor.UpdateControlParamIdx(pGraphics->GetControlIdx(pControl), paramIdx);
         }
 
-        else if(strcmp(pSelectedMenu->GetRootTitle(), "Style") == 0)
+        else if(strcmp(pSelectedMenu->GetRootTitle(), "Properties") == 0)
         {
           if(pSelectedMenu->GetChosenItemIdx() < props.size())
           {
@@ -811,10 +811,11 @@ public:
     IBitmap bmp = pGraphics->LoadBitmap(str);
   
     pGraphics->AttachControl(new IBitmapControl(IRECT(mMouseX, mMouseY, bmp), bmp));
-
+    IRECT r = { mMouseX, mMouseY, mMouseX + bmp.W(), mMouseY + bmp.H()};
+    
     WDL_String ctrlStr;
-    ctrlStr.SetFormatted(128, "IBitmapControl(LIVE_EDIT_RECT(), pGraphics->LoadBitmap(\"%s\"))", str);
-    mSourceEditor.AddControlToSource(ctrlStr.Get(), GetUI()->GetBounds());
+    ctrlStr.SetFormatted(kLineSzMax, "IBitmapControl(LIVE_EDIT_RECT(%f, %f, %f, %f), pGraphics->LoadBitmap(\"%s\"))", r.L, r.T, r.R, r.B, str);
+    mSourceEditor.AddControlToSource(ctrlStr.Get(), r);
   }
   
   bool IsDirty() override { return true; }
@@ -915,7 +916,7 @@ private:
     else if(strcmp(cname, "IURLControl")          == 0) str.SetFormatted(kLineSzMax, "IURLControl(%s, \"URL\", \"https://iPlug2.github.io\", \"%s\")", LER, cname);
     else if(strcmp(cname, "ITextToggleControl")   == 0) str.SetFormatted(kLineSzMax, "ITextToggleControl(%s, LIVE_EDIT_PARAM(%i), \"OFF\", \"ON\", \"%s\")", LER, paramIdx, cname);
     else if(strcmp(cname, "ICaptionControl")      == 0) str.SetFormatted(kLineSzMax, "ICaptionControl(%s, LIVE_EDIT_PARAM(%i))", LER, paramIdx, cname);
-    else                                                str.SetFormatted(kLineSzMax, "IPlaceHolderControl(LER)",               LER);
+    else                                                str.SetFormatted(kLineSzMax, "IPlaceHolderControl(%s)",               LER);
   }
   
   IPopupMenu mRightClickOutsideControlMenu {"Outside Control", {""}};
