@@ -28,7 +28,11 @@
 #define PLUG_HEIGHT 600
 #define PLUG_FPS 60
 #define PLUG_SHARED_RESOURCES 0
-#define PLUG_HOST_RESIZE 0
+#define PLUG_HOST_RESIZE 1
+#define PLUG_MIN_WIDTH 512
+#define PLUG_MIN_HEIGHT 512
+#define PLUG_MAX_WIDTH 2048
+#define PLUG_MAX_HEIGHT 2048
 
 #define AUV2_ENTRY IPlugCPPSketch_Entry
 #define AUV2_ENTRY_STR "IPlugCPPSketch_Entry"

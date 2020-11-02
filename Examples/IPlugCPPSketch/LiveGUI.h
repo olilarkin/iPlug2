@@ -1,5 +1,6 @@
-class LiveGUI {
+class LiveGUI 
+{
 public:
-  virtual void layout(void* pGraphics) {}
+  virtual void Layout(void* pGraphics) {}
 };
 

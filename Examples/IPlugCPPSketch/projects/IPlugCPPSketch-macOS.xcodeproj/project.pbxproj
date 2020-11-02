@@ -47,6 +47,8 @@
 		4F03A5D320A4621100EBDFFB /* IGraphicsStructs.h in Headers */ = {isa = PBXBuildFile; fileRef = 4F03A56820A4621000EBDFFB /* IGraphicsStructs.h */; };
 		4F03A5D420A4621100EBDFFB /* IGraphicsUtilities.h in Headers */ = {isa = PBXBuildFile; fileRef = 4F03A56920A4621100EBDFFB /* IGraphicsUtilities.h */; };
 		4F03A5D520A4621100EBDFFB /* IGraphicsConstants.h in Headers */ = {isa = PBXBuildFile; fileRef = 4F03A56A20A4621100EBDFFB /* IGraphicsConstants.h */; };
+		4F05E7B2255037FC00CA5506 /* IGraphicsFlexBox.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4F05E7AC255037FC00CA5506 /* IGraphicsFlexBox.cpp */; };
+		4F05E7B3255037FC00CA5506 /* IGraphicsImGui_src.mm in Sources */ = {isa = PBXBuildFile; fileRef = 4F05E7AD255037FC00CA5506 /* IGraphicsImGui_src.mm */; settings = {COMPILER_FLAGS = "-fobjc-arc"; }; };
 		4F0848292015129A00F9E881 /* IPlugAAX_Parameters.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4F0848252015129300F9E881 /* IPlugAAX_Parameters.cpp */; };
 		4F0D965C23099F6900BFDED0 /* IPlugProcessor.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4F8F61A8202807B9003F2573 /* IPlugProcessor.cpp */; };
 		4F10D3D9203A6719003EF82A /* RtMidi.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4F10D3D7203A6719003EF82A /* RtMidi.cpp */; settings = {COMPILER_FLAGS = "-Wno-shorten-64-to-32"; }; };
@@ -468,6 +470,12 @@
 		4F03A56A20A4621100EBDFFB /* IGraphicsConstants.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = IGraphicsConstants.h; path = ../../../IGraphics/IGraphicsConstants.h; sourceTree = "<group>"; };
 		4F05C5A82082424400DD1621 /* IPlugWAM.h */ = {isa = PBXFileReference; indentWidth = 2; lastKnownFileType = sourcecode.c.h; name = IPlugWAM.h; path = ../../../IPlug/WEB/IPlugWAM.h; sourceTree = "<group>"; tabWidth = 2; };
 		4F05C5A92082424400DD1621 /* IPlugWAM.cpp */ = {isa = PBXFileReference; indentWidth = 2; lastKnownFileType = sourcecode.cpp.cpp; name = IPlugWAM.cpp; path = ../../../IPlug/WEB/IPlugWAM.cpp; sourceTree = "<group>"; tabWidth = 2; };
+		4F05E7AC255037FC00CA5506 /* IGraphicsFlexBox.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = IGraphicsFlexBox.cpp; sourceTree = "<group>"; };
+		4F05E7AD255037FC00CA5506 /* IGraphicsImGui_src.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = IGraphicsImGui_src.mm; sourceTree = "<group>"; };
+		4F05E7AE255037FC00CA5506 /* IGraphicsFlexBox.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = IGraphicsFlexBox.h; sourceTree = "<group>"; };
+		4F05E7AF255037FC00CA5506 /* IGraphicsImGui.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = IGraphicsImGui.h; sourceTree = "<group>"; };
+		4F05E7B0255037FC00CA5506 /* IGraphicsImGuiExtensions.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = IGraphicsImGuiExtensions.h; sourceTree = "<group>"; };
+		4F05E7B1255037FC00CA5506 /* IGraphicsImGui.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = IGraphicsImGui.cpp; sourceTree = "<group>"; };
 		4F0848252015129300F9E881 /* IPlugAAX_Parameters.cpp */ = {isa = PBXFileReference; fileEncoding = 4; indentWidth = 2; lastKnownFileType = sourcecode.cpp.cpp; name = IPlugAAX_Parameters.cpp; path = ../../../IPlug/AAX/IPlugAAX_Parameters.cpp; sourceTree = "<group>"; tabWidth = 2; };
 		4F0848262015129400F9E881 /* IPlugAAX_Parameters.h */ = {isa = PBXFileReference; fileEncoding = 4; indentWidth = 2; lastKnownFileType = sourcecode.c.h; name = IPlugAAX_Parameters.h; path = ../../../IPlug/AAX/IPlugAAX_Parameters.h; sourceTree = "<group>"; tabWidth = 2; };
 		4F0848272015129400F9E881 /* IPlugAAX_view_interface.h */ = {isa = PBXFileReference; fileEncoding = 4; indentWidth = 2; lastKnownFileType = sourcecode.c.h; name = IPlugAAX_view_interface.h; path = ../../../IPlug/AAX/IPlugAAX_view_interface.h; sourceTree = "<group>"; tabWidth = 2; };
@@ -989,6 +997,7 @@
 		4F03A54820A461FD00EBDFFB /* IGraphics */ = {
 			isa = PBXGroup;
 			children = (
+				4F05E7AB255037FC00CA5506 /* Extras */,
 				4FB1F57A20E4AFDA004157C8 /* Platforms */,
 				4F63695120A463090022C370 /* Controls */,
 				4F03A54920A4621000EBDFFB /* Drawing */,
@@ -1046,6 +1055,20 @@
 				4F39A9702051E53600739CAB /* processor.h */,
 			);
 			name = WAM_SDK;
+			sourceTree = "<group>";
+		};
+		4F05E7AB255037FC00CA5506 /* Extras */ = {
+			isa = PBXGroup;
+			children = (
+				4F05E7AC255037FC00CA5506 /* IGraphicsFlexBox.cpp */,
+				4F05E7AD255037FC00CA5506 /* IGraphicsImGui_src.mm */,
+				4F05E7AE255037FC00CA5506 /* IGraphicsFlexBox.h */,
+				4F05E7AF255037FC00CA5506 /* IGraphicsImGui.h */,
+				4F05E7B0255037FC00CA5506 /* IGraphicsImGuiExtensions.h */,
+				4F05E7B1255037FC00CA5506 /* IGraphicsImGui.cpp */,
+			);
+			name = Extras;
+			path = ../../../IGraphics/Extras;
 			sourceTree = "<group>";
 		};
 		4F10D3D1203A6700003EF82A /* RTAudioMidi */ = {
@@ -2586,7 +2609,9 @@
 				4FD2E0AA254C96C300404695 /* FileWatcher.cpp in Sources */,
 				4FF0A83221BE708700B2C9D1 /* swell-gdi.mm in Sources */,
 				4F78D91813B63BA50032E0F3 /* IPlugParameter.cpp in Sources */,
+				4F05E7B3255037FC00CA5506 /* IGraphicsImGui_src.mm in Sources */,
 				4FDAC0EA207D76C600299363 /* IPlugTimer.cpp in Sources */,
+				4F05E7B2255037FC00CA5506 /* IGraphicsFlexBox.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -18,5 +18,12 @@ class IPlugCPPSketch final : public Plugin
 public:
   IPlugCPPSketch(const InstanceInfo& info);
   void OnIdle() override;
+
+#if IPLUG_EDITOR
+  void OnParentWindowResize(int width, int height) override;
+#endif
+  
+#if IPLUG_DSP
   void ProcessBlock(sample** inputs, sample** outputs, int nFrames) override;
+#endif
 };

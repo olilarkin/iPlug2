@@ -44,6 +44,8 @@ BEGIN_IGRAPHICS_NAMESPACE
 #define LIVE_EDIT_COLOR(A, R, G, B) IColor(A, R, G, B)
 #define LIVE_EDIT_LABEL(STR) STR
 #define LIVE_EDIT_PARAM(IDX) IDX
+#define LIVE_EDIT_PROPS_START ->SetProperties({
+#define LIVE_EDIT_PROPS_END }
 
 constexpr int kLineSzMax = 2048;
 
@@ -129,12 +131,67 @@ public:
     WriteSourceFile();
   }
   
+//  void UpdateControlProperties(int controlIndex, const char* label)
+//  {
+//    int sourceControlIndexStart = FindSourceIndex(controlIndex, "LIVE_EDIT_CONTROL_START");
+//    int sourceControlIndexEnd = FindSourceIndex(controlIndex, "LIVE_EDIT_CONTROL_END");
+//
+//    if (controlIndex == -1 || sourceControlIndexStart == -1 || sourceControlIndexEnd == -1) return;
+//
+//    WDL_String labelSrc;
+//    labelSrc.SetFormatted(128, "LIVE_EDIT_LABEL(\"%s\")", label);
+//    
+//    auto findStartOfProps = [&](){
+//      for (size_t i = sourceControlIndexStart; i < sourceControlIndexEnd; i++) {
+//        size_t pos = mSourceFile[i].find("LIVE_EDIT_PROPS_START");
+//        if (pos != std::string::npos)
+//          return i;
+//      }
+//      return -1;
+//    }
+//    
+//    auto findEndOfProps = [&](){
+//      for (size_t i = sourceControlIndexEnd; i > sourceControlIndexStart; i++) {
+//        size_t pos = mSourceFile[i].find("LIVE_EDIT_PROPS_END");
+//        if (pos != std::string::npos)
+//          return i;
+//      }
+//      return -1;
+//    }
+//    
+//
+//    auto startOfProps = findStartOfProps();
+//    
+//    if(startOfProps > -1)
+//    {
+//      mSourceFile.erase(mSourceFile.begin() + findStartOfProps(), mSourceFile.begin() + findEndOfProps());
+//      
+//      
+//      std::vector<std::string> ctrlSrc;
+//
+//      WDL_String propertiesSrc;
+//      AddProperties(pControl, propertiesSrc);
+//      ctrlSrc.back().append(propertiesSrc.Get());
+//      ctrlSrc.back().append(");");
+//
+//      mSourceFile.insert(mSourceFile.begin() + appendToSourceIndex + 1, ctrlSrc.begin(), ctrlSrc.end());
+//      
+//      WDL_String propertiesSrc;
+//      AddProperties(pControl, propertiesSrc);
+//      ctrlSrc.back().append(propertiesSrc.Get());
+//      
+//      ctrlSrc.back().append(");");
+//      
+//      WriteSourceFile();
+//    }
+//  }
+  
   void AddProperties(IControl* pControl, WDL_String& src)
   {
     IPropMap map = pControl->GetProperties();
 
     if(!map.empty()) {
-      src.AppendFormatted(kLineSzMax, ")\n    ->SetProperties({\n    ");
+      src.AppendFormatted(kLineSzMax, ")\n    LIVE_EDIT_PROPS_START\n    ");
 
       for (auto&& prop : map)
       {
@@ -218,7 +275,7 @@ public:
         }
         src.AppendFormatted(kLineSzMax, "},\n    ");
       }
-      src.AppendFormatted(kLineSzMax, "}");
+      src.AppendFormatted(kLineSzMax, "LIVE_EDIT_PROPS_END\n    ");
     } // mapEmpty
   }
 

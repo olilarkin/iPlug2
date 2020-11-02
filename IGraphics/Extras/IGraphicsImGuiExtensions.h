@@ -26,7 +26,7 @@ bool ImGuiIVColorSpecEditor(const char* label, IVColorSpec& spec)
   bool change = false;
   
 //  ImGui::Text("%s", label);
-  for(int i = 0; i < kNumDefaultVColors; i++)
+  for(int i = 0; i < kNumVColors; i++)
   {
     float rgbaf[4];
     spec.GetColor((EVColor) i).GetRGBAf(rgbaf);
