@@ -567,7 +567,7 @@ public:
             
             switch (prop.second.index() ) {
               case kBool:
-                if(pControl->GetProp<bool>(prop.first))
+                if(*pControl->GetProp<bool>(prop.first))
                   flags |= IPopupMenu::Item::Flags::kChecked;
                 pItem = new IPopupMenu::Item(prop.first.c_str(), flags);
                 break;
@@ -835,7 +835,6 @@ public:
         
         if(strcmp(pSelectedMenu->GetRootTitle(), "Add control") == 0)
         {
-          auto idx = pSelectedMenu->GetChosenItemIdx();
           float x, y;
           pGraphics->GetMouseDownPoint(x, y);
           IRECT b = IRECT(x, y, x + 100.f, y + 100.f);
@@ -949,7 +948,6 @@ public:
           {
             auto prop = *(props.find(pSelectedMenu->GetChosenItem()->GetText()));
             auto& propName = prop.first;
-            auto& propVal = prop.second;
             
             switch (prop.second.index())
             {
@@ -965,8 +963,8 @@ public:
               }
               case kBool:
               {
-                bool currentState = *std::get_if<bool>(&propVal);
-                pControl->SetProp(propName, !currentState, true);
+                bool checked = pSelectedMenu->GetChosenItem()->GetChecked();
+                pControl->SetProp(propName, !checked, true);
                 break;
               }
               default:

@@ -2519,7 +2519,7 @@ struct IVStyle
     else if(prop == "colors")     { colorSpec = *std::get_if<IVColorSpec>(&v); }
     else if(prop == "draw_shadows") { drawShadows = *std::get_if<bool>(&v); }
     else if(prop == "draw_frame") { drawFrame = *std::get_if<bool>(&v); }
-    else if(prop == "emboss") { emboss = std::get_if<bool>(&v); }
+    else if(prop == "emboss") { emboss = *std::get_if<bool>(&v); }
     else if(prop == "roundness") { roundness = *std::get_if<float>(&v); }
     else if(prop == "frame_thickness") { frameThickness = *std::get_if<float>(&v); }
     else if(prop == "widget_frac") { widgetFrac = *std::get_if<float>(&v); }
