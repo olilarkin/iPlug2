@@ -49,6 +49,44 @@ BEGIN_IGRAPHICS_NAMESPACE
 
 constexpr int kLineSzMax = 2048;
 
+constexpr std::initializer_list<const char*> kControlList
+{
+  "IVLabelControl",
+  "IVButtonControl",
+  "IVSwitchControl",
+  "IVToggleControl",
+  "IVSlideSwitchControl",
+  "IVTabSwitchControl",
+  "IVRadioButtonControl",
+  "IVKnobControl",
+  "IVSliderControl",
+  "IVRangeSliderControl",
+  "IVXYPadControl",
+  "IVPlotControl",
+  "IVGroupControl",
+  "IVPanelControl",
+  "IVColorSwatchControl",
+//  "ISVGKnobControl",
+//  "ISVGButtonControl",
+//  "ISVGSwitchControl",
+//  "ISVGSliderControl",
+//  "IBButtonControl",
+//  "IBSwitchControl",
+//  "IBKnobControl",
+//  "IBKnobRotaterControl",
+//  "IBSliderControl",
+//  "IBTextControl",
+//  "IPanelControl",
+//  "ILambdaControl",
+//  "IBitmapControl",
+//  "ISVGControl",
+  "ITextControl",
+  "IURLControl",
+  "ITextToggleControl",
+  "ICaptionControl",
+  "IPlaceHolderControl"
+};
+
 class IGraphicsLiveEditSourceEditor
 {
 public:
@@ -514,7 +552,7 @@ public:
         
         pNewControl = CreateNewControlBasedOnClassName(pControl->GetClassName(), mMouseDownRECT, pVectorBase ? pVectorBase->GetLabelStr() : pControl->GetClassName());
         
-        if(pNewControl) // ?pVectorBase
+        if(pNewControl)
           pNewControl->SetProperties(pControl->GetProperties());
         
         pGraphics->AttachControl(pNewControl);
@@ -523,11 +561,6 @@ public:
         mMouseClickedOnResizeHandle = false;
         mSourceEditor.AddControlToSource(pNewControl);
       }
-//      else if (mod.R)
-//      {
-//        mClickedOnControl = c;
-//        GetUI()->CreatePopupMenu(*this, mRightClickOnControlMenu, x, y);
-//      }
       else
       {
         mClickedOnControl = c;
@@ -538,24 +571,7 @@ public:
         }
         else if(mod.R)
         {
-          mRightClickOnControlMenu.Clear();
-          
-          mRightClickOnControlMenu.AddItem("Delete Control");
-//          mRightClickOnControlMenu.AddItem("Replace with control");
-          
-          IPopupMenu* pParamMenu = new IPopupMenu("Params");
-          IEditorDelegate* pDelegate = GetDelegate();
-          
-          pParamMenu->AddItem("kNoParameter (-1)");
-          
-          for(int i=0; i<pDelegate->NParams();i++)
-          {
-            pParamMenu->AddItem(pDelegate->GetParam(i)->GetName(), -1, pControl->GetParamIdx() == i ? IPopupMenu::Item::kChecked : 0);
-          }
-          
-          mRightClickOnControlMenu.AddItem("Link to parameter", pParamMenu);
-
-          mRightClickOnControlMenu.AddSeparator();
+          mRightClickMenu.Clear();
           
           IPopupMenu* pStyleMenu = new IPopupMenu("Properties");
           
@@ -618,12 +634,32 @@ public:
               pStyleMenu->AddItem(pItem);
           }
           
-          mRightClickOnControlMenu.AddItem("Properties", pStyleMenu);
+          mRightClickMenu.AddItem("Properties", pStyleMenu);
           
           if (pControl->As<IVectorBase>()) // TODO: other text controls
-            mRightClickOnControlMenu.AddItem("Edit Label");
+            mRightClickMenu.AddItem("Edit Label");
           
-          GetUI()->CreatePopupMenu(*this, mRightClickOnControlMenu, x, y);
+          mRightClickMenu.AddSeparator();
+
+          mRightClickMenu.AddItem("Add control", new IPopupMenu("Add control", kControlList));
+          //          mRightClickMenu.AddItem("Replace with control");
+          mRightClickMenu.AddItem("Delete Control");
+          
+          mRightClickMenu.AddSeparator();
+
+          IPopupMenu* pParamMenu = new IPopupMenu("Params");
+          IEditorDelegate* pDelegate = GetDelegate();
+          
+          pParamMenu->AddItem("kNoParameter (-1)");
+          
+          for(int i=0; i<pDelegate->NParams();i++)
+          {
+            pParamMenu->AddItem(pDelegate->GetParam(i)->GetName(), -1, pControl->GetParamIdx() == i ? IPopupMenu::Item::kChecked : 0);
+          }
+          
+          mRightClickMenu.AddItem("Link to parameter", pParamMenu);
+          
+          GetUI()->CreatePopupMenu(*this, mRightClickMenu, x, y);
         }
       }
     }
@@ -631,7 +667,7 @@ public:
     {
       mClickedOnControl = 0;
       
-      mRightClickOutsideControlMenu.Clear();
+      mRightClickMenu.Clear();
       
       IPopupMenu* pStyleMenu = new IPopupMenu("Properties");
       
@@ -640,49 +676,11 @@ public:
         pStyleMenu->AddItem(prop.first.c_str());
       }
       
-      mRightClickOutsideControlMenu.AddItem("Properties", pStyleMenu);
+      mRightClickMenu.AddItem("Properties", pStyleMenu);
       
-      mRightClickOutsideControlMenu.AddItem("Add control", new IPopupMenu("Add control",
-      {
-        "IVLabelControl",
-        "IVButtonControl",
-        "IVSwitchControl",
-        "IVToggleControl",
-        "IVSlideSwitchControl",
-        "IVTabSwitchControl",
-        "IVRadioButtonControl",
-        "IVKnobControl",
-        "IVSliderControl",
-        "IVRangeSliderControl",
-        "IVXYPadControl",
-        "IVPlotControl",
-        "IVGroupControl",
-        "IVPanelControl",
-        "IVColorSwatchControl",
-        "ISVGKnobControl",
-        "ISVGButtonControl",
-        "ISVGSwitchControl",
-        "ISVGSliderControl",
-        "IBButtonControl",
-        "IBSwitchControl",
-        "IBKnobControl",
-        "IBKnobRotaterControl",
-        "IBSliderControl",
-        "IBTextControl",
-        "IPanelControl",
-        "ILambdaControl",
-        "IBitmapControl",
-        "ISVGControl",
-        "ITextControl",
-        "IURLControl",
-        "ITextToggleControl",
-        "ICaptionControl",
-        "IPlaceHolderControl"
-      } ));
-            
-//      mRightClickOutsideControlMenu.AddSeparator();
-      
-      GetUI()->CreatePopupMenu(*this, mRightClickOutsideControlMenu, x, y);
+      mRightClickMenu.AddItem("Add control", new IPopupMenu("Add control", kControlList));
+                  
+      GetUI()->CreatePopupMenu(*this, mRightClickMenu, x, y);
     }
     else
     {
@@ -1117,8 +1115,7 @@ private:
     return pNewControl;
   }
   
-  IPopupMenu mRightClickOutsideControlMenu {"Outside Control", {""}};
-  IPopupMenu mRightClickOnControlMenu {"On Control", {"Delete Control"}};
+  IPopupMenu mRightClickMenu {"On Control", {""}};
 
   bool mMouseOversEnabled;
   bool mMouseClickedOnResizeHandle = false;

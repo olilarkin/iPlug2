@@ -10,7 +10,6 @@ LiveGUI* app = nullptr;
 
 #if HOT_RELOAD
 #include "ReloadableClass.h"
-#include "imgui_markdown.h"
 ReloadableClass<LiveGUI> dylib;
 #elif IPLUG_EDITOR
 #include "IControls.h"
