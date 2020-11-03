@@ -44,8 +44,8 @@ BEGIN_IGRAPHICS_NAMESPACE
 #define LIVE_EDIT_COLOR(A, R, G, B) IColor(A, R, G, B)
 #define LIVE_EDIT_LABEL(STR) STR
 #define LIVE_EDIT_PARAM(IDX) IDX
-#define LIVE_EDIT_PROPS_START ->SetProperties({
-#define LIVE_EDIT_PROPS_END }
+#define LIVE_EDIT_PROPS_START )->SetProperties({
+#define LIVE_EDIT_PROPS_END });
 
 constexpr int kLineSzMax = 2048;
 
@@ -169,71 +169,57 @@ public:
     WriteSourceFile();
   }
   
-//  void UpdateControlProperties(int controlIndex, const char* label)
-//  {
-//    int sourceControlIndexStart = FindSourceIndex(controlIndex, "LIVE_EDIT_CONTROL_START");
-//    int sourceControlIndexEnd = FindSourceIndex(controlIndex, "LIVE_EDIT_CONTROL_END");
-//
-//    if (controlIndex == -1 || sourceControlIndexStart == -1 || sourceControlIndexEnd == -1) return;
-//
-//    WDL_String labelSrc;
-//    labelSrc.SetFormatted(128, "LIVE_EDIT_LABEL(\"%s\")", label);
-//    
-//    auto findStartOfProps = [&](){
-//      for (size_t i = sourceControlIndexStart; i < sourceControlIndexEnd; i++) {
-//        size_t pos = mSourceFile[i].find("LIVE_EDIT_PROPS_START");
-//        if (pos != std::string::npos)
-//          return i;
-//      }
-//      return -1;
-//    }
-//    
-//    auto findEndOfProps = [&](){
-//      for (size_t i = sourceControlIndexEnd; i > sourceControlIndexStart; i++) {
-//        size_t pos = mSourceFile[i].find("LIVE_EDIT_PROPS_END");
-//        if (pos != std::string::npos)
-//          return i;
-//      }
-//      return -1;
-//    }
-//    
-//
-//    auto startOfProps = findStartOfProps();
-//    
-//    if(startOfProps > -1)
-//    {
-//      mSourceFile.erase(mSourceFile.begin() + findStartOfProps(), mSourceFile.begin() + findEndOfProps());
-//      
-//      
-//      std::vector<std::string> ctrlSrc;
-//
-//      WDL_String propertiesSrc;
-//      AddProperties(pControl, propertiesSrc);
-//      ctrlSrc.back().append(propertiesSrc.Get());
-//      ctrlSrc.back().append(");");
-//
-//      mSourceFile.insert(mSourceFile.begin() + appendToSourceIndex + 1, ctrlSrc.begin(), ctrlSrc.end());
-//      
-//      WDL_String propertiesSrc;
-//      AddProperties(pControl, propertiesSrc);
-//      ctrlSrc.back().append(propertiesSrc.Get());
-//      
-//      ctrlSrc.back().append(");");
-//      
-//      WriteSourceFile();
-//    }
-//  }
+  void UpdateControlProperties(int controlIndex, IControl* pControl)
+  {
+    int sourceControlIndexStart = FindSourceIndex(controlIndex, "LIVE_EDIT_CONTROL_START");
+    int sourceControlIndexEnd = FindSourceIndex(controlIndex, "LIVE_EDIT_CONTROL_END");
+
+    if (controlIndex == -1 || sourceControlIndexStart == -1 || sourceControlIndexEnd == -1) return;
+    
+    auto findStartOfProps = [&](){
+      for (int i = sourceControlIndexStart; i < sourceControlIndexEnd; i++) {
+        size_t pos = mSourceFile[i].find("LIVE_EDIT_PROPS_START");
+        if (pos != std::string::npos)
+          return i;
+      }
+      return -1;
+    };
+    
+    auto findEndOfProps = [&](){
+      for (int i = sourceControlIndexEnd; i > sourceControlIndexStart; i--) {
+        size_t pos = mSourceFile[i].find("LIVE_EDIT_PROPS_END");
+        if (pos != std::string::npos)
+          return i;
+      }
+      return -1;
+    };
+    
+    auto startOfProps = findStartOfProps();
+    auto endOfProps = findEndOfProps();
+
+    if(startOfProps > -1 && startOfProps != endOfProps)
+    {
+      mSourceFile.erase(mSourceFile.begin() + startOfProps, mSourceFile.begin() + endOfProps + 1);
+      std::string ctrlSrc;
+      WDL_String propertiesSrc;
+      AddProperties(pControl, propertiesSrc);
+      ctrlSrc.append(propertiesSrc.Get());
+      mSourceFile.insert(mSourceFile.begin() + startOfProps, ctrlSrc);
+      WriteSourceFile();
+    }
+  }
   
   void AddProperties(IControl* pControl, WDL_String& src)
   {
     IPropMap map = pControl->GetProperties();
 
     if(!map.empty()) {
-      src.AppendFormatted(kLineSzMax, ")\n    LIVE_EDIT_PROPS_START\n    ");
+      src.AppendFormatted(kLineSzMax, "\n");
+      src.AppendFormatted(kLineSzMax, "    LIVE_EDIT_PROPS_START\n");
 
       for (auto&& prop : map)
       {
-        src.AppendFormatted(kLineSzMax, "{\"%s\", ", prop.first.c_str());
+        src.AppendFormatted(kLineSzMax, "    {\"%s\", ", prop.first.c_str());
         switch (prop.second.index())
         {
           case kColor:
@@ -311,17 +297,18 @@ public:
             break;
           }
         }
-        src.AppendFormatted(kLineSzMax, "},\n    ");
+        src.AppendFormatted(kLineSzMax, "},\n");
       }
-      src.AppendFormatted(kLineSzMax, "LIVE_EDIT_PROPS_END\n    ");
-    } // mapEmpty
+      src.AppendFormatted(kLineSzMax, "    LIVE_EDIT_PROPS_END");
+    }
+    else // mapEmpty
+    {
+      src.AppendFormatted(kLineSzMax, "    );\n"); // close AttachControl, no props
+    }
   }
 
   void AddControlToSource(IControl* pControl)
   {
-    WDL_String ctorStr;
-    CreateSrcBasedOnClassName(pControl, ctorStr);
-
     int numberOfEnds = FindNumberOf("LIVE_EDIT_CONTROL_END");
     int appendToSourceIndex = 0;
 
@@ -331,7 +318,9 @@ public:
       appendToSourceIndex = FindSourceIndex(numberOfEnds - 1, "LIVE_EDIT_CONTROL_END");
     
     std::vector<std::string> ctrlSrc;
-
+    WDL_String ctorStr;
+    CreateSrcBasedOnClassName(pControl, ctorStr);
+    
     ctrlSrc.push_back("");
     ctrlSrc.push_back("    LIVE_EDIT_CONTROL_START");
     ctrlSrc.push_back("    pGraphics->AttachControl(new ");
@@ -340,8 +329,6 @@ public:
     WDL_String propertiesSrc;
     AddProperties(pControl, propertiesSrc);
     ctrlSrc.back().append(propertiesSrc.Get());
-    
-    ctrlSrc.back().append(");");
 
     ctrlSrc.push_back("    LIVE_EDIT_CONTROL_END");
 
@@ -452,6 +439,8 @@ private:
       file << data.c_str();
       file.close();
     }
+    
+    ReadSourceFile();
   }
   
   void CreateSrcBasedOnClassName(IControl* pControl, WDL_String& str)
@@ -677,9 +666,7 @@ public:
       }
       
       mRightClickMenu.AddItem("Properties", pStyleMenu);
-      
       mRightClickMenu.AddItem("Add control", new IPopupMenu("Add control", kControlList));
-                  
       GetUI()->CreatePopupMenu(*this, mRightClickMenu, x, y);
     }
     else
@@ -871,11 +858,12 @@ public:
           auto colorName = kVColorStrs[colorId];
           
           pGraphics->PromptForColor(startColor, colorName,
-                                  [pControl, colorName, currentSpec, colorId, propName](const IColor& color) {
+                                  [this, pGraphics, pControl, colorName, currentSpec, colorId, propName](const IColor& color) {
                                     IVColorSpec newSpec;
                                     newSpec = currentSpec;
                                     newSpec.SetColor(colorId, color);
                                     pControl->SetProp(propName.Get(), newSpec, true);
+                                    mSourceEditor.UpdateControlProperties(pGraphics->GetControlIdx(pControl), pControl);
                                   });
         }
         else if(strstr(pSelectedMenu->GetRootTitle(), "IText Align"))
@@ -908,31 +896,35 @@ public:
             case 1:
             {
               pGraphics->PromptForColor(currentText.mFGColor, "Text Color",
-                                      [pControl, propName, currentText](const IColor& color) {
+                                      [this, pGraphics, pControl, propName, currentText](const IColor& color) {
                                         IText newText = currentText;
                                         newText.mFGColor = color;
                                         pControl->SetProp(propName.Get(), newText, true);
+                                        mSourceEditor.UpdateControlProperties(pGraphics->GetControlIdx(pControl), pControl);
                                       });
               break;
             }
             case 6:
             {
               pGraphics->PromptForColor(currentText.mTextEntryBGColor, "Text Entry BG Color",
-                                      [pControl, propName, currentText](const IColor& color) {
+                                      [this, pGraphics, pControl, propName, currentText](const IColor& color) {
                                         IText newText = currentText;
                                         newText.mTextEntryBGColor = color;
                                         pControl->SetProp(propName.Get(), newText, true);
+                                        mSourceEditor.UpdateControlProperties(pGraphics->GetControlIdx(pControl), pControl);
                                       });
               break;
             }
             case 7:
             {
               pGraphics->PromptForColor(currentText.mTextEntryBGColor, "Text Entry FG Color",
-                                      [pControl, propName, currentText](const IColor& color) {
+                                      [this, pGraphics, pControl, propName, currentText](const IColor& color) { // AGGGGH!!!
                                         IText newText = currentText;
                                         newText.mTextEntryFGColor = color;
                                         pControl->SetProp(propName.Get(), newText, true);
+                                        mSourceEditor.UpdateControlProperties(pGraphics->GetControlIdx(pControl), pControl);
                                       });
+
               break;
             }
             default:
@@ -969,6 +961,8 @@ public:
                 break;
             }
           }
+          
+          mSourceEditor.UpdateControlProperties(pGraphics->GetControlIdx(pControl), pControl);
         }
         else
         {
