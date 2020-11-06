@@ -15,6 +15,8 @@
 #include <type_traits>
 #include <emscripten.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 #include "wdl_base64.h"
 
 using namespace iplug;
@@ -299,12 +301,13 @@ void IGraphicsCanvas::PrepareAndMeasureText(const IText& text, const char* str, 
   r = IRECT((float) x, (float) (y - ascender), (float) (x + textWidth), (float) (y + textHeight - ascender));
 }
 
-void IGraphicsCanvas::DoMeasureText(const IText& text, const char* str, IRECT& bounds) const
+float IGraphicsCanvas::DoMeasureText(const IText& text, const char* str, IRECT& bounds) const
 {
   IRECT r = bounds;
   double x, y;
   PrepareAndMeasureText(text, str, bounds, x, y);
   DoMeasureTextRotation(text, r, bounds);
+  return bounds.W();
 }
 
 void IGraphicsCanvas::DoDrawText(const IText& text, const char* str, const IRECT& bounds, const IBlend* pBlend)
@@ -353,7 +356,38 @@ APIBitmap* IGraphicsCanvas::LoadAPIBitmap(const char* fileNameOrResID, int scale
   return new Bitmap(GetPreloadedImages()[fileNameOrResID], fileNameOrResID + 1, scale);
 }
 
-APIBitmap* IGraphicsCanvas::CreateAPIBitmap(int width, int height, int scale, double drawScale)
+APIBitmap* IGraphicsCanvas::LoadAPIBitmap(const char* name, const void* pData, int dataSize, int scale)
+{
+  int width = 0;
+  int height = 0;
+  int channels = 0;
+  uint8_t* pRGBA;
+
+  pRGBA = stbi_load_from_memory((const uint8_t*)pData, dataSize, &width, &height, &channels, 4);
+  if (!pRGBA)
+  {
+    return nullptr;
+  }
+
+  DBGMSG("Size: %d x %d\n", width, height);
+  // Now that we've decoded the data, put it on a canvas
+  int rgbaSize = width * height * channels;
+  val rgbaArray = val::global("Uint8ClampedArray").new_(val(emscripten::typed_memory_view(rgbaSize, pRGBA)));
+
+  val imgData = val::global("ImageData").new_(rgbaArray, val(width), val(height));
+  val canvas = val::global("document").call<val>("createElement", std::string("canvas"));
+  canvas.set("width", width);
+  canvas.set("height", height);
+
+  val ctx = canvas.call<val>("getContext", std::string("2d"));
+  ctx.call<void>("putImageData", imgData, 0, 0);
+
+  stbi_image_free(pRGBA);
+
+  return new Bitmap(canvas, name, scale);
+}
+
+APIBitmap* IGraphicsCanvas::CreateAPIBitmap(int width, int height, int scale, double drawScale, bool cacheable)
 {
   return new Bitmap(width, height, scale, drawScale);
 }

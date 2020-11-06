@@ -566,12 +566,13 @@ void IGraphicsLice::PrepareAndMeasureText(const IText& text, const char* str, IR
   r = IRECT(x, y, x + textWidth, y + textHeight);
 }
 
-void IGraphicsLice::DoMeasureText(const IText& text, const char* str, IRECT& bounds) const
+float IGraphicsLice::DoMeasureText(const IText& text, const char* str, IRECT& bounds) const
 {
   IRECT r = bounds;
   LICE_IFont* pFont;
   PrepareAndMeasureText(text, str, bounds, pFont);
   DoMeasureTextRotation(text, r, bounds);
+  return bounds.W();
 }
 
 void IGraphicsLice::DoDrawText(const IText& text, const char* str, const IRECT& bounds, const IBlend* pBlend)
@@ -833,7 +834,7 @@ APIBitmap* IGraphicsLice::LoadAPIBitmap(const char* fileNameOrResID, int scale, 
   return nullptr;
 }
 
-APIBitmap* IGraphicsLice::CreateAPIBitmap(int width, int height, int scale, double drawScale)
+APIBitmap* IGraphicsLice::CreateAPIBitmap(int width, int height, int scale, double drawScale, bool cacheable)
 {
   LICE_IBitmap* pBitmap = new LICE_MemBitmap(width, height);
   memset(pBitmap->getBits(), 0, pBitmap->getRowSpan() * pBitmap->getHeight() * sizeof(LICE_pixel));

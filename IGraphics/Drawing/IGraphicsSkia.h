@@ -4,14 +4,17 @@
 #include "IGraphicsPathBase.h"
 
 // N.B. - this must be defined according to the skia build, not the iPlug build
-#if defined OS_MAC || defined OS_IOS
+#if (defined OS_MAC || defined OS_IOS) && !defined IGRAPHICS_SKIA_NO_METAL
 #define SK_METAL
 #endif
 
+#pragma warning( push )
+#pragma warning( disable : 4244 )
 #include "SkSurface.h"
 #include "SkPath.h"
 #include "SkCanvas.h"
 #include "SkImage.h"
+#pragma warning( pop )
 
 BEGIN_IPLUG_NAMESPACE
 BEGIN_IGRAPHICS_NAMESPACE
@@ -99,6 +102,7 @@ public:
   void FillEllipse(const IColor& color, const IRECT& bounds, const IBlend* pBlend) override;
   //void FillEllipse(const IColor& color, float x, float y, float r1, float r2, float angle, const IBlend* pBlend) override;
 #endif
+  void DrawFastDropShadow(const IRECT& innerBounds, const IRECT& outerBounds, float xyDrop, float roundness, float blur, IBlend* pBlend) override;
   
   IColor GetPoint(int x, int y) override;
   void* GetDrawContext() override { return (void*) mCanvas; }
@@ -107,7 +111,7 @@ public:
   int AlphaChannel() const override { return 3; }
   bool FlippedBitmap() const override { return false; }
 
-  APIBitmap* CreateAPIBitmap(int width, int height, int scale, double drawScale) override;
+  APIBitmap* CreateAPIBitmap(int width, int height, int scale, double drawScale, bool cacheable = false) override;
 
   void GetLayerBitmapData(const ILayerPtr& layer, RawBitmapData& data) override;
   void ApplyShadowMask(ILayerPtr& layer, RawBitmapData& mask, const IShadow& shadow) override;
@@ -116,12 +120,13 @@ public:
     
 protected:
     
-  void DoMeasureText(const IText& text, const char* str, IRECT& bounds) const override;
+  float DoMeasureText(const IText& text, const char* str, IRECT& bounds) const override;
   void DoDrawText(const IText& text, const char* str, const IRECT& bounds, const IBlend* pBlend) override;
 
   bool LoadAPIFont(const char* fontID, const PlatformFontPtr& font) override;
 
   APIBitmap* LoadAPIBitmap(const char* fileNameOrResID, int scale, EResourceLocation location, const char* ext) override;
+  APIBitmap* LoadAPIBitmap(const char* name, const void* pData, int dataSize, int scale) override;
 private:
     
   void PrepareAndMeasureText(const IText& text, const char* str, IRECT& r, double& x, double & y, SkFont& font) const;
@@ -135,6 +140,8 @@ private:
   SkCanvas* mCanvas = nullptr;
   SkPath mMainPath;
   SkMatrix mMatrix;
+  SkMatrix mClipMatrix;
+  SkMatrix mFinalMatrix;
 
 #if defined OS_WIN && defined IGRAPHICS_CPU
   WDL_TypedBuf<uint8_t> mSurfaceMemory;

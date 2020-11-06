@@ -31,10 +31,6 @@
 #include "IPlugPlatform.h"
 
 #ifdef OS_WIN
-#undef _WIN32_WINNT
-#define _WIN32_WINNT 0x0501
-#undef WINVER
-#define WINVER 0x0501
 #pragma warning(disable:4018 4267)	// size_t/signed/unsigned mismatch..
 #pragma warning(disable:4800)		// if (pointer) ...
 #pragma warning(disable:4805)		// Compare bool and BOOL.
@@ -49,6 +45,13 @@ BEGIN_IPLUG_NAMESPACE
  * If \p x is outside given range, it will be set to one of the boundaries */
 template <typename T>
 T Clip(T x, T lo, T hi) { return std::min(std::max(x, lo), hi); }
+
+/** Linear interpolate between values \p a and \p b
+* @param a Low value
+* @param b High value
+* @param f Value betweeen 0-1 for interpolation */
+template <typename T>
+inline T Lerp(T a, T b, T f) { return ((b - a) * f + a); }
 
 static inline bool CStringHasContents(const char* str) { return str && str[0] != '\0'; }
 
@@ -91,7 +94,7 @@ static inline bool CStringHasContents(const char* str) { return str && str[0] !=
  */
 static inline double DBToAmp(double dB)
 {
-  return exp(IAMP_DB * dB);
+  return std::exp(IAMP_DB * dB);
 }
 
 /** @return dB calculated as an approximation of
@@ -99,7 +102,7 @@ static inline double DBToAmp(double dB)
  * @see #AMP_DB */
 static inline double AmpToDB(double amp)
 {
-  return AMP_DB * log(std::fabs(amp));
+  return AMP_DB * std::log(std::fabs(amp));
 }
 
 /** /todo  
@@ -199,7 +202,7 @@ static EHost LookUpHost(const char* inHost)
   if (strstr(host, "vst3plugintesthost"))   return kHostVST3TestHost;
   if (strstr(host, "ardour"))               return kHostArdour;
   if (strstr(host, "renoise"))              return kHostRenoise;
-  if (strstr(host, "OpenMPT"))              return kHostOpenMPT;
+  if (strstr(host, "openmpt"))              return kHostOpenMPT;
   if (strstr(host, "wavelab elements"))     return kHostWaveLabElements; // check for wavelab elements should come before wavelab ...
   if (strstr(host, "wavelab"))              return kHostWaveLab;
   if (strstr(host, "twistedwave"))          return kHostTwistedWave;

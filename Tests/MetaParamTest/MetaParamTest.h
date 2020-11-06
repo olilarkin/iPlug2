@@ -2,7 +2,7 @@
 
 #include "IPlug_include_in_plug_hdr.h"
 
-const int kNumPrograms = 1;
+const int kNumPresets = 1;
 
 enum EParams
 {
@@ -29,7 +29,7 @@ enum EControlTags
 using namespace iplug;
 using namespace igraphics;
 
-class MetaParamTest : public Plugin
+class MetaParamTest final : public Plugin
 {
 public:
   MetaParamTest(const InstanceInfo& info);

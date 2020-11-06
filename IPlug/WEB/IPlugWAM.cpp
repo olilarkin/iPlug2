@@ -52,6 +52,7 @@ const char* IPlugWAM::init(uint32_t bufsize, uint32_t sr, void* pDesc)
   //TODO: correct place? - do we need a WAM reset message?
   OnParamReset(kReset);
   OnReset();
+  postMessage("StartIdleTimer", nullptr, nullptr);
 
   return json.Get();
 }
@@ -68,41 +69,40 @@ void IPlugWAM::onProcess(WAM::AudioBus* pAudio, void* pData)
   ENTER_PARAMS_MUTEX
   ProcessBuffers((float) 0.0f, blockSize);
   LEAVE_PARAMS_MUTEX
-  
-  //emulate IPlugAPIBase::OnTimer - should be called on the main thread - how to do that in audio worklet processor?
-  if(mBlockCounter == 0)
-  {
-    while(mParamChangeFromProcessor.ElementsAvailable())
-    {
-      ParamTuple p;
-      mParamChangeFromProcessor.Pop(p);
-      SendParameterValueFromDelegate(p.idx, p.value, false);
-    }
-    
-    while (mMidiMsgsFromProcessor.ElementsAvailable())
-    {
-      IMidiMsg msg;
-      mMidiMsgsFromProcessor.Pop(msg);
-      SendMidiMsgFromDelegate(msg);
-    }
-        
-    OnIdle();
-    
-    mBlockCounter = 8; // 8 * 128 samples = 23ms @ 44100 sr
-  }
-  
-  mBlockCounter--;
 }
 
+void IPlugWAM::OnEditorIdleTick()
+{
+  while(mParamChangeFromProcessor.ElementsAvailable())
+  {
+    ParamTuple p;
+    mParamChangeFromProcessor.Pop(p);
+    SendParameterValueFromDelegate(p.idx, p.value, false);
+  }
+
+  while (mMidiMsgsFromProcessor.ElementsAvailable())
+  {
+    IMidiMsg msg;
+    mMidiMsgsFromProcessor.Pop(msg);
+    SendMidiMsgFromDelegate(msg);
+  }
+
+  OnIdle();
+}
+
+//WAM onMessageN
 void IPlugWAM::onMessage(char* verb, char* res, double data)
 {
-  if(strcmp(verb, "SMMFUI") == 0)
+  if(strcmp(verb, "TICK") == 0) // special case for DSP OnIdle()
+  {
+    OnEditorIdleTick();
+  }
+  else if(strcmp(verb, "SMMFUI") == 0)
   {
     uint8_t data[3];
     char* pChar = strtok(res, ":");
     int i = 0;
-    while (pChar != nullptr)
-    {
+    while (pChar != nullptr) {
       data[i++] = atoi(pChar);
       pChar = strtok(nullptr, ":");
     }
@@ -110,12 +110,26 @@ void IPlugWAM::onMessage(char* verb, char* res, double data)
     IMidiMsg msg = {0, data[0], data[1], data[2]};
     ProcessMidiMsg(msg); // TODO: should queue to mMidiMsgsFromEditor?
   }
+  else if(strcmp(verb, "SAMFUI") == 0) // SAMFUI
+  {
+    int data[2] = {-1, -1};
+    char* pChar = strtok(res, ":");
+    int i = 0;
+    while (pChar != nullptr) {
+      data[i++] = atoi(pChar);
+      pChar = strtok(nullptr, ":");
+    }
+
+    OnMessage(data[0], data[1], sizeof(double), reinterpret_cast<void*>(&data));
+  }
 }
 
+//WAM onMessageS
 void IPlugWAM::onMessage(char* verb, char* res, char* str)
 {
 }
 
+//WAM onMessageA
 void IPlugWAM::onMessage(char* verb, char* res, void* pData, uint32_t size)
 {
   if(strcmp(verb, "SAMFUI") == 0)

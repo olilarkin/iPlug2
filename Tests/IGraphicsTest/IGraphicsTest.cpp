@@ -24,7 +24,7 @@ IGraphicsTest::IGraphicsTest(const InstanceInfo& info)
   
 #if IPLUG_EDITOR
   mMakeGraphicsFunc = [&]() {
-    return MakeGraphics(*this, PLUG_WIDTH, PLUG_HEIGHT, PLUG_FPS, 1.);
+    return MakeGraphics(*this, PLUG_WIDTH, PLUG_HEIGHT, PLUG_FPS, GetScaleForScreen(PLUG_HEIGHT));
   };
   
   mLayoutFunc = [&](IGraphics* pGraphics) {
@@ -49,7 +49,7 @@ IGraphicsTest::IGraphicsTest(const InstanceInfo& info)
       if(!isUp) {
         switch (key.VK) {
           case kVK_TAB:
-            dynamic_cast<IPanelControl*>(GetUI()->GetBackgroundControl())->SetPattern(IColor::GetRandomColor());
+            GetUI()->GetBackgroundControl()->As<IPanelControl>()->SetPattern(IColor::GetRandomColor());
             break;
             
           default:
@@ -97,15 +97,15 @@ IGraphicsTest::IGraphicsTest(const InstanceInfo& info)
     "MPS (NanoVG MTL only)",
     "OpenGL (NanoVG GL only)",
     "Gesture Recognizers (iOS only)",
-    "MultiTouch (iOS/Windows only)",
-    "FlexBox"
+    "MultiTouch (iOS/Win/Web only)",
+    "FlexBox",
+    "Mask"
     };
     
     auto chooseTestControl = [&, pGraphics, testRect](int idx) {
-
-      pGraphics->RemoveControlWithTag(kCtrlTagTestControl);
       
-      IControl* pNewControl;
+      IControl* pNewControl = nullptr;
+      
       switch (idx) {
         case 0: pNewControl = new TestGradientControl(testRect, kParamDummy); break;
         case 1: pNewControl = new TestColorControl(testRect); break;
@@ -132,17 +132,21 @@ IGraphicsTest::IGraphicsTest(const InstanceInfo& info)
         case 22: pNewControl = new TestGesturesControl(testRect); break;
         case 23: pNewControl = new TestMTControl(testRect); pNewControl->SetWantsMultiTouch(true); break;
         case 24: pNewControl = new TestFlexBoxControl(testRect); break;
+        case 25: pNewControl = new TestMaskControl(testRect, pGraphics->LoadBitmap(SMILEY_FN)); break;
 
       }
       
-      pGraphics->AttachControl(pNewControl, kCtrlTagTestControl);
+      if(pNewControl)
+        pGraphics->AttachControl(pNewControl, kCtrlTagTestControl);
+      
       SendCurrentParamValuesFromDelegate();
     };
     
     pGraphics->AttachControl(new IVRadioButtonControl(bounds.FracRectHorizontal(0.2),
                                                       [pGraphics, chooseTestControl](IControl* pCaller) {
+                                                        pGraphics->RemoveControlWithTag(kCtrlTagTestControl);
                                                         SplashClickActionFunc(pCaller);
-                                                        int selectedTest = dynamic_cast<IVRadioButtonControl*>(pCaller)->GetSelectedIdx();
+                                                        int selectedTest = pCaller->As<IVRadioButtonControl>()->GetSelectedIdx();
                                                         chooseTestControl(selectedTest);
                                                       },
                                                       testNames
