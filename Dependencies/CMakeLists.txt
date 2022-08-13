@@ -1,0 +1,16 @@
+include_guard(GLOBAL)
+
+set(RTAUDIO_BUILD_TESTING FALSE)
+set(RTAUDIO_TARGETNAME_UNINSTALL rtaudio-uninstall CACHE STRING "" FORCE)
+add_subdirectory(IPlug/RTAudio)
+
+set(RTMIDI_BUILD_TESTING FALSE)
+set(RTMIDI_TARGETNAME_UNINSTALL rtmidi-uninstall CACHE STRING "" FORCE)
+add_subdirectory(IPlug/RTMIDI)
+
+set(SMTG_ENABLE_VST3_HOSTING_EXAMPLES FALSE)
+set(SMTG_ENABLE_VST3_PLUGIN_EXAMPLES FALSE)
+set(SMTG_ENABLE_VSTGUI_SUPPORT FALSE)
+add_subdirectory(IPlug/VST3_SDK)
+
+add_subdirectory(IGraphics)

@@ -1,15 +1,23 @@
-cmake_minimum_required(VERSION 3.14)
-project(iPlug2 VERSION 2.0.0)
+cmake_minimum_required(VERSION 3.29)
+cmake_policy(SET CMP0076 NEW)
 
-# Set IPLUG2_DIR to this directory
-set(IPLUG2_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE PATH "iPlug2 root directory")
 
-# Include iPlug2 CMake configuration
-include(${IPLUG2_DIR}/iPlug2.cmake)
-find_package(iPlug2 REQUIRED)
+project(iPlug2)
 
-# Add examples
-add_subdirectory(Examples)
+set(IPLUG2_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 
-# Add tests
-add_subdirectory(Tests)
+include(iPlug2.cmake)
+set(CMAKE_CXX_STANDARD 17)
+
+add_subdirectory(WDL)
+add_subdirectory(Dependencies)
+
+add_subdirectory(IPlug)
+add_subdirectory(IGraphics)
+
+option(IPLUG2_BUILD_EXAMPLES "Build examples" ON)
+
+if (IPLUG2_BUILD_EXAMPLES)
+    add_subdirectory(Examples/IPlugControls)
+    add_subdirectory(Examples/IPlugEffect)
+endif()

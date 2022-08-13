@@ -36,7 +36,7 @@ if [ "$2" == "build-validator" ]; then
 fi
 
 rm -f -r VST3_BUILD
-rm -f -r public.sdk/samples
+# rm -f -r public.sdk/samples
 rm -f -r vstgui4
 rm -f -r .git*
 rm -f -r */.git*
