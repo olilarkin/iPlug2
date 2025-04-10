@@ -93,6 +93,7 @@ IRECT IFlexBox::GetItemBounds(int nodeIndex) const
                YGNodeLayoutGetTop(mRootNodeRef)  + YGNodeLayoutGetTop(child)  + YGNodeLayoutGetHeight(child));
 };
 
+#if 0
 // TODO: eventually build Yoga as a static library,
 // for now include Yoga .cpp files here
 #include "YGLayout.cpp"
@@ -106,3 +107,4 @@ IRECT IFlexBox::GetItemBounds(int nodeIndex) const
 #include "Utils.cpp"
 #include "log.cpp"
 #include "event/event.cpp"
+#endif

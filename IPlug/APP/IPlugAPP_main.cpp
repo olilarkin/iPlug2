@@ -8,6 +8,12 @@
  ==============================================================================
 */
 
+#if !(__APPLE__ && defined(BUILDING_AS_HEADER))
+#define SKIP
+#endif
+
+#ifndef SKIP
+
 #include <memory>
 #include "wdltypes.h"
 #include "wdlstring.h"
@@ -418,4 +424,7 @@ INT_PTR SWELLAppMain(int msg, INT_PTR parm1, INT_PTR parm2)
 //#include "resources/main.rc_mac_dlg"
 //#include "swell-menugen.h"
 //#include "resources/main.rc_mac_menu"
+#endif
+
+
 #endif

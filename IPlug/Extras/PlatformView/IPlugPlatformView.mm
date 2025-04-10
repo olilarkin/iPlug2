@@ -15,6 +15,8 @@
 #include "IPlugPlatformView.h"
 #include "IPlugPaths.h"
 
+#include <Cocoa/Cocoa.h>
+
 using namespace iplug;
 
 IPlatformView::IPlatformView(bool opaque)

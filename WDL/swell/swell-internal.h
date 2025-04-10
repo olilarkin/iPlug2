@@ -23,6 +23,9 @@
 
 #include "../ptrlist.h"
 
+#include "swell.h"
+
+
 struct SWELL_ListView_Rec
 {
   char *txt;

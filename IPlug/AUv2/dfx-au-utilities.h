@@ -41,7 +41,6 @@
 
 #pragma once
 
-#include <Carbon/Carbon.h>
 #include <AudioUnit/AudioUnit.h>
 
 
