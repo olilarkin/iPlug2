@@ -13,12 +13,12 @@
 
 void usage( void ) {
   std::cout << "\nuseage: sysextest N\n";
-  std::cout << "    where N = length of sysex message to send / receive.\n\n";
+  std::cout << "    where N = length of sysex data to send / receive.\n\n";
   exit( 0 );
 }
 
 // Platform-dependent sleep routines.
-#if defined(WIN32)
+#if defined(_WIN32)
   #include <windows.h>
   #define SLEEP( milliseconds ) Sleep( (DWORD) milliseconds ) 
 #else // Unix variants
@@ -31,13 +31,15 @@ void usage( void ) {
 // It returns false if there are no ports available.
 bool chooseMidiPort( RtMidi *rtmidi );
 
+RtMidi::Api chooseMidiApi();
+
 void mycallback( double deltatime, std::vector< unsigned char > *message, void * /*userData*/ )
 {
   unsigned int nBytes = message->size();
   for ( unsigned int i=0; i<nBytes; i++ )
     std::cout << "Byte " << i << " = " << (int)message->at(i) << ", ";
   if ( nBytes > 0 )
-    std::cout << "stamp = " << deltatime << std::endl;
+    std::cout << "# of bytes = " << nBytes << ", stamp = " << deltatime << std::endl;
 }
 
 int main( int argc, char *argv[] )
@@ -53,8 +55,9 @@ int main( int argc, char *argv[] )
 
   // RtMidiOut and RtMidiIn constructors
   try {
-    midiout = new RtMidiOut();
-    midiin = new RtMidiIn();
+    RtMidi::Api api = chooseMidiApi();
+    midiout = new RtMidiOut( api );
+    midiin = new RtMidiIn( api );
   }
   catch ( RtMidiError &error ) {
     error.printMessage();
@@ -67,28 +70,28 @@ int main( int argc, char *argv[] )
   try {
     if ( chooseMidiPort( midiin ) == false ) goto cleanup;
     if ( chooseMidiPort( midiout ) == false ) goto cleanup;
+
+    midiin->setCallback( &mycallback );
+
+    message.push_back( 0xF6 );
+    midiout->sendMessage( &message );
+    SLEEP( 500 ); // pause a little
+
+    // Create a long sysex message of numbered bytes and send it out ... twice.
+    for ( int n=0; n<2; n++ ) {
+      message.clear();
+      message.push_back( 240 );
+      for ( i=0; i<nBytes; i++ )
+        message.push_back( i % 128 );
+      message.push_back( 247 );
+      midiout->sendMessage( &message );
+
+      SLEEP( 500 ); // pause a little
+    }
   }
   catch ( RtMidiError &error ) {
     error.printMessage();
     goto cleanup;
-  }
-
-  midiin->setCallback( &mycallback );
-
-  message.push_back( 0xF6 );
-  midiout->sendMessage( &message );
-  SLEEP( 500 ); // pause a little
-
-  // Create a long sysex message of numbered bytes and send it out ... twice.
-  for ( int n=0; n<2; n++ ) {
-    message.clear();
-    message.push_back( 240 );
-    for ( i=0; i<nBytes; i++ )
-      message.push_back( i % 128 );
-    message.push_back( 247 );
-    midiout->sendMessage( &message );
-
-    SLEEP( 500 ); // pause a little
   }
 
   // Clean up
@@ -143,10 +146,33 @@ bool chooseMidiPort( RtMidi *rtmidi )
       std::cout << "\nChoose a port number: ";
       std::cin >> i;
     } while ( i >= nPorts );
+    std::getline(std::cin, keyHit);  // used to clear out stdin
   }
 
   std::cout << std::endl;
   rtmidi->openPort( i );
 
   return true;
+}
+
+RtMidi::Api chooseMidiApi()
+{
+  std::vector< RtMidi::Api > apis;
+  RtMidi::getCompiledApi(apis);
+
+  if (apis.size() <= 1)
+    return RtMidi::Api::UNSPECIFIED;
+
+  std::cout << "\nAPIs\n  API #0: unspecified / default\n";
+  for (size_t n = 0; n < apis.size(); n++)
+    std::cout << "  API #" << apis[n] << ": " << RtMidi::getApiDisplayName(apis[n]) << "\n";
+
+  std::cout << "\nChoose an API number: ";
+  unsigned int i;
+  std::cin >> i;
+
+  std::string dummy;
+  std::getline(std::cin, dummy);  // used to clear out stdin
+
+  return static_cast<RtMidi::Api>(i);
 }
