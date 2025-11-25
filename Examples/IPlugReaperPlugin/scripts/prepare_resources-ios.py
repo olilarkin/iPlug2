@@ -46,6 +46,9 @@ def main():
   CSResourcesFileMapped = True
   LSMinimumSystemVersion = xcconfig['DEPLOYMENT_TARGET']
 
+  DEVELOPMENT_TEAM = xcconfig.get('DEVELOPMENT_TEAM', '')
+  BUNDLE_ID_SUFFIX = DEVELOPMENT_TEAM if DEVELOPMENT_TEAM else ''
+
   print("Processing Info.plist files...")
 
 # AUDIOUNIT v3

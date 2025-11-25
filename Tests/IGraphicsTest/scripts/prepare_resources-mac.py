@@ -30,6 +30,9 @@ def main():
   CSResourcesFileMapped = True
   LSMinimumSystemVersion = xcconfig['DEPLOYMENT_TARGET']
 
+  DEVELOPMENT_TEAM = xcconfig.get('DEVELOPMENT_TEAM', '')
+  BUNDLE_ID_SUFFIX = DEVELOPMENT_TEAM if DEVELOPMENT_TEAM else ''
+
   print("Copying resources ...")
 
   if config['PLUG_SHARED_RESOURCES']:
@@ -141,7 +144,7 @@ def main():
     auv3 = plistlib.load(fp)
   auv3['CFBundleExecutable'] = config['BUNDLE_NAME']
   auv3['CFBundleGetInfoString'] = CFBundleGetInfoString
-  auv3['CFBundleIdentifier'] = config['BUNDLE_DOMAIN'] + "." + config['BUNDLE_MFR'] + ".app." + config['BUNDLE_NAME'] + ".AUv3"
+  auv3['CFBundleIdentifier'] = config['BUNDLE_DOMAIN'] + "." + config['BUNDLE_MFR'] + ".app." + config['BUNDLE_NAME'] + BUNDLE_ID_SUFFIX + ".AUv3"
   auv3['CFBundleName'] = config['BUNDLE_NAME']
   auv3['CFBundleVersion'] = CFBundleVersion
   auv3['CFBundleShortVersionString'] = CFBundleVersion
@@ -149,7 +152,7 @@ def main():
   auv3['CFBundlePackageType'] = "XPC!"
   auv3['NSExtension'] = dict(
   NSExtensionAttributes = dict(
-                               AudioComponentBundle = "com.AcmeInc.app." + config['BUNDLE_NAME'] + ".AUv3Framework",
+                               AudioComponentBundle = "com.AcmeInc.app." + config['BUNDLE_NAME'] + BUNDLE_ID_SUFFIX + ".AUv3Framework",
                                AudioComponents = [{}]),
 #                               NSExtensionServiceRoleType = "NSExtensionServiceRoleTypeEditor",
   NSExtensionPointIdentifier = NSEXTENSIONPOINTIDENTIFIER,
@@ -195,7 +198,7 @@ def main():
     macOSapp = plistlib.load(fp)
   macOSapp['CFBundleExecutable'] = config['BUNDLE_NAME']
   macOSapp['CFBundleGetInfoString'] = CFBundleGetInfoString
-  macOSapp['CFBundleIdentifier'] = config['BUNDLE_DOMAIN'] + "." + config['BUNDLE_MFR'] + ".app." + config['BUNDLE_NAME'] + ""
+  macOSapp['CFBundleIdentifier'] = config['BUNDLE_DOMAIN'] + "." + config['BUNDLE_MFR'] + ".app." + config['BUNDLE_NAME'] + BUNDLE_ID_SUFFIX
   macOSapp['CFBundleName'] = config['BUNDLE_NAME']
   macOSapp['CFBundleVersion'] = CFBundleVersion
   macOSapp['CFBundleShortVersionString'] = CFBundleVersion
