@@ -23,10 +23,15 @@ set(IPLUG_IOS_APP_SOURCES
 )
 
 function(iplug_configure_iosapp target project_name)
-  # Determine iOS app icon name - examples use "ProjectiOSAppIcon", others may use "Project-iOS"
-  set(IOS_APPICON_NAME "${project_name}iOSAppIcon")
-  if(EXISTS "${PLUG_RESOURCES_DIR}/Images.xcassets/${project_name}-iOS.appiconset")
+  # Determine iOS app icon name
+  # Priority: AppIcon.icon (new liquid glass format), then xcassets variants
+  set(APP_ICON_BUNDLE "${PLUG_RESOURCES_DIR}/AppIcon.icon")
+  if(EXISTS "${APP_ICON_BUNDLE}")
+    set(IOS_APPICON_NAME "AppIcon")
+  elseif(EXISTS "${PLUG_RESOURCES_DIR}/Images.xcassets/${project_name}-iOS.appiconset")
     set(IOS_APPICON_NAME "${project_name}-iOS")
+  else()
+    set(IOS_APPICON_NAME "${project_name}iOSAppIcon")
   endif()
 
   # Link AUv3iOS interface for the app (same headers/frameworks as the plugin)
@@ -168,9 +173,27 @@ function(iplug_configure_iosapp target project_name)
     endif()
   endif()
 
-  # Add asset catalog for app icons
+  # Add icon resources
+  # Support both new AppIcon.icon format (liquid glass) and legacy Images.xcassets
+  set(APP_ICON_BUNDLE ${PLUG_RESOURCES_DIR}/AppIcon.icon)
   set(ASSET_CATALOG ${PLUG_RESOURCES_DIR}/Images.xcassets)
-  if(EXISTS ${ASSET_CATALOG})
+  if(EXISTS ${APP_ICON_BUNDLE})
+    if(XCODE)
+      # Xcode handles .icon bundles natively
+      target_sources(${target} PRIVATE ${APP_ICON_BUNDLE})
+      set_source_files_properties(${APP_ICON_BUNDLE} PROPERTIES
+        MACOSX_PACKAGE_LOCATION Resources
+      )
+    else()
+      # For non-Xcode generators, copy the .icon directory to Resources
+      add_custom_command(TARGET ${target} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+          "${APP_ICON_BUNDLE}"
+          "$<TARGET_BUNDLE_DIR:${target}>/AppIcon.icon"
+        COMMENT "Copying AppIcon.icon to ${project_name}.app (iOS)"
+      )
+    endif()
+  elseif(EXISTS ${ASSET_CATALOG})
     if(XCODE)
       target_sources(${target} PRIVATE ${ASSET_CATALOG})
       set_source_files_properties(${ASSET_CATALOG} PROPERTIES

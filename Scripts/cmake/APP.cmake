@@ -160,10 +160,28 @@ function(iplug_configure_app target project_name)
     endif()
 
     # Add icon to bundle Resources
-    set(APP_ICON ${PLUG_RESOURCES_DIR}/${project_name}.icns)
-    if(EXISTS ${APP_ICON})
-      target_sources(${target} PRIVATE ${APP_ICON})
-      set_source_files_properties(${APP_ICON} PROPERTIES
+    # Support both new AppIcon.icon format (macOS 15+ liquid glass) and legacy .icns
+    set(APP_ICON_BUNDLE ${PLUG_RESOURCES_DIR}/AppIcon.icon)
+    set(APP_ICON_LEGACY ${PLUG_RESOURCES_DIR}/${project_name}.icns)
+    if(EXISTS ${APP_ICON_BUNDLE})
+      if(XCODE)
+        # Xcode handles .icon bundles natively
+        target_sources(${target} PRIVATE ${APP_ICON_BUNDLE})
+        set_source_files_properties(${APP_ICON_BUNDLE} PROPERTIES
+          MACOSX_PACKAGE_LOCATION Resources
+        )
+      else()
+        # For non-Xcode generators, copy the .icon directory to Resources
+        add_custom_command(TARGET ${target} POST_BUILD
+          COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${APP_ICON_BUNDLE}"
+            "$<TARGET_BUNDLE_DIR:${target}>/Contents/Resources/AppIcon.icon"
+          COMMENT "Copying AppIcon.icon to ${project_name}.app"
+        )
+      endif()
+    elseif(EXISTS ${APP_ICON_LEGACY})
+      target_sources(${target} PRIVATE ${APP_ICON_LEGACY})
+      set_source_files_properties(${APP_ICON_LEGACY} PROPERTIES
         MACOSX_PACKAGE_LOCATION Resources
       )
     endif()
