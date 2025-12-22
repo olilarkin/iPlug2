@@ -19,6 +19,9 @@ EXTRA_INC_PATHS = $(IGRAPHICS_INC_PATHS)
 EXTRA_LIB_PATHS = $(IGRAPHICS_LIB_PATHS)
 EXTRA_LNK_FLAGS = -framework Metal -framework MetalKit //$(IGRAPHICS_LNK_FLAGS)
 
+// LinkKit framework search path (for Ableton Link support)
+FRAMEWORK_SEARCH_PATHS = $(inherited) $(IPLUG2_ROOT)/Dependencies/Build/xcframeworks
+
 //------------------------------
 // PREPROCESSOR MACROS
 

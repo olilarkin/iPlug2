@@ -364,6 +364,13 @@ void IGraphicsIOS::LaunchBluetoothMidiDialog(float x, float y)
   [[NSNotificationCenter defaultCenter] postNotificationName:@"LaunchBTMidiDialog" object:nil userInfo:dic];
 }
 
+void IGraphicsIOS::LaunchLinkSettingsDialog(float x, float y)
+{
+  ReleaseMouseCapture();
+  NSDictionary* dic = @{@"x": @(x), @"y": @(y)};
+  [[NSNotificationCenter defaultCenter] postNotificationName:@"LaunchLinkSettingsDialog" object:nil userInfo:dic];
+}
+
 EUIAppearance IGraphicsIOS::GetUIAppearance() const
 {
   IGRAPHICS_VIEW* pView = (IGRAPHICS_VIEW*) mView;

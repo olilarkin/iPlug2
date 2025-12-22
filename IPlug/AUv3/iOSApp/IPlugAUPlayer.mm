@@ -16,6 +16,17 @@
 #error This file must be compiled with Arc. Use -fobjc-arc flag
 #endif
 
+#if defined(APP_ENABLE_LINK) && APP_ENABLE_LINK
+#import <mach/mach_time.h>
+
+static uint64_t secondsToHostTicks(double seconds)
+{
+  mach_timebase_info_data_t timebase;
+  mach_timebase_info(&timebase);
+  return (uint64_t)(seconds * 1.0e9 * (double)timebase.denom / (double)timebase.numer);
+}
+#endif
+
 bool isInstrument()
 {
 #if PLUG_TYPE == 1
@@ -30,6 +41,10 @@ bool isInstrument()
   AVAudioEngine* engine;
   AVAudioUnit* avAudioUnit;
   UInt32 componentType;
+#if defined(APP_ENABLE_LINK) && APP_ENABLE_LINK
+  ABLLinkRef _linkRef;
+  double _quantum;
+#endif
 }
 
 - (instancetype) initWithComponentType: (UInt32) unitComponentType
@@ -40,6 +55,11 @@ bool isInstrument()
   {
     engine = [[AVAudioEngine alloc] init];
     componentType = unitComponentType;
+#if defined(APP_ENABLE_LINK) && APP_ENABLE_LINK
+    _linkRef = ABLLinkNew(iplug::DEFAULT_TEMPO);
+    _quantum = 4.0; // 4 beats per bar (4/4 time)
+    ABLLinkSetActive(_linkRef, true);
+#endif
   }
 
   return self;
@@ -65,6 +85,11 @@ bool isInstrument()
 
   self.currentAudioUnit = avAudioUnit.AUAudioUnit;
   
+
+#if defined(APP_ENABLE_LINK) && APP_ENABLE_LINK
+  [self setupLinkContextBlocks];
+#endif
+
   [self setupSession];
     
 #ifdef _DEBUG
@@ -93,7 +118,104 @@ bool isInstrument()
 - (void) dealloc
 {
   [[NSNotificationCenter defaultCenter] removeObserver: self];
+#if defined(APP_ENABLE_LINK) && APP_ENABLE_LINK
+  ABLLinkDelete(_linkRef);
+#endif
 }
+
+#if defined(APP_ENABLE_LINK) && APP_ENABLE_LINK
+- (ABLLinkRef) linkRef
+{
+  return _linkRef;
+}
+
+- (double) quantum
+{
+  return _quantum;
+}
+
+- (void) setQuantum:(double)quantum
+{
+  _quantum = quantum;
+}
+
+- (void) setupLinkContextBlocks
+{
+  __weak IPlugAUPlayer* weakSelf = self;
+  ABLLinkRef linkRef = _linkRef;
+
+  // Set the musical context block on the AUAudioUnit
+  // This provides tempo, beat position, and time signature to the plugin
+  self.currentAudioUnit.musicalContextBlock = ^BOOL(double* tempo,
+                                                     double* timeSignatureNumerator,
+                                                     NSInteger* timeSignatureDenominator,
+                                                     double* currentBeatPosition,
+                                                     NSInteger* sampleOffsetToNextBeat,
+                                                     double* currentMeasureDownbeatPosition) {
+    IPlugAUPlayer* strongSelf = weakSelf;
+    if (!strongSelf) return NO;
+
+    AVAudioSession* session = [AVAudioSession sharedInstance];
+    double outputLatency = session.outputLatency;
+    uint64_t outputLatencyTicks = secondsToHostTicks(outputLatency);
+    uint64_t hostTimeAtOutput = mach_absolute_time() + outputLatencyTicks;
+
+    ABLLinkSessionStateRef sessionState = ABLLinkCaptureAppSessionState(linkRef);
+    double q = strongSelf.quantum;
+
+    if (tempo) *tempo = ABLLinkGetTempo(sessionState);
+    if (timeSignatureNumerator) *timeSignatureNumerator = 4;
+    if (timeSignatureDenominator) *timeSignatureDenominator = 4;
+    if (currentBeatPosition) *currentBeatPosition = ABLLinkBeatAtTime(sessionState, hostTimeAtOutput, q);
+    if (sampleOffsetToNextBeat) *sampleOffsetToNextBeat = 0; // Could be calculated more precisely
+    if (currentMeasureDownbeatPosition) {
+      double beat = ABLLinkBeatAtTime(sessionState, hostTimeAtOutput, q);
+      *currentMeasureDownbeatPosition = floor(beat / q) * q;
+    }
+
+    return YES;
+  };
+
+  // Set the transport state block on the AUAudioUnit
+  // This provides play/stop state and sample position to the plugin
+  self.currentAudioUnit.transportStateBlock = ^BOOL(AUHostTransportStateFlags* transportStateFlags,
+                                                     double* currentSamplePosition,
+                                                     double* cycleStartBeatPosition,
+                                                     double* cycleEndBeatPosition) {
+    IPlugAUPlayer* strongSelf = weakSelf;
+    if (!strongSelf) return NO;
+
+    AVAudioSession* session = [AVAudioSession sharedInstance];
+    double outputLatency = session.outputLatency;
+    uint64_t outputLatencyTicks = secondsToHostTicks(outputLatency);
+    uint64_t hostTimeAtOutput = mach_absolute_time() + outputLatencyTicks;
+
+    ABLLinkSessionStateRef sessionState = ABLLinkCaptureAppSessionState(linkRef);
+    double q = strongSelf.quantum;
+
+    if (transportStateFlags) {
+      *transportStateFlags = 0;
+      if (ABLLinkIsPlaying(sessionState)) {
+        *transportStateFlags |= AUHostTransportStateMoving;
+      }
+    }
+
+    if (currentSamplePosition) {
+      double beat = ABLLinkBeatAtTime(sessionState, hostTimeAtOutput, q);
+      double linkTempo = ABLLinkGetTempo(sessionState);
+      double sampleRate = session.sampleRate;
+      // Convert beats to samples: samples = (beats / tempo) * 60 * sampleRate
+      *currentSamplePosition = (beat / linkTempo) * 60.0 * sampleRate;
+    }
+
+    // Link doesn't have loop points
+    if (cycleStartBeatPosition) *cycleStartBeatPosition = 0;
+    if (cycleEndBeatPosition) *cycleEndBeatPosition = 0;
+
+    return YES;
+  };
+}
+#endif
 
 - (void) restartAudioEngine
 {

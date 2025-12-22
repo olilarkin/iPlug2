@@ -17,6 +17,10 @@
 #import "IPlugAUViewController.h"
 #import <CoreAudioKit/CoreAudioKit.h>
 
+#if defined(APP_ENABLE_LINK) && APP_ENABLE_LINK
+#import <ABLLinkSettingsViewController.h>
+#endif
+
 #if !__has_feature(objc_arc)
 #error This file must be compiled with Arc. Use -fobjc-arc flag
 #endif
@@ -77,6 +81,9 @@
   }];
   
   [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(receiveNotification:) name:@"LaunchBTMidiDialog" object:nil];
+#if defined(APP_ENABLE_LINK) && APP_ENABLE_LINK
+  [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(receiveNotification:) name:@"LaunchLinkSettingsDialog" object:nil];
+#endif
 }
 
 - (void) receiveNotification:(NSNotification*) notification
@@ -98,6 +105,28 @@
     
     [self presentViewController:nc animated:YES completion:nil];
   }
+#if defined(APP_ENABLE_LINK) && APP_ENABLE_LINK
+  else if ([notification.name isEqualToString:@"LaunchLinkSettingsDialog"])
+  {
+    // Guard against presenting if already presenting something
+    if (self.presentedViewController != nil)
+      return;
+
+    NSDictionary* dict = notification.userInfo;
+    NSNumber* x = (NSNumber*) dict[@"x"];
+    NSNumber* y = (NSNumber*) dict[@"y"];
+
+    ABLLinkSettingsViewController* linkVC = [ABLLinkSettingsViewController instance:player.linkRef];
+    linkVC.modalPresentationStyle = UIModalPresentationPopover;
+
+    UIPopoverPresentationController* ppc = linkVC.popoverPresentationController;
+    ppc.permittedArrowDirections = UIPopoverArrowDirectionAny;
+    ppc.sourceView = self.view;
+    ppc.sourceRect = CGRectMake([x floatValue], [y floatValue], 1., 1.);
+
+    [self presentViewController:linkVC animated:YES completion:nil];
+  }
+#endif
 }
 
 - (void) embedPlugInView

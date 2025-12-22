@@ -2,6 +2,10 @@
 #include "IPlug_include_in_plug_src.h"
 #include "IControls.h"
 
+#if defined(OS_IOS) && defined(APP_ENABLE_LINK) && APP_ENABLE_LINK
+#include "IGraphicsIOS.h"
+#endif
+
 IPlugChunks::IPlugChunks(const InstanceInfo& info)
 : iplug::Plugin(info, MakeConfig(kNumParams, kNumPresets))
 , mStepPos(0)
@@ -19,7 +23,20 @@ IPlugChunks::IPlugChunks(const InstanceInfo& info)
     pGraphics->LoadFont("Roboto-Regular", ROBOTO_FN);
     IRECT b = pGraphics->GetBounds().GetPadded(-10.f);
     const IVStyle style = DEFAULT_STYLE.WithDrawShadows(false);
-    pGraphics->AttachControl(new IVBakedPresetManagerControl(b.ReduceFromTop(30.f), "", style));
+    IRECT topBar = b.ReduceFromTop(30.f);
+
+#if defined(OS_IOS) && defined(APP_ENABLE_LINK) && APP_ENABLE_LINK
+    // Add Link button on iOS standalone app
+    IRECT linkBtnRect = topBar.ReduceFromRight(60.f).GetPadded(-2.f);
+    auto* linkBtn = new IVButtonControl(linkBtnRect, SplashClickActionFunc, "Link", style);
+    linkBtn->SetAnimationEndActionFunction([pGraphics](IControl* pCaller) {
+      IRECT r = pCaller->GetRECT();
+      dynamic_cast<IGraphicsIOS*>(pGraphics)->LaunchLinkSettingsDialog(r.MW(), r.T);
+    });
+    pGraphics->AttachControl(linkBtn);
+#endif
+
+    pGraphics->AttachControl(new IVBakedPresetManagerControl(topBar, "", style));
     pGraphics->AttachControl(new IVMultiSliderControl<kNumSteps>(b, "", style), kCtrlMultiSlider)->SetActionFunction([pGraphics](IControl* pCaller) {
 
       double vals[kNumSteps];
