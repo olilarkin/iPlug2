@@ -74,16 +74,67 @@ void PluginPath(WDL_String& path, HMODULE pExtra)
   GetModulePath(pExtra, path);
 }
 
+static bool PathLastPathSegmentEqualsCI(const WDL_String& path, const char* segment)
+{
+  const char* p = path.Get();
+  int n = path.GetLength();
+  while (n > 0 && (p[n - 1] == '\\' || p[n - 1] == '/'))
+    --n;
+  const int slen = (int)strlen(segment);
+  if (n < slen)
+    return false;
+  const char* tail = p + n - slen;
+  for (int i = 0; i < slen; ++i)
+  {
+    char a = tail[i];
+    char b = segment[i];
+    if (a >= 'A' && a <= 'Z')
+      a = (char)(a + ('a' - 'A'));
+    if (b >= 'A' && b <= 'Z')
+      b = (char)(b + ('a' - 'A'));
+    if (a != b)
+      return false;
+  }
+  return true;
+}
+
 void BundleResourcePath(WDL_String& path, HMODULE pExtra)
 {
 #ifdef VST3_API
-  GetModulePath(pExtra, path);
-#ifdef ARCH_64BIT
-  path.SetLen(path.GetLength() - strlen("x86_64-win/"));
+  WDL_String moduleDir;
+  GetModulePath(pExtra, moduleDir);
+  if (moduleDir.GetLength() == 0)
+  {
+    path.Set("");
+    return;
+  }
+#if defined(_M_ARM64EC)
+  const char* kArchFolder = "arm64ec-win";
+#elif defined(ARCH_64BIT)
+  const char* kArchFolder = "x86_64-win";
 #else
-  path.SetLen(path.GetLength() - strlen("arm64ec-win/"));
+  const char* kArchFolder = "x86-win";
 #endif
-  path.Append("Resources\\");
+  // Only strip the VST3 bundle arch folder when it is actually the last path segment. Flat IDE output
+  // (e.g. ...\vst3\x64\Debug\) does not end in x86_64-win; the old logic truncated the path to garbage.
+  if (!PathLastPathSegmentEqualsCI(moduleDir, kArchFolder))
+  {
+    path.Set("");
+    return;
+  }
+  const char* p = moduleDir.Get();
+  int n = moduleDir.GetLength();
+  while (n > 0 && (p[n - 1] == '\\' || p[n - 1] == '/'))
+    --n;
+  const int slen = (int)strlen(kArchFolder);
+  const int prefixLen = n - slen;
+  path.Set(p, prefixLen);
+  if (prefixLen > 0 && !WDL_IS_DIRCHAR(path.Get()[prefixLen - 1]))
+    path.Append(WDL_DIRCHAR_STR);
+  path.Append("Resources");
+  path.Append(WDL_DIRCHAR_STR);
+#else
+  path.Set("");
 #endif
 }
 
