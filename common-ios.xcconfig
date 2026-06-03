@@ -84,6 +84,12 @@ YOGA_INC_PATHS = $(YOGA_PATH) $(YOGA_PATH)/yoga
 // you can optionally include this build setting, by adding it to EXTRA_INC_PATHS in MyProject.xcconfig in order to get all varieties of IGraphics suppor
 IGRAPHICS_INC_PATHS = $(IGRAPHICS_PATH) $(CONTROLS_PATH) $(PLATFORMS_PATH) $(DRAWING_PATH) $(NSVG_PATH) $(NVG_PATH) $(NVGMTL_PATH) $(SKIA_INC_PATHS) $(FT_PATH) $(STB_PATH) $(YOGA_INC_PATHS)
 
+// Ableton Link is optional. Projects that define APP_ENABLE_LINK should add
+// $(ABLETON_LINK_INC_PATHS) to EXTRA_INC_PATHS and $(ABLETON_LINK_DEFS) to EXTRA_ALL_DEFS.
+ABLETON_LINK_PATH = $(DEPS_PATH)/IPlug/Link
+ABLETON_LINK_INC_PATHS = $(ABLETON_LINK_PATH)/include $(ABLETON_LINK_PATH)/modules/asio-standalone/asio/include
+ABLETON_LINK_DEFS = LINK_PLATFORM_MACOSX=1
+
 LIB_SKIA = $(BUILT_LIBS_LIB_PATH)/libskia.a
 LIB_SKOTTIE = $(BUILT_LIBS_LIB_PATH)/libskottie.a
 LIB_SKSG = $(BUILT_LIBS_LIB_PATH)/libsksg.a
@@ -96,5 +102,4 @@ SKIA_LNK_FLAGS = $(LIB_SKIA) $(LIB_SKOTTIE) $(LIB_SKSG) $(LIB_SKSHAPER) $(LIB_SK
 IGRAPHICS_LNK_FLAGS = $(SKIA_LNK_FLAGS)
 
 AUv3_FRAMEWORKS = -framework AudioToolbox -framework AVFoundation -framework CoreAudioKit -framework QuartzCore -framework UIKit -framework CoreText -framework CoreGraphics -framework UniformTypeIdentifiers -framework Accelerate
-
 

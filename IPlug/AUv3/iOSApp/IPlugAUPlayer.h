@@ -14,18 +14,22 @@
 
 #include "config.h"
 
-#if defined(APP_ENABLE_LINK) && APP_ENABLE_LINK
-#import <ABLLink.h>
-#endif
-
 @interface IPlugAUPlayer : NSObject
 
 @property (assign) AUAudioUnit* currentAudioUnit;
 
 #if defined(APP_ENABLE_LINK) && APP_ENABLE_LINK
-/** Reference to the Ableton Link instance for tempo/transport sync */
-@property (nonatomic, readonly) ABLLinkRef linkRef;
-/** Quantum (beats per bar) for Link sync. Default: 4.0 */
+/** Enable/disable Ableton Link networking and host timing publication. */
+@property (nonatomic, getter=isLinkEnabled) BOOL linkEnabled;
+/** Enable/disable sharing Link start/stop state with peers. */
+@property (nonatomic, getter=isLinkStartStopSyncEnabled) BOOL linkStartStopSyncEnabled;
+/** Current number of connected Link peers. */
+@property (nonatomic, readonly) NSUInteger linkPeerCount;
+/** Current Link tempo in BPM. */
+@property (nonatomic) double linkTempo;
+/** Current Link transport state. */
+@property (nonatomic, getter=isLinkPlaying) BOOL linkPlaying;
+/** Quantum (beats per bar) used when mapping the Link phase. Default: 4.0. */
 @property (nonatomic) double quantum;
 #endif
 

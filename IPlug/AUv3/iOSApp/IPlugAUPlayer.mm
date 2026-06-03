@@ -11,19 +11,72 @@
 #import "IPlugAUPlayer.h"
 #include "IPlugConstants.h"
 #include "config.h"
+#include <algorithm>
+#include <cmath>
 
 #if !__has_feature(objc_arc)
 #error This file must be compiled with Arc. Use -fobjc-arc flag
 #endif
 
 #if defined(APP_ENABLE_LINK) && APP_ENABLE_LINK
-#import <mach/mach_time.h>
+#include <ableton/Link.hpp>
+#include <atomic>
+#include <chrono>
+#include <memory>
 
-static uint64_t secondsToHostTicks(double seconds)
+static std::chrono::microseconds LinkOutputHostTime(const ableton::Link& link, int64_t outputLatencyMicros)
 {
-  mach_timebase_info_data_t timebase;
-  mach_timebase_info(&timebase);
-  return (uint64_t)(seconds * 1.0e9 * (double)timebase.denom / (double)timebase.numer);
+  using namespace std::chrono;
+  return link.clock().micros() + microseconds{outputLatencyMicros > 0 ? outputLatencyMicros : 0};
+}
+
+static NSInteger LinkSampleOffsetToNextBeat(double beat, double tempo, double sampleRate)
+{
+  if (tempo <= 0.0 || sampleRate <= 0.0)
+    return 0;
+
+  const double phase = beat - std::floor(beat);
+  const double beatsToNext = phase <= 1.0e-9 ? 0.0 : 1.0 - phase;
+  return (NSInteger) std::llround(beatsToNext * 60.0 * sampleRate / tempo);
+}
+
+static double LinkSamplePosition(double beat, double tempo, double sampleRate)
+{
+  if (tempo <= 0.0 || sampleRate <= 0.0)
+    return 0.0;
+
+  return beat * 60.0 * sampleRate / tempo;
+}
+
+static NSString* const kIPlugLinkEnabledKey = @"IPlugAUPlayer.LinkEnabled";
+static NSString* const kIPlugLinkStartStopSyncEnabledKey = @"IPlugAUPlayer.LinkStartStopSyncEnabled";
+static NSString* const kIPlugLinkTempoKey = @"IPlugAUPlayer.LinkTempo";
+static NSString* const kIPlugLinkQuantumKey = @"IPlugAUPlayer.LinkQuantum";
+
+static double LinkClampedTempo(double tempo)
+{
+  if (!std::isfinite(tempo))
+    return iplug::DEFAULT_TEMPO;
+
+  return std::min(std::max(tempo, 20.0), 999.0);
+}
+
+static double LinkStoredDouble(NSString* key, double defaultValue)
+{
+  NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
+  if ([defaults objectForKey:key] == nil)
+    return defaultValue;
+
+  return [defaults doubleForKey:key];
+}
+
+static BOOL LinkStoredBool(NSString* key, BOOL defaultValue)
+{
+  NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
+  if ([defaults objectForKey:key] == nil)
+    return defaultValue;
+
+  return [defaults boolForKey:key];
 }
 #endif
 
@@ -42,8 +95,13 @@ bool isInstrument()
   AVAudioUnit* avAudioUnit;
   UInt32 componentType;
 #if defined(APP_ENABLE_LINK) && APP_ENABLE_LINK
-  ABLLinkRef _linkRef;
-  double _quantum;
+  std::unique_ptr<ableton::Link> _link;
+  std::atomic<std::size_t> _linkPeerCount;
+  std::atomic<double> _linkTempo;
+  std::atomic<bool> _linkIsPlaying;
+  std::atomic<double> _linkQuantum;
+  std::atomic<int64_t> _linkOutputLatencyMicros;
+  std::atomic<double> _linkSampleRate;
 #endif
 }
 
@@ -56,9 +114,31 @@ bool isInstrument()
     engine = [[AVAudioEngine alloc] init];
     componentType = unitComponentType;
 #if defined(APP_ENABLE_LINK) && APP_ENABLE_LINK
-    _linkRef = ABLLinkNew(iplug::DEFAULT_TEMPO);
-    _quantum = 4.0; // 4 beats per bar (4/4 time)
-    ABLLinkSetActive(_linkRef, true);
+    const double initialTempo = LinkClampedTempo(LinkStoredDouble(kIPlugLinkTempoKey, iplug::DEFAULT_TEMPO));
+    const double initialQuantum = LinkStoredDouble(kIPlugLinkQuantumKey, 4.0);
+    const BOOL linkEnabled = LinkStoredBool(kIPlugLinkEnabledKey, YES);
+    const BOOL startStopSyncEnabled = LinkStoredBool(kIPlugLinkStartStopSyncEnabledKey, NO);
+
+    _linkPeerCount.store(0, std::memory_order_relaxed);
+    _linkTempo.store(initialTempo, std::memory_order_relaxed);
+    _linkIsPlaying.store(false, std::memory_order_relaxed);
+    _linkQuantum.store(std::isfinite(initialQuantum) && initialQuantum > 0.0 ? initialQuantum : 4.0, std::memory_order_relaxed);
+    _linkOutputLatencyMicros.store(0, std::memory_order_relaxed);
+    _linkSampleRate.store(iplug::DEFAULT_SAMPLE_RATE, std::memory_order_relaxed);
+
+    _link = std::make_unique<ableton::Link>(initialTempo);
+    IPlugAUPlayer* owner = self;
+    _link->setNumPeersCallback([owner](std::size_t peers) {
+      owner->_linkPeerCount.store(peers, std::memory_order_relaxed);
+    });
+    _link->setTempoCallback([owner](double tempo) {
+      owner->_linkTempo.store(tempo, std::memory_order_relaxed);
+    });
+    _link->setStartStopCallback([owner](bool isPlaying) {
+      owner->_linkIsPlaying.store(isPlaying, std::memory_order_relaxed);
+    });
+    _link->enableStartStopSync(startStopSyncEnabled);
+    _link->enable(linkEnabled);
 #endif
   }
 
@@ -106,6 +186,10 @@ bool isInstrument()
   {
     NSLog(@"Error setting session active: %@", [error localizedDescription]);
   }
+
+#if defined(APP_ENABLE_LINK) && APP_ENABLE_LINK
+  [self updateLinkTimingCache];
+#endif
   
   if (![engine startAndReturnError: &error])
   {
@@ -119,33 +203,121 @@ bool isInstrument()
 {
   [[NSNotificationCenter defaultCenter] removeObserver: self];
 #if defined(APP_ENABLE_LINK) && APP_ENABLE_LINK
-  ABLLinkDelete(_linkRef);
+  if (_link)
+  {
+    _link->enable(false);
+    _link->setNumPeersCallback([](std::size_t) {});
+    _link->setTempoCallback([](double) {});
+    _link->setStartStopCallback([](bool) {});
+    _link.reset();
+  }
 #endif
 }
 
 #if defined(APP_ENABLE_LINK) && APP_ENABLE_LINK
-- (ABLLinkRef) linkRef
+- (BOOL) isLinkEnabled
 {
-  return _linkRef;
+  return _link ? _link->isEnabled() : NO;
+}
+
+- (void) setLinkEnabled:(BOOL)enabled
+{
+  if (_link)
+    _link->enable(enabled);
+
+  [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:kIPlugLinkEnabledKey];
+}
+
+- (BOOL) isLinkStartStopSyncEnabled
+{
+  return _link ? _link->isStartStopSyncEnabled() : NO;
+}
+
+- (void) setLinkStartStopSyncEnabled:(BOOL)enabled
+{
+  if (_link)
+    _link->enableStartStopSync(enabled);
+
+  [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:kIPlugLinkStartStopSyncEnabledKey];
+}
+
+- (NSUInteger) linkPeerCount
+{
+  return (NSUInteger) _linkPeerCount.load(std::memory_order_relaxed);
+}
+
+- (double) linkTempo
+{
+  if (_link)
+    return _link->captureAppSessionState().tempo();
+
+  return _linkTempo.load(std::memory_order_relaxed);
+}
+
+- (void) setLinkTempo:(double)tempo
+{
+  const double clampedTempo = LinkClampedTempo(tempo);
+
+  if (_link)
+  {
+    const auto time = _link->clock().micros();
+    auto sessionState = _link->captureAppSessionState();
+    sessionState.setTempo(clampedTempo, time);
+    _link->commitAppSessionState(sessionState);
+  }
+
+  _linkTempo.store(clampedTempo, std::memory_order_relaxed);
+  [[NSUserDefaults standardUserDefaults] setDouble:clampedTempo forKey:kIPlugLinkTempoKey];
+}
+
+- (BOOL) isLinkPlaying
+{
+  if (_link)
+    return _link->captureAppSessionState().isPlaying() ? YES : NO;
+
+  return _linkIsPlaying.load(std::memory_order_relaxed) ? YES : NO;
+}
+
+- (void) setLinkPlaying:(BOOL)playing
+{
+  if (!_link)
+    return;
+
+  const auto time = _link->clock().micros();
+  auto sessionState = _link->captureAppSessionState();
+  sessionState.setIsPlayingAndRequestBeatAtTime(playing, time, 0.0, self.quantum);
+  _link->commitAppSessionState(sessionState);
+  _linkIsPlaying.store(playing, std::memory_order_relaxed);
 }
 
 - (double) quantum
 {
-  return _quantum;
+  return _linkQuantum.load(std::memory_order_relaxed);
 }
 
 - (void) setQuantum:(double)quantum
 {
-  _quantum = quantum;
+  if (std::isfinite(quantum) && quantum > 0.0)
+  {
+    _linkQuantum.store(quantum, std::memory_order_relaxed);
+    [[NSUserDefaults standardUserDefaults] setDouble:quantum forKey:kIPlugLinkQuantumKey];
+  }
+}
+
+- (void) updateLinkTimingCache
+{
+  AVAudioSession* session = [AVAudioSession sharedInstance];
+  const double sampleRate = session.sampleRate > 0.0 ? session.sampleRate : iplug::DEFAULT_SAMPLE_RATE;
+  const int64_t outputLatencyMicros = (int64_t) std::llround(session.outputLatency * 1.0e6);
+
+  _linkSampleRate.store(sampleRate, std::memory_order_relaxed);
+  _linkOutputLatencyMicros.store(outputLatencyMicros, std::memory_order_relaxed);
 }
 
 - (void) setupLinkContextBlocks
 {
   __weak IPlugAUPlayer* weakSelf = self;
-  ABLLinkRef linkRef = _linkRef;
 
-  // Set the musical context block on the AUAudioUnit
-  // This provides tempo, beat position, and time signature to the plugin
   self.currentAudioUnit.musicalContextBlock = ^BOOL(double* tempo,
                                                      double* timeSignatureNumerator,
                                                      NSInteger* timeSignatureDenominator,
@@ -154,61 +326,52 @@ bool isInstrument()
                                                      double* currentMeasureDownbeatPosition) {
     IPlugAUPlayer* strongSelf = weakSelf;
     if (!strongSelf) return NO;
+    ableton::Link* link = strongSelf->_link.get();
+    if (!link || !link->isEnabled()) return NO;
 
-    AVAudioSession* session = [AVAudioSession sharedInstance];
-    double outputLatency = session.outputLatency;
-    uint64_t outputLatencyTicks = secondsToHostTicks(outputLatency);
-    uint64_t hostTimeAtOutput = mach_absolute_time() + outputLatencyTicks;
-
-    ABLLinkSessionStateRef sessionState = ABLLinkCaptureAppSessionState(linkRef);
+    auto sessionState = link->captureAudioSessionState();
+    auto hostTimeAtOutput = LinkOutputHostTime(*link, strongSelf->_linkOutputLatencyMicros.load(std::memory_order_relaxed));
     double q = strongSelf.quantum;
+    double linkTempo = sessionState.tempo();
+    double beat = sessionState.beatAtTime(hostTimeAtOutput, q);
+    double sampleRate = strongSelf->_linkSampleRate.load(std::memory_order_relaxed);
 
-    if (tempo) *tempo = ABLLinkGetTempo(sessionState);
+    if (tempo) *tempo = linkTempo;
     if (timeSignatureNumerator) *timeSignatureNumerator = 4;
     if (timeSignatureDenominator) *timeSignatureDenominator = 4;
-    if (currentBeatPosition) *currentBeatPosition = ABLLinkBeatAtTime(sessionState, hostTimeAtOutput, q);
-    if (sampleOffsetToNextBeat) *sampleOffsetToNextBeat = 0; // Could be calculated more precisely
-    if (currentMeasureDownbeatPosition) {
-      double beat = ABLLinkBeatAtTime(sessionState, hostTimeAtOutput, q);
-      *currentMeasureDownbeatPosition = floor(beat / q) * q;
-    }
+    if (currentBeatPosition) *currentBeatPosition = beat;
+    if (sampleOffsetToNextBeat) *sampleOffsetToNextBeat = LinkSampleOffsetToNextBeat(beat, linkTempo, sampleRate);
+    if (currentMeasureDownbeatPosition) *currentMeasureDownbeatPosition = std::floor(beat / q) * q;
 
     return YES;
   };
 
-  // Set the transport state block on the AUAudioUnit
-  // This provides play/stop state and sample position to the plugin
   self.currentAudioUnit.transportStateBlock = ^BOOL(AUHostTransportStateFlags* transportStateFlags,
                                                      double* currentSamplePosition,
                                                      double* cycleStartBeatPosition,
                                                      double* cycleEndBeatPosition) {
     IPlugAUPlayer* strongSelf = weakSelf;
     if (!strongSelf) return NO;
+    ableton::Link* link = strongSelf->_link.get();
+    if (!link || !link->isEnabled()) return NO;
 
-    AVAudioSession* session = [AVAudioSession sharedInstance];
-    double outputLatency = session.outputLatency;
-    uint64_t outputLatencyTicks = secondsToHostTicks(outputLatency);
-    uint64_t hostTimeAtOutput = mach_absolute_time() + outputLatencyTicks;
-
-    ABLLinkSessionStateRef sessionState = ABLLinkCaptureAppSessionState(linkRef);
+    auto sessionState = link->captureAudioSessionState();
+    auto hostTimeAtOutput = LinkOutputHostTime(*link, strongSelf->_linkOutputLatencyMicros.load(std::memory_order_relaxed));
     double q = strongSelf.quantum;
+    double linkTempo = sessionState.tempo();
+    double beat = sessionState.beatAtTime(hostTimeAtOutput, q);
+    bool isPlaying = sessionState.isPlaying();
+    double sampleRate = strongSelf->_linkSampleRate.load(std::memory_order_relaxed);
 
     if (transportStateFlags) {
       *transportStateFlags = 0;
-      if (ABLLinkIsPlaying(sessionState)) {
+      if (isPlaying) {
         *transportStateFlags |= AUHostTransportStateMoving;
       }
     }
 
-    if (currentSamplePosition) {
-      double beat = ABLLinkBeatAtTime(sessionState, hostTimeAtOutput, q);
-      double linkTempo = ABLLinkGetTempo(sessionState);
-      double sampleRate = session.sampleRate;
-      // Convert beats to samples: samples = (beats / tempo) * 60 * sampleRate
-      *currentSamplePosition = (beat / linkTempo) * 60.0 * sampleRate;
-    }
+    if (currentSamplePosition) *currentSamplePosition = LinkSamplePosition(beat, linkTempo, sampleRate);
 
-    // Link doesn't have loop points
     if (cycleStartBeatPosition) *cycleStartBeatPosition = 0;
     if (cycleEndBeatPosition) *cycleEndBeatPosition = 0;
 
@@ -229,6 +392,9 @@ bool isInstrument()
   }
   else
   {
+#if defined(APP_ENABLE_LINK) && APP_ENABLE_LINK
+    [self updateLinkTimingCache];
+#endif
     [self printSessionInfo];
   }
 }

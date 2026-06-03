@@ -2,8 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>ABLLinkStartStopSyncSupported</key>
-	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleExecutable</key>
@@ -30,6 +28,8 @@
 	<true/>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Needs Bluetooth MIDI</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Ableton Link uses the local network to discover and synchronize with nearby music apps.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Needs microphone access to process audio</string>
 	<key>UIBackgroundModes</key>

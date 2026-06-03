@@ -1,150 +1,127 @@
 # Ableton Link Integration for iOS Apps
 
-iPlug2 supports optional [Ableton Link](https://www.ableton.com/link/) integration for iOS standalone apps, enabling tempo and transport synchronization with other Link-enabled applications.
+iPlug2 supports optional [Ableton Link](https://www.ableton.com/link/) integration for iOS standalone apps. When enabled, the standalone AUv3 host publishes Link tempo, beat position, and transport state to the plugin through the standard `musicalContextBlock` and `transportStateBlock` callbacks.
 
-## Overview
+The integration uses the open-source Ableton Link C++ library from `Dependencies/IPlug/Link`. It does not require `LinkKit.xcframework`.
 
-When enabled, Link provides:
-- **Tempo sync** - All connected apps share the same tempo
-- **Beat/phase sync** - Apps stay aligned on the beat grid
-- **Transport sync** - Play/stop state synchronized across apps (optional)
+## What Link Provides
 
-The integration works by having `IPlugAUPlayer` (the iOS standalone app host) provide Link-derived tempo and transport data to your AUv3 plugin via the standard `musicalContextBlock` and `transportStateBlock` callbacks.
+- Tempo synchronization with other Link-enabled apps
+- Beat and phase alignment on the shared Link timeline
+- Optional start/stop synchronization
+- A host-side settings sheet launched from plugin UI code
 
 ## Requirements
 
-- iOS 14.0+ (requires multicast entitlement for peer discovery)
-- LinkKit.xcframework (included in `Dependencies/Build/xcframeworks/`)
+- iOS standalone app target
+- `Dependencies/IPlug/Link` submodule initialized
+- iOS 14+ local network privacy description
+- Multicast networking entitlement for device peer discovery on iOS 14+
+
+Ableton Link is GPL-licensed unless you have a separate commercial license from Ableton. Keep `APP_ENABLE_LINK` optional for projects that cannot accept that dependency.
 
 ## Setup
 
-### 1. Enable in config.h
+Initialize the Link submodule:
 
-Add to your project's `config.h`:
+```sh
+git submodule update --init Dependencies/IPlug/Link
+```
+
+Enable Link in your project's `config.h`:
 
 ```cpp
 #define APP_ENABLE_LINK 1
 ```
 
-### 2. Add LinkKit Framework
+Add the reusable Link settings in your iOS `.xcconfig`:
 
-In your Xcode project's iOS App target:
-
-1. Go to **General** > **Frameworks, Libraries, and Embedded Content**
-2. Click **+** and add `LinkKit.xcframework` from `Dependencies/Build/xcframeworks/`
-3. Ensure it's set to **Embed & Sign**
-
-Add the framework search path in **Build Settings**:
-```
-$(IPLUG2_ROOT)/Dependencies/Build/xcframeworks
+```xcconfig
+EXTRA_INC_PATHS = $(IGRAPHICS_INC_PATHS) $(ABLETON_LINK_INC_PATHS)
+EXTRA_ALL_DEFS = OBJC_PREFIX=vMyPlug IGRAPHICS_NANOVG IGRAPHICS_METAL SAMPLE_TYPE_FLOAT $(ABLETON_LINK_DEFS)
 ```
 
-### 3. Configure Info.plist
-
-For start/stop sync support, add to your iOS App's Info.plist:
+For peer discovery on iOS 14+, add a local network usage string to the standalone app `Info.plist`:
 
 ```xml
-<key>ABLLinkStartStopSyncSupported</key>
-<true/>
+<key>NSLocalNetworkUsageDescription</key>
+<string>Ableton Link uses the local network to discover and synchronize with nearby music apps.</string>
 ```
 
-For iOS 14+, you may need the multicast entitlement. Add to your entitlements file:
+For device builds, add the multicast entitlement to the app entitlements file after Apple enables it for your team:
+
 ```xml
 <key>com.apple.developer.networking.multicast</key>
 <true/>
 ```
 
-## Adding a Link Settings Button
+## Settings Button
 
-To let users access Link settings, add a button in your plugin UI that calls `LaunchLinkSettingsDialog()`:
+Plugins can open the host-side Link sheet from iOS graphics code:
 
 ```cpp
-// In your plugin's UI setup (e.g., in the constructor lambda)
-pGraphics->AttachControl(new IVButtonControl(linkButtonBounds,
-  [pGraphics](IControl* pCaller) {
-    SplashClickActionFunc(pCaller);
-    // Launch Link settings popover at button position
-    IRECT bounds = pCaller->GetRECT();
-    pGraphics->LaunchLinkSettingsDialog(bounds.MW(), bounds.MH());
-  },
-  "Link", DEFAULT_STYLE));
+#if defined(OS_IOS) && defined(APP_ENABLE_LINK) && APP_ENABLE_LINK
+#include "IGraphicsIOS.h"
+#endif
+
+// In your UI setup:
+auto* linkBtn = new IVButtonControl(linkButtonBounds, SplashClickActionFunc, "Link", style);
+linkBtn->SetAnimationEndActionFunction([pGraphics](IControl* pCaller) {
+  if (auto* pIOSGraphics = dynamic_cast<IGraphicsIOS*>(pGraphics))
+  {
+    IRECT r = pCaller->GetRECT();
+    pIOSGraphics->LaunchLinkSettingsDialog(r.MW(), r.T);
+  }
+});
+pGraphics->AttachControl(linkBtn);
 ```
 
-This presents the standard Ableton Link settings view controller showing:
-- Link enable/disable toggle
-- Connection status (number of connected peers)
-- Start/Stop Sync toggle
+The settings sheet includes Link enable/disable, peer count, local tempo control, start/stop sync, and local transport start/stop controls. Link enable, start/stop sync, tempo, and quantum are persisted in `NSUserDefaults`.
 
-## Accessing Link Data in Your Plugin
+## Plugin Timing Data
 
-When Link is active, your plugin receives tempo and transport info through the standard `ITimeInfo` structure in `ProcessBlock()`:
+When Link is enabled, plugins read synchronized timing through the normal `ITimeInfo` values in `ProcessBlock()`:
 
 ```cpp
 void MyPlugin::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
 {
-  // Get current time info (populated from Link when enabled)
-  ITimeInfo timeInfo;
-  GetTimeInfo(timeInfo);
+  const double tempo = GetTempo();
+  const double beatPosition = GetPPQPos();
+  const double samplePosition = GetSamplePos();
+  const bool transportRunning = GetTransportIsRunning();
 
-  // Use Link-synced tempo
-  double tempo = timeInfo.mTempo;           // BPM from Link session
-  double beatPos = timeInfo.mPPQPos;        // Current beat position
-  bool isPlaying = timeInfo.mTransportIsRunning;  // Link play state
-
-  // Your tempo-synced audio processing...
+  // Tempo-synced processing...
 }
 ```
 
-## Default Values
+`IPlugAUPlayer` maps the Link timeline to:
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Initial Tempo | 120 BPM | Set via `DEFAULT_TEMPO` constant |
-| Quantum | 4.0 | Beats per bar (4/4 time signature) |
-| Link Active | true | Link networking enabled on app launch |
+- `mTempo`: Link session tempo
+- `mPPQPos`: Link beat position at the estimated output time
+- `mSamplePos`: beat-derived sample position using the current Link tempo
+- `mTransportIsRunning`: Link start/stop state
 
-## Architecture
+## Chunks Demo
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     iOS Standalone App                       │
-├─────────────────────────────────────────────────────────────┤
-│  IPlugAUPlayer                                               │
-│  ├── ABLLinkRef (Link session)                              │
-│  ├── Sets musicalContextBlock → tempo, beat position        │
-│  └── Sets transportStateBlock → play/stop, sample position  │
-├─────────────────────────────────────────────────────────────┤
-│  IPlugAUAudioUnit (your plugin as AUv3)                     │
-│  └── Queries context blocks in render → populates ITimeInfo │
-├─────────────────────────────────────────────────────────────┤
-│  Your Plugin ProcessBlock()                                  │
-│  └── GetTimeInfo() returns Link-synced values               │
-└─────────────────────────────────────────────────────────────┘
-```
+`Examples/IPlugChunks` enables Link for the iOS standalone app. The iOS UI has a `Link` button in the top bar that launches the settings sheet. The step display follows the Link tempo and beat phase.
 
 ## Troubleshooting
 
-### Link not discovering peers
-- Ensure all devices are on the same WiFi network
-- Check that multicast entitlement is configured (iOS 14+)
-- Verify Link is enabled in the settings UI
+If peers are not discovered:
 
-### Tempo not updating
-- Confirm `APP_ENABLE_LINK` is defined in config.h
-- Ensure LinkKit.xcframework is linked to the App target (not just the AUv3 extension)
+- Confirm all apps are on the same local network
+- Confirm Link is enabled in the settings sheet
+- Confirm `NSLocalNetworkUsageDescription` is present
+- Confirm the app build is signed with `com.apple.developer.networking.multicast` for device testing
 
-### Build errors about ABLLink.h
-- Verify framework search path includes `$(IPLUG2_ROOT)/Dependencies/Build/xcframeworks`
-- Ensure `#include "config.h"` appears before the Link imports
+If the project does not compile:
 
-## Limitations
+- Confirm `Dependencies/IPlug/Link` is initialized
+- Confirm `$(ABLETON_LINK_INC_PATHS)` is included in `EXTRA_INC_PATHS`
+- Confirm `$(ABLETON_LINK_DEFS)` is included in `EXTRA_ALL_DEFS`
 
-- iOS only (uses LinkKit xcframework)
-- Desktop standalone support requires separate integration with the cross-platform Link library
-- Time signature is currently hardcoded to 4/4
-- Quantum (beats per bar) is fixed at 4.0
+## Current Scope
 
-## Further Reading
-
-- [Ableton Link Documentation](https://ableton.github.io/link/)
-- [LinkKit Integration Guide](https://github.com/Ableton/LinkKit)
+- iOS standalone AUv3 host support
+- Fixed 4/4 time signature and default quantum of 4 beats
+- No desktop standalone Link host yet

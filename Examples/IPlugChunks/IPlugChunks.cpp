@@ -31,7 +31,8 @@ IPlugChunks::IPlugChunks(const InstanceInfo& info)
     auto* linkBtn = new IVButtonControl(linkBtnRect, SplashClickActionFunc, "Link", style);
     linkBtn->SetAnimationEndActionFunction([pGraphics](IControl* pCaller) {
       IRECT r = pCaller->GetRECT();
-      dynamic_cast<IGraphicsIOS*>(pGraphics)->LaunchLinkSettingsDialog(r.MW(), r.T);
+      if (auto* pIOSGraphics = dynamic_cast<IGraphicsIOS*>(pGraphics))
+        pIOSGraphics->LaunchLinkSettingsDialog(r.MW(), r.T);
     });
     pGraphics->AttachControl(linkBtn);
 #endif
@@ -86,18 +87,20 @@ int IPlugChunks::UnserializeState(const IByteChunk &chunk, int startPos)
 #if IPLUG_DSP
 void IPlugChunks::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
 {
-  int samplesPerBeat = (int) GetSamplesPerBeat();
-  int samplePos = (int) GetSamplePos();
+  const double samplePosD = GetSamplePos();
+  const bool hasHostPosition = samplePosD >= 0.0;
+  const bool shouldAdvanceSteps = !hasHostPosition || GetTransportIsRunning();
+  const int samplesPerBeat = (int) GetSamplesPerBeat();
+  const int samplesPerStep = samplesPerBeat > kBeatDiv ? samplesPerBeat / kBeatDiv : 1;
+  const int patternLength = samplesPerStep * kNumSteps;
+  const int samplePos = samplePosD > 0.0 ? (int) samplePosD : 0;
     
   for (int s = 0; s < nFrames; s++)
   {
-    int mod = (samplePos + s) % (samplesPerBeat * kBeatDiv);
-    
-    mStepPos = mod / (samplesPerBeat / kBeatDiv);
-    
-    if (mStepPos >= kNumSteps)
+    if (shouldAdvanceSteps)
     {
-      mStepPos = 0;
+      const int mod = (samplePos + s) % patternLength;
+      mStepPos = mod / samplesPerStep;
     }
   
     for (int c = 0; c < 2; c++) {
