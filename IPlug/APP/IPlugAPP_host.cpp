@@ -384,6 +384,9 @@ int IPlugAPPHost::GetMIDIPortNumber(ERoute direction, const char* nameToTest) co
   if (direction == ERoute::kInput)
   {
     if (nameStrView == OFF_TEXT) return 0;
+
+    // MIDI is unavailable (e.g. no ALSA sequencer): treat as off, keep the saved setting
+    if (!mMidiIn) return 0;
     
   #ifdef OS_MAC
     start = 2;
@@ -399,6 +402,8 @@ int IPlugAPPHost::GetMIDIPortNumber(ERoute direction, const char* nameToTest) co
   else
   {
     if (nameStrView == OFF_TEXT) return 0;
+
+    if (!mMidiOut) return 0;
   
   #ifdef OS_MAC
     start = 2;
