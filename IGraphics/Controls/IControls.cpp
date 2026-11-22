@@ -1527,9 +1527,11 @@ void ISVGToggleControl::Draw(IGraphics& g)
     g.DrawSVG(mOffSVG, mRECT, &mBlend, pOffColorStroke, pOffColorFill);
 }
 
-ISVGKnobControl::ISVGKnobControl(const IRECT& bounds, const ISVG& svg, int paramIdx)
+ISVGKnobControl::ISVGKnobControl(const IRECT& bounds, const ISVG& svg, int paramIdx, float a1, float a2)
 : IKnobControlBase(bounds, paramIdx)
 , mSVG(svg)
+, mStartAngle(a1)
+, mEndAngle(a2)
 {
 }
 

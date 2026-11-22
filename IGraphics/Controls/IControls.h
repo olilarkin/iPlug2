@@ -571,10 +571,19 @@ private:
 class ISVGKnobControl : public IKnobControlBase
 {
 public:
-  ISVGKnobControl(const IRECT& bounds, const ISVG& svg, int paramIdx = kNoParameter);
+  /** Constructs an SVG knob control
+   * @param bounds The control's bounds
+   * @param svg The SVG to rotate
+   * @param paramIdx The parameter index to link this control to
+   * @param a1 The start angle of the rotation in degrees
+   * @param a2 The end angle of the rotation in degrees */
+  ISVGKnobControl(const IRECT& bounds, const ISVG& svg, int paramIdx = kNoParameter, float a1 = -135.f, float a2 = 135.f);
   
   void Draw(IGraphics& g) override;
   void SetSVG(ISVG& svg);
+
+  /** Set the start and end angles of the rotation in degrees */
+  void SetAngles(float a1, float a2) { mStartAngle = a1; mEndAngle = a2; SetDirty(false); }
   
 private:
   ISVG mSVG;
